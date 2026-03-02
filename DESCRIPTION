@@ -1,0 +1,35 @@
+Package: cograph
+Title: Modern Network Visualization
+Version: 1.5.2
+Authors@R: c(
+    person("Mohammed", "Saqr", role = "aut"),
+    person("Sonsoles", "L\u00f3pez-Pernas", 
+           email = "sonsoles.lopez@uef.fi", role = c("aut", "cre")),
+    person("Santtu", "Tikka", role = "aut")
+  )
+Description: Provides tools for the analysis, visualization, and manipulation
+  of dynamical, social (Saqr et al. (2024) <doi:10.1007/978-3-031-54464-4_10>) and 
+  complex networks (Saqr et al. (2025) <doi:10.1145/3706468.3706513>). The package 
+  supports multiple network formats and offers flexible tools for heterogeneous, 
+  multi-layer, and hierarchical network analysis with simple syntax and
+  extensive toolset.
+License: MIT + file LICENSE
+URL: https://sonsoles.me/cograph/
+BugReports: https://github.com/sonsoleslp/cograph/issues
+Depends: R (>= 4.4.0)
+Imports: R6, grid, grDevices, ggplot2, stats, utils
+Suggests: igraph, network, scales, testthat (>= 3.0.0), knitr,
+        rmarkdown, digest, grImport2, rsvg, qgraph, tna, RColorBrewer,
+        colorspace
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+NeedsCompilation: no
+Packaged: 2026-02-23 22:28:43 UTC; slopezpe
+Author: Mohammed Saqr [aut],
+  Sonsoles López-Pernas [aut, cre],
+  Santtu Tikka [aut]
+Maintainer: Sonsoles López-Pernas <sonsoles.lopez@uef.fi>
+Repository: CRAN
+Date/Publication: 2026-03-02 21:40:08 UTC
