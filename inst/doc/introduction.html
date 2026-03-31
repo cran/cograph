@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Introduction to cograph</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Introduction to cograph</h1>
+
+
+
+<div id="overview" class="section level2">
+<h2>Overview</h2>
+<p>cograph is a modern R package for network visualization. It provides
+a clean, pipe-friendly API for creating publication-quality network
+plots.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(cograph)</span></code></pre></div>
+</div>
+<div id="creating-a-network" class="section level2">
+<h2>Creating a Network</h2>
+<p>cograph accepts several input formats:</p>
+<div id="from-an-adjacency-matrix" class="section level3">
+<h3>From an Adjacency Matrix</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Create a simple adjacency matrix</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>adj <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>,</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>,</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">5</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co"># Add labels</span></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="fu">rownames</span>(adj) <span class="ot">&lt;-</span> <span class="fu">colnames</span>(adj) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;A&quot;</span>, <span class="st">&quot;B&quot;</span>, <span class="st">&quot;C&quot;</span>, <span class="st">&quot;D&quot;</span>, <span class="st">&quot;E&quot;</span>)</span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a></span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="co"># Create and render</span></span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="fu">cograph</span>(adj)</span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a><span class="co">#&gt; Layout: none</span></span></code></pre></div>
+</div>
+<div id="from-an-edge-list" class="section level3">
+<h3>From an Edge List</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>edges <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>  <span class="at">from =</span> <span class="fu">c</span>(<span class="st">&quot;Alice&quot;</span>, <span class="st">&quot;Alice&quot;</span>, <span class="st">&quot;Bob&quot;</span>, <span class="st">&quot;Carol&quot;</span>),</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">to =</span> <span class="fu">c</span>(<span class="st">&quot;Bob&quot;</span>, <span class="st">&quot;Carol&quot;</span>, <span class="st">&quot;Carol&quot;</span>, <span class="st">&quot;Dave&quot;</span>),</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">weight =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">3</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>)</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="fu">cograph</span>(edges)</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="co">#&gt; Cograph network: 4 nodes, 4 edges ( undirected )</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a><span class="co">#&gt; Source: edgelist </span></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a><span class="co">#&gt; Data: data.frame (4 x 3) </span></span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="co">#&gt;   Nodes (4): Alice, Bob, Carol, Dave</span></span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="co">#&gt; Weights: 1 to 3 </span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; Layout: none</span></span></code></pre></div>
+</div>
+</div>
+<div id="layouts" class="section level2">
+<h2>Layouts</h2>
+<p>cograph provides several layout algorithms:</p>
+<div id="circular-layout" class="section level3">
+<h3>Circular Layout</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">cograph</span>(adj, <span class="at">layout =</span> <span class="st">&quot;circle&quot;</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="force-directed-spring-layout" class="section level3">
+<h3>Force-Directed (Spring) Layout</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">cograph</span>(adj, <span class="at">layout =</span> <span class="st">&quot;spring&quot;</span>, <span class="at">seed =</span> <span class="dv">42</span>)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="group-based-layout" class="section level3">
+<h3>Group-Based Layout</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>groups <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">2</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="fu">sn_layout</span>(<span class="st">&quot;groups&quot;</span>, <span class="at">groups =</span> groups)</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+</div>
+<div id="customizing-nodes" class="section level2">
+<h2>Customizing Nodes</h2>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>    <span class="at">size =</span> <span class="fl">0.08</span>,</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>    <span class="at">shape =</span> <span class="st">&quot;circle&quot;</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>    <span class="at">fill =</span> <span class="st">&quot;steelblue&quot;</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>    <span class="at">border_color =</span> <span class="st">&quot;navy&quot;</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>    <span class="at">border_width =</span> <span class="dv">2</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  )</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+<div id="per-node-styles" class="section level3">
+<h3>Per-Node Styles</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a>    <span class="at">size =</span> <span class="fu">c</span>(<span class="fl">0.05</span>, <span class="fl">0.06</span>, <span class="fl">0.08</span>, <span class="fl">0.06</span>, <span class="fl">0.05</span>),</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>    <span class="at">fill =</span> <span class="fu">c</span>(<span class="st">&quot;red&quot;</span>, <span class="st">&quot;orange&quot;</span>, <span class="st">&quot;yellow&quot;</span>, <span class="st">&quot;green&quot;</span>, <span class="st">&quot;blue&quot;</span>)</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  )</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="node-shapes" class="section level3">
+<h3>Node Shapes</h3>
+<p>Available shapes: <code>circle</code>, <code>square</code>,
+<code>triangle</code>, <code>diamond</code>, <code>pentagon</code>,
+<code>hexagon</code>, <code>ellipse</code>, <code>star</code>,
+<code>heart</code>, <code>pie</code>, <code>cross</code>.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>    <span class="at">shape =</span> <span class="fu">c</span>(<span class="st">&quot;circle&quot;</span>, <span class="st">&quot;square&quot;</span>, <span class="st">&quot;triangle&quot;</span>, <span class="st">&quot;diamond&quot;</span>, <span class="st">&quot;star&quot;</span>)</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  )</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+</div>
+<div id="customizing-edges" class="section level2">
+<h2>Customizing Edges</h2>
+<div id="basic-edge-styling" class="section level3">
+<h3>Basic Edge Styling</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="fu">sn_edges</span>(</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>    <span class="at">width =</span> <span class="dv">2</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;gray40&quot;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>    <span class="at">alpha =</span> <span class="fl">0.7</span></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  )</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="weighted-edges" class="section level3">
+<h3>Weighted Edges</h3>
+<p>For weighted networks, edge width and color can be mapped to
+weights:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># Create weighted adjacency matrix</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>weighted <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  <span class="dv">0</span>, <span class="fl">0.8</span>, <span class="sc">-</span><span class="fl">0.5</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>  <span class="fl">0.8</span>, <span class="dv">0</span>, <span class="fl">0.3</span>, <span class="sc">-</span><span class="fl">0.7</span>, <span class="dv">0</span>,</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>  <span class="sc">-</span><span class="fl">0.5</span>, <span class="fl">0.3</span>, <span class="dv">0</span>, <span class="fl">0.6</span>, <span class="sc">-</span><span class="fl">0.4</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>  <span class="dv">0</span>, <span class="sc">-</span><span class="fl">0.7</span>, <span class="fl">0.6</span>, <span class="dv">0</span>, <span class="fl">0.9</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="sc">-</span><span class="fl">0.4</span>, <span class="fl">0.9</span>, <span class="dv">0</span></span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">5</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a></span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a><span class="fu">cograph</span>(weighted) <span class="sc">|&gt;</span></span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>  <span class="fu">sn_edges</span>(</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>    <span class="at">width =</span> <span class="st">&quot;weight&quot;</span>,</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a>    <span class="at">color =</span> <span class="st">&quot;weight&quot;</span>,</span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a>    <span class="at">positive_color =</span> <span class="st">&quot;darkgreen&quot;</span>,</span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a>    <span class="at">negative_color =</span> <span class="st">&quot;darkred&quot;</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a>  )</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co">#&gt; Warning: &#39;positive_color&#39; is deprecated, use &#39;edge_positive_color&#39; instead.</span></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="co">#&gt; Warning: &#39;negative_color&#39; is deprecated, use &#39;edge_negative_color&#39; instead.</span></span>
+<span id="cb11-19"><a href="#cb11-19" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb11-20"><a href="#cb11-20" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb11-21"><a href="#cb11-21" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): 1, 2, 3, 4, 5</span></span>
+<span id="cb11-22"><a href="#cb11-22" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb11-23"><a href="#cb11-23" tabindex="-1"></a><span class="co">#&gt;   Weights: [-0.700, 0.900]  |  +4 / -3 edges</span></span>
+<span id="cb11-24"><a href="#cb11-24" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb11-25"><a href="#cb11-25" tabindex="-1"></a><span class="co">#&gt;     4 -- 5  0.900</span></span>
+<span id="cb11-26"><a href="#cb11-26" tabindex="-1"></a><span class="co">#&gt;     1 -- 2  0.800</span></span>
+<span id="cb11-27"><a href="#cb11-27" tabindex="-1"></a><span class="co">#&gt;     2 -- 4  -0.700</span></span>
+<span id="cb11-28"><a href="#cb11-28" tabindex="-1"></a><span class="co">#&gt;     3 -- 4  0.600</span></span>
+<span id="cb11-29"><a href="#cb11-29" tabindex="-1"></a><span class="co">#&gt;     1 -- 3  -0.500</span></span>
+<span id="cb11-30"><a href="#cb11-30" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="directed-networks" class="section level3">
+<h3>Directed Networks</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="co"># Create directed network</span></span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>dir_adj <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>,</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span></span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">5</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a><span class="fu">cograph</span>(dir_adj, <span class="at">directed =</span> <span class="cn">TRUE</span>) <span class="sc">|&gt;</span></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>  <span class="fu">sn_edges</span>(</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>    <span class="at">curvature =</span> <span class="fl">0.1</span>,</span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>    <span class="at">arrow_size =</span> <span class="fl">0.015</span></span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>  )</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( directed )</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): 1, 2, 3, 4, 5</span></span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 20 (density: 35.0%)</span></span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a><span class="co">#&gt;     1 -&gt; 2  1.000</span></span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a><span class="co">#&gt;     1 -&gt; 3  1.000</span></span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a><span class="co">#&gt;     2 -&gt; 3  1.000</span></span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a><span class="co">#&gt;     2 -&gt; 4  1.000</span></span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a><span class="co">#&gt;     3 -&gt; 4  1.000</span></span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+</div>
+<div id="themes" class="section level2">
+<h2>Themes</h2>
+<p>cograph includes several built-in themes:</p>
+<div id="classic-theme-default" class="section level3">
+<h3>Classic Theme (Default)</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span> <span class="fu">sn_theme</span>(<span class="st">&quot;classic&quot;</span>)</span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="dark-theme" class="section level3">
+<h3>Dark Theme</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span> <span class="fu">sn_theme</span>(<span class="st">&quot;dark&quot;</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="minimal-theme" class="section level3">
+<h3>Minimal Theme</h3>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span> <span class="fu">sn_theme</span>(<span class="st">&quot;minimal&quot;</span>)</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+<div id="colorblind-friendly-theme" class="section level3">
+<h3>Colorblind-Friendly Theme</h3>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span> <span class="fu">sn_theme</span>(<span class="st">&quot;colorblind&quot;</span>)</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a><span class="co">#&gt; Cograph network: 5 nodes, 7 edges ( undirected )</span></span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="co">#&gt; Source: matrix </span></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt;   Nodes (5): A, B, C, D, E</span></span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co">#&gt;   Edges: 7 / 10 (density: 70.0%)</span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co">#&gt;   Weights: [1.000, 1.000]  |  mean: 1.000</span></span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a><span class="co">#&gt;   Strongest edges:</span></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co">#&gt;     A -- B  1.000</span></span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a><span class="co">#&gt;     A -- C  1.000</span></span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a><span class="co">#&gt;     B -- C  1.000</span></span>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a><span class="co">#&gt;     B -- D  1.000</span></span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a><span class="co">#&gt;     C -- D  1.000</span></span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a><span class="co">#&gt; Layout: set</span></span></code></pre></div>
+</div>
+</div>
+<div id="ggplot2-conversion" class="section level2">
+<h2>ggplot2 Conversion</h2>
+<p>Convert your network to a ggplot2 object for additional
+customization:</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="co">#&gt; Attaching package: &#39;ggplot2&#39;</span></span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a><span class="co">#&gt; The following object is masked from &#39;package:cograph&#39;:</span></span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a><span class="co">#&gt;     get_theme</span></span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>p <span class="ot">&lt;-</span> <span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(<span class="at">fill =</span> <span class="st">&quot;coral&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>  <span class="fu">sn_ggplot</span>()</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a></span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>p <span class="sc">+</span></span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>  <span class="fu">labs</span>(</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>    <span class="at">title =</span> <span class="st">&quot;My Network&quot;</span>,</span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>    <span class="at">subtitle =</span> <span class="st">&quot;Created with cograph&quot;</span></span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a>  ) <span class="sc">+</span></span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">plot.title =</span> <span class="fu">element_text</span>(<span class="at">hjust =</span> <span class="fl">0.5</span>))</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+</div>
+<div id="complete-example" class="section level2">
+<h2>Complete Example</h2>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="co"># Social network example</span></span>
+<span id="cb18-2"><a href="#cb18-2" tabindex="-1"></a>social <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(</span>
+<span id="cb18-3"><a href="#cb18-3" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb18-4"><a href="#cb18-4" tabindex="-1"></a>  <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">0</span>,</span>
+<span id="cb18-5"><a href="#cb18-5" tabindex="-1"></a>  <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>,</span>
+<span id="cb18-6"><a href="#cb18-6" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>,</span>
+<span id="cb18-7"><a href="#cb18-7" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>,</span>
+<span id="cb18-8"><a href="#cb18-8" tabindex="-1"></a>  <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">0</span>, <span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">0</span></span>
+<span id="cb18-9"><a href="#cb18-9" tabindex="-1"></a>), <span class="at">nrow =</span> <span class="dv">6</span>, <span class="at">byrow =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb18-10"><a href="#cb18-10" tabindex="-1"></a></span>
+<span id="cb18-11"><a href="#cb18-11" tabindex="-1"></a><span class="fu">rownames</span>(social) <span class="ot">&lt;-</span> <span class="fu">colnames</span>(social) <span class="ot">&lt;-</span></span>
+<span id="cb18-12"><a href="#cb18-12" tabindex="-1"></a>  <span class="fu">c</span>(<span class="st">&quot;Alice&quot;</span>, <span class="st">&quot;Bob&quot;</span>, <span class="st">&quot;Carol&quot;</span>, <span class="st">&quot;Dave&quot;</span>, <span class="st">&quot;Eve&quot;</span>, <span class="st">&quot;Frank&quot;</span>)</span>
+<span id="cb18-13"><a href="#cb18-13" tabindex="-1"></a></span>
+<span id="cb18-14"><a href="#cb18-14" tabindex="-1"></a>groups <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;Team A&quot;</span>, <span class="st">&quot;Team A&quot;</span>, <span class="st">&quot;Team A&quot;</span>, <span class="st">&quot;Team B&quot;</span>, <span class="st">&quot;Team B&quot;</span>, <span class="st">&quot;Team B&quot;</span>)</span>
+<span id="cb18-15"><a href="#cb18-15" tabindex="-1"></a></span>
+<span id="cb18-16"><a href="#cb18-16" tabindex="-1"></a>social <span class="sc">|&gt;</span></span>
+<span id="cb18-17"><a href="#cb18-17" tabindex="-1"></a>  <span class="fu">cograph</span>() <span class="sc">|&gt;</span></span>
+<span id="cb18-18"><a href="#cb18-18" tabindex="-1"></a>  <span class="fu">sn_layout</span>(<span class="st">&quot;groups&quot;</span>, <span class="at">groups =</span> groups) <span class="sc">|&gt;</span></span>
+<span id="cb18-19"><a href="#cb18-19" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(</span>
+<span id="cb18-20"><a href="#cb18-20" tabindex="-1"></a>    <span class="at">size =</span> <span class="fl">0.06</span>,</span>
+<span id="cb18-21"><a href="#cb18-21" tabindex="-1"></a>    <span class="at">fill =</span> <span class="fu">ifelse</span>(groups <span class="sc">==</span> <span class="st">&quot;Team A&quot;</span>, <span class="st">&quot;#E69F00&quot;</span>, <span class="st">&quot;#56B4E9&quot;</span>),</span>
+<span id="cb18-22"><a href="#cb18-22" tabindex="-1"></a>    <span class="at">border_width =</span> <span class="dv">2</span></span>
+<span id="cb18-23"><a href="#cb18-23" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb18-24"><a href="#cb18-24" tabindex="-1"></a>  <span class="fu">sn_edges</span>(<span class="at">width =</span> <span class="fl">1.5</span>, <span class="at">alpha =</span> <span class="fl">0.6</span>) <span class="sc">|&gt;</span></span>
+<span id="cb18-25"><a href="#cb18-25" tabindex="-1"></a>  <span class="fu">sn_theme</span>(<span class="st">&quot;minimal&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb18-26"><a href="#cb18-26" tabindex="-1"></a>  <span class="fu">sn_render</span>(<span class="at">title =</span> <span class="st">&quot;Social Network&quot;</span>)</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+</div>
+<div id="saving-plots" class="section level2">
+<h2>Saving Plots</h2>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a>net <span class="ot">&lt;-</span> <span class="fu">cograph</span>(adj) <span class="sc">|&gt;</span></span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>  <span class="fu">sn_nodes</span>(<span class="at">fill =</span> <span class="st">&quot;steelblue&quot;</span>) <span class="sc">|&gt;</span></span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a>  <span class="fu">sn_theme</span>(<span class="st">&quot;minimal&quot;</span>)</span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a><span class="co"># Save as PDF</span></span>
+<span id="cb19-6"><a href="#cb19-6" tabindex="-1"></a><span class="fu">sn_save</span>(net, <span class="st">&quot;network.pdf&quot;</span>, <span class="at">width =</span> <span class="dv">8</span>, <span class="at">height =</span> <span class="dv">8</span>)</span>
+<span id="cb19-7"><a href="#cb19-7" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" tabindex="-1"></a><span class="co"># Save as PNG</span></span>
+<span id="cb19-9"><a href="#cb19-9" tabindex="-1"></a><span class="fu">sn_save</span>(net, <span class="st">&quot;network.png&quot;</span>, <span class="at">width =</span> <span class="dv">8</span>, <span class="at">height =</span> <span class="dv">8</span>, <span class="at">dpi =</span> <span class="dv">300</span>)</span>
+<span id="cb19-10"><a href="#cb19-10" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" tabindex="-1"></a><span class="co"># Save as SVG</span></span>
+<span id="cb19-12"><a href="#cb19-12" tabindex="-1"></a><span class="fu">sn_save</span>(net, <span class="st">&quot;network.svg&quot;</span>, <span class="at">width =</span> <span class="dv">8</span>, <span class="at">height =</span> <span class="dv">8</span>)</span></code></pre></div>
+</div>
+<div id="next-steps" class="section level2">
+<h2>Next Steps</h2>
+<ul>
+<li>Explore different layouts with <code>list_layouts()</code></li>
+<li>Try different shapes with <code>list_shapes()</code></li>
+<li>See available themes with <code>list_themes()</code></li>
+<li>Check out the ggplot2 vignette for advanced customization</li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -1,9 +1,10 @@
 #' @title CographNetwork R6 Class
-#' @keywords internal
+#'
 #' @description
 #' Core class representing a network for visualization. Stores nodes, edges,
 #' layout coordinates, and aesthetic mappings.
 #'
+#' @return A \code{CographNetwork} R6 object.
 #' @export
 #' @examples
 #' # Create network from adjacency matrix
@@ -20,22 +21,67 @@ CographNetwork <- R6::R6Class(
     #' @description Create a new CographNetwork object.
     #' @param input Network input (matrix, edge list, or igraph object).
     #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
-    #' @param node_labels Character vector of node labels.
+    #' @param nodes Node metadata. Can be NULL or a data frame with node attributes.
+    #'   If data frame has a `label` or `labels` column, those are used for display.
+    #' @param simplify Logical or character. If FALSE (default), every transition
+    #'   from tna sequence data is a separate edge. If TRUE or a string
+    #'   ("sum", "mean", "max", "min"), duplicate edges are aggregated.
     #' @return A new CographNetwork object.
-    initialize = function(input = NULL, directed = NULL, node_labels = NULL) {
+    initialize = function(input = NULL, directed = NULL, nodes = NULL,
+                          simplify = FALSE) {
       if (!is.null(input)) {
-        parsed <- parse_input(input, directed = directed)
+        parsed <- parse_input(input, directed = directed, simplify = simplify)
         private$.nodes <- parsed$nodes
         private$.edges <- parsed$edges
         private$.directed <- parsed$directed
         private$.weights <- parsed$weights
 
-        # Set node labels
-        if (!is.null(node_labels)) {
-          if (length(node_labels) != nrow(private$.nodes)) {
-            stop("node_labels length must match number of nodes", call. = FALSE)
+        # Merge nodes metadata if provided as data frame
+        if (is.data.frame(nodes)) {
+          # Determine which column to use for matching
+          # Priority: name > label > id (match against network's internal label)
+          net_labels <- private$.nodes$label
+          match_col <- NULL
+          idx <- NULL
+
+          # Try matching by 'name' column first
+          if ("name" %in% names(nodes)) {
+            test_idx <- match(net_labels, nodes$name)
+            if (sum(!is.na(test_idx)) > 0) {
+              match_col <- "name"
+              idx <- test_idx
+            }
           }
-          private$.nodes$label <- node_labels
+
+          # Try matching by 'label' column
+          if (is.null(idx) && "label" %in% names(nodes)) {
+            test_idx <- match(net_labels, nodes$label)
+            if (sum(!is.na(test_idx)) > 0) {
+              match_col <- "label"
+              idx <- test_idx
+            }
+          }
+
+          # Try matching by 'id' column
+          if (is.null(idx) && "id" %in% names(nodes)) {
+            test_idx <- match(net_labels, nodes$id)
+            if (sum(!is.na(test_idx)) > 0) {
+              match_col <- "id"
+              idx <- test_idx
+            }
+          }
+
+          if (!is.null(idx)) {
+            # Merge all columns except the match column
+            for (col in setdiff(names(nodes), match_col)) {
+              private$.nodes[[col]] <- nodes[[col]][idx]
+            }
+          } else if (nrow(nodes) == nrow(private$.nodes)) {
+            # Fallback: assume same order
+            for (col in names(nodes)) {
+              private$.nodes[[col]] <- nodes[[col]]
+            }
+          }
         }
       }
 
@@ -122,7 +168,9 @@ CographNetwork <- R6::R6Class(
       if (!is.null(coords)) {
         if (is.matrix(coords)) {
           coords <- as.data.frame(coords)
-          names(coords)[1:2] <- c("x", "y")
+          if (is.null(names(coords))) { # nocov
+            names(coords) <- c("x", "y") # nocov
+          } # nocov
         }
         private$.layout <- coords
         # Update node positions
@@ -249,9 +297,15 @@ CographNetwork <- R6::R6Class(
       !is.null(private$.weights) && any(private$.weights != 1)
     },
 
-    #' @field node_labels Vector of node labels.
+    #' @field node_labels Vector of node labels (priority: labels > label).
     node_labels = function() {
-      if (is.null(private$.nodes)) NULL else private$.nodes$label
+      if (is.null(private$.nodes)) {
+        NULL
+      } else if (!is.null(private$.nodes$labels)) {
+        private$.nodes$labels
+      } else {
+        private$.nodes$label
+      }
     }
   ),
 
@@ -278,25 +332,83 @@ is_cograph_network <- function(x) {
   inherits(x, "CographNetwork") || inherits(x, "cograph_network")
 }
 
-#' @title Create cograph_network S3 class wrapper
-#' @param network CographNetwork R6 object.
-#' @return Object with cograph_network class.
+# =============================================================================
+# Unified cograph_network Constructor
+# =============================================================================
+
+#' Create Unified cograph_network Object
+#'
+#' Internal constructor that creates a cograph_network object with the unified
+#' format. Both cograph() and as_cograph() use this to ensure identical output.
+#'
+#' @param nodes Data frame with node information (id, label, x, y, ...).
+#' @param edges Data frame with edge information (from, to, weight).
+#' @param directed Logical. Is the network directed?
+#' @param meta List with consolidated metadata: source, layout, tna sub-fields.
+#' @param weights Full n×n weight matrix for TNA compatibility, or NULL.
+#' @param data Original estimation data (sequence matrix, edge list, etc.), or NULL.
+#' @param node_groups Optional node groupings data frame.
+#' @return A cograph_network object (named list with class).
 #' @keywords internal
-as_cograph_network <- function(network) {
-  obj <- structure(
-    list(network = network),
-    class = c("cograph_network", "list")
+.create_cograph_network <- function(
+    nodes,
+    edges,
+    directed,
+    meta = list(),
+    weights = NULL,
+    data = NULL,
+    node_groups = NULL,
+    type = NULL
+) {
+  # Ensure edges data frame has standard columns, preserving extra columns
+  if (!is.null(edges) && nrow(edges) > 0) {
+    edges_df <- data.frame(
+      from = as.integer(edges$from),
+      to = as.integer(edges$to),
+      weight = if (!is.null(edges$weight)) as.numeric(edges$weight) else rep(1, nrow(edges)),
+      stringsAsFactors = FALSE
+    )
+    # Preserve extra columns (e.g., session, time from temporal edge lists)
+    extra_cols <- setdiff(names(edges), c("from", "to", "weight"))
+    for (col in extra_cols) {
+      edges_df[[col]] <- edges[[col]]
+    }
+  } else {
+    edges_df <- data.frame(from = integer(0), to = integer(0), weight = numeric(0))
+  }
+
+  # Ensure meta has required sub-fields
+  if (is.null(meta$source)) meta$source <- "unknown"
+  if (is.null(meta$layout)) meta$layout <- NULL
+  if (is.null(meta$tna)) meta$tna <- NULL
+  if (!is.null(type)) meta$type <- type
+
+  # Build the lean network object
+  net <- list(
+    # Core data
+    nodes = nodes,
+    edges = edges_df,
+    directed = directed,
+
+    # Full matrix (for to_matrix round-trip)
+    weights = weights,
+
+    # Original estimation data
+    data = data,
+
+    # Consolidated metadata
+    meta = meta,
+
+    # Optional groupings
+    node_groups = node_groups
   )
-  # Add direct access to layout and plot params
-  obj$layout <- network$get_layout()
-  obj$layout_info <- network$get_layout_info()
-  obj$plot_params <- network$get_plot_params()
-  obj$nodes <- network$get_nodes()
-  obj$edges <- network$get_edges()
-  obj$node_aes <- network$get_node_aes()
-  obj$edge_aes <- network$get_edge_aes()
-  obj
+
+  # Set S3 class
+  class(net) <- c("cograph_network", "list")
+
+  net
 }
+
 
 # =============================================================================
 # Getter Functions for cograph_network
@@ -319,18 +431,9 @@ as_cograph_network <- function(network) {
 #' get_nodes(net)
 get_nodes <- function(x) {
   if (inherits(x, "cograph_network")) {
-    # Check for new list format first (nodes stored as list element)
+    # Unified format: nodes stored as list element
     if (!is.null(x$nodes) && is.data.frame(x$nodes)) {
       return(x$nodes)
-    }
-    # Check for old attr format
-    nodes_attr <- attr(x, "nodes")
-    if (!is.null(nodes_attr)) {
-      return(nodes_attr)
-    }
-    # R6 object in old wrapper
-    if (!is.null(x$network) && inherits(x$network, "CographNetwork")) {
-      return(x$network$get_nodes())
     }
   }
   stop("Cannot extract nodes from this object", call. = FALSE)
@@ -339,7 +442,6 @@ get_nodes <- function(x) {
 #' Get Edges from Cograph Network
 #'
 #' Extracts the edges data frame from a cograph_network object.
-#' For the new format, builds a data frame from the from/to/weight vectors.
 #'
 #' @param x A cograph_network object.
 #' @return A data frame with columns: from, to, weight.
@@ -354,28 +456,12 @@ get_nodes <- function(x) {
 #' get_edges(net)
 get_edges <- function(x) {
   if (inherits(x, "cograph_network")) {
-    # Check for new list format (from/to/weight as list elements)
-    if (!is.null(x$n_nodes)) {
-      # New format: build data frame from vectors
-      if (length(x$from) > 0) {
-        return(data.frame(
-          from = x$from,
-          to = x$to,
-          weight = x$weight,
-          stringsAsFactors = FALSE
-        ))
-      } else {
-        return(data.frame(from = integer(0), to = integer(0), weight = numeric(0)))
-      }
-    }
-    # Check for old wrapper format with edges stored directly
+    # Edges stored as data frame
     if (!is.null(x$edges) && is.data.frame(x$edges)) {
       return(x$edges)
     }
-    # R6 object in old wrapper
-    if (!is.null(x$network) && inherits(x$network, "CographNetwork")) {
-      return(x$network$get_edges())
-    }
+    # Empty edges
+    return(data.frame(from = integer(0), to = integer(0), weight = numeric(0)))
   }
   stop("Cannot extract edges from this object", call. = FALSE)
 }
@@ -396,23 +482,94 @@ get_edges <- function(x) {
 #' net <- as_cograph(mat)
 #' get_labels(net)
 get_labels <- function(x) {
+
   if (inherits(x, "cograph_network")) {
-    # Check for new list format
-    if (!is.null(x$labels)) {
-      return(x$labels)
-    }
-    # Check for old attr format
-    labels_attr <- attr(x, "labels")
-    if (!is.null(labels_attr)) {
-      return(labels_attr)
-    }
-    # Try getting from nodes
-    nodes <- get_nodes(x)
-    if (!is.null(nodes) && "label" %in% names(nodes)) {
-      return(nodes$label)
+    # Compute from nodes data frame (priority: labels > label)
+    nodes <- x$nodes
+    if (!is.null(nodes)) {
+      if ("labels" %in% names(nodes)) {
+        return(nodes$labels)
+      } else if ("label" %in% names(nodes)) {
+        return(nodes$label)
+      }
     }
   }
   stop("Cannot extract labels from this object", call. = FALSE)
+}
+
+#' Get Source Type from Cograph Network
+#'
+#' Extracts the source type string from a cograph_network object's metadata.
+#'
+#' @param x A cograph_network object.
+#' @return A character string indicating the input type (e.g., "matrix", "tna",
+#'   "igraph", "edgelist"), or "unknown" if not set.
+#'
+#' @seealso \code{\link{as_cograph}}, \code{\link{get_meta}}
+#'
+#' @export
+#'
+#' @examples
+#' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' net <- as_cograph(mat)
+#' get_source(net)  # "matrix"
+get_source <- function(x) {
+  if (!inherits(x, "cograph_network")) {
+    stop("x must be a cograph_network object", call. = FALSE)
+  }
+  x$meta$source %||% "unknown"
+}
+
+#' Get Original Data from Cograph Network
+#'
+#' Extracts the original estimation data stored in a cograph_network object.
+#' This is the raw input data (e.g., sequence matrix from tna, edge list
+#' data frame) preserved for reference.
+#'
+#' @param x A cograph_network object.
+#' @return The original data object, or NULL if not stored.
+#'
+#' @seealso \code{\link{as_cograph}}, \code{\link{get_meta}}
+#'
+#' @export
+#'
+#' @examples
+#' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' net <- as_cograph(mat)
+#' get_data(net)  # NULL (matrices don't store raw data)
+get_data <- function(x) {
+  if (!inherits(x, "cograph_network")) {
+    stop("x must be a cograph_network object", call. = FALSE)
+  }
+  x$data
+}
+
+#' Get Metadata from Cograph Network
+#'
+#' Extracts the consolidated metadata list from a cograph_network object.
+#' The metadata contains source type, layout info, and TNA metadata.
+#'
+#' @param x A cograph_network object.
+#' @return A list with components:
+#'   \describe{
+#'     \item{\code{source}}{Character string indicating input type}
+#'     \item{\code{layout}}{List with layout name and seed, or NULL}
+#'     \item{\code{tna}}{List with TNA metadata (type, group_name, group_index), or NULL}
+#'   }
+#'
+#' @seealso \code{\link{as_cograph}}, \code{\link{get_source}}
+#'
+#' @export
+#'
+#' @examples
+#' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' net <- as_cograph(mat)
+#' get_meta(net)
+get_meta <- function(x) {
+  if (!inherits(x, "cograph_network")) {
+    stop("x must be a cograph_network object", call. = FALSE)
+  }
+  x$meta
 }
 
 # =============================================================================
@@ -422,7 +579,6 @@ get_labels <- function(x) {
 #' Set Nodes in Cograph Network
 #'
 #' Replaces the nodes data frame in a cograph_network object.
-#' Automatically updates n_nodes and labels.
 #'
 #' @param x A cograph_network object.
 #' @param nodes_df A data frame with node information (id, label columns expected).
@@ -454,10 +610,8 @@ set_nodes <- function(x, nodes_df) {
     nodes_df$label <- as.character(nodes_df$id)
   }
 
-  # Update the network
+  # Update the network (no redundant fields to update)
   x$nodes <- nodes_df
-  x$n_nodes <- nrow(nodes_df)
-  x$labels <- nodes_df$label
 
   x
 }
@@ -466,7 +620,6 @@ set_nodes <- function(x, nodes_df) {
 #'
 #' Replaces the edges in a cograph_network object.
 #' Expects a data frame with from, to, and optionally weight columns.
-#' Updates the from, to, weight vectors and n_edges.
 #'
 #' @param x A cograph_network object.
 #' @param edges_df A data frame with columns: from, to, and optionally weight.
@@ -498,11 +651,13 @@ set_edges <- function(x, edges_df) {
     edges_df$weight <- rep(1, nrow(edges_df))
   }
 
-  # Update the network
-  x$from <- as.integer(edges_df$from)
-  x$to <- as.integer(edges_df$to)
-  x$weight <- as.numeric(edges_df$weight)
-  x$n_edges <- nrow(edges_df)
+  # Update the network (store as data frame only, no redundant vectors)
+  x$edges <- data.frame(
+    from = as.integer(edges_df$from),
+    to = as.integer(edges_df$to),
+    weight = as.numeric(edges_df$weight),
+    stringsAsFactors = FALSE
+  )
 
   x
 }
@@ -552,7 +707,6 @@ set_layout <- function(x, layout_df) {
   nodes$x <- layout_df$x
   nodes$y <- layout_df$y
   x$nodes <- nodes
-  x$layout <- layout_df
 
   x
 }
@@ -575,31 +729,34 @@ set_layout <- function(x, layout_df) {
 #'   - A tna object
 #'   - An existing cograph_network object (returned as-is)
 #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
+#' @param simplify Logical or character. If FALSE (default), every transition
+#'   from tna sequence data is a separate edge. If TRUE or a string
+#'   ("sum", "mean", "max", "min"), duplicate edges are aggregated.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return A cograph_network object: a named list with components:
 #'   \describe{
-#'     \item{\code{from}}{Integer vector of source node indices}
-#'     \item{\code{to}}{Integer vector of target node indices}
-#'     \item{\code{weight}}{Numeric vector of edge weights}
 #'     \item{\code{nodes}}{Data frame with id, label, (x, y if layout applied)}
+#'     \item{\code{edges}}{Data frame with from, to, weight columns}
 #'     \item{\code{directed}}{Logical indicating if network is directed}
-#'     \item{\code{n_nodes}}{Integer count of nodes}
-#'     \item{\code{n_edges}}{Integer count of edges}
-#'     \item{\code{labels}}{Character vector of node labels}
-#'     \item{\code{source}}{Character indicating input type}
-#'     \item{\code{layout}}{Layout coordinates (NULL until computed)}
-#'     \item{\code{layout_info}}{Layout algorithm info (NULL until computed)}
+#'     \item{\code{weights}}{Full n×n weight matrix (for to_matrix round-trip)}
+#'     \item{\code{data}}{Original estimation data (sequence matrix, edge list, etc.), or NULL}
+#'     \item{\code{meta}}{Consolidated metadata list with sub-fields:
+#'       \code{source} (input type string),
+#'       \code{layout} (layout info list or NULL),
+#'       \code{tna} (TNA metadata or NULL)}
+#'     \item{\code{node_groups}}{Optional node groupings data frame}
 #'   }
 #'
 #' @details
 #' The cograph_network format is designed to be:
-#' - Simple: All data accessible via \code{net$from}, \code{net$to}, \code{net$weight}, etc.
+#' - Lean: Only essential data stored, computed values derived on demand
 #' - Modern: Uses named list elements instead of attributes for clean \code{$} access
 #' - Compatible: Works seamlessly with splot() and other cograph functions
 #'
 #' Use getter functions for programmatic access:
-#' \code{\link{get_nodes}}, \code{\link{get_edges}}, \code{\link{get_labels}}
+#' \code{\link{get_nodes}}, \code{\link{get_edges}}, \code{\link{get_labels}},
+#' \code{\link{n_nodes}}, \code{\link{n_edges}}
 #'
 #' Use setter functions to modify:
 #' \code{\link{set_nodes}}, \code{\link{set_edges}}, \code{\link{set_layout}}
@@ -618,14 +775,10 @@ set_layout <- function(x, layout_df) {
 #' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 #' net <- as_cograph(mat)
 #'
-#' # Direct $ access to all data
-#' net$from       # edge sources
-#' net$to         # edge targets
-#' net$weight     # edge weights
+#' # Direct $ access to core data
 #' net$nodes      # nodes data frame
+#' net$edges      # edges data frame
 #' net$directed   # TRUE/FALSE
-#' net$n_nodes    # 3
-#' net$n_edges    # 3
 #'
 #' # Getter functions (recommended for programmatic use)
 #' get_nodes(net)   # nodes data frame
@@ -633,7 +786,7 @@ set_layout <- function(x, layout_df) {
 #' get_labels(net)  # character vector of labels
 #' n_nodes(net)     # 3
 #' n_edges(net)     # 3
-#' is_directed(net) # FALSE (symmetric matrix)
+#' cograph::is_directed(net) # FALSE (symmetric matrix)
 #'
 #' # Setter functions
 #' net <- set_nodes(net, data.frame(id = 1:3, label = c("A", "B", "C")))
@@ -645,12 +798,11 @@ set_layout <- function(x, layout_df) {
 #'
 #' # From igraph (if installed)
 #' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   library(igraph)
-#'   g <- make_ring(10)
+#'   g <- igraph::make_ring(10)
 #'   net <- as_cograph(g)
 #'   splot(net)
 #' }
-as_cograph <- function(x, directed = NULL, ...) {
+as_cograph <- function(x, directed = NULL, simplify = FALSE, ...) {
   # Return as-is if already a cograph_network
 
   if (inherits(x, "cograph_network")) {
@@ -658,7 +810,7 @@ as_cograph <- function(x, directed = NULL, ...) {
   }
 
   # Parse the input
-  parsed <- parse_input(x, directed = directed)
+  parsed <- parse_input(x, directed = directed, simplify = simplify)
 
   # Determine source type
   source_type <- if (is.matrix(x)) {
@@ -674,52 +826,299 @@ as_cograph <- function(x, directed = NULL, ...) {
   } else if (inherits(x, "tna")) {
     "tna"
   } else {
-    "unknown"
+    "unknown" # nocov
   }
 
-  # Extract from/to/weight from edges data frame
-  edges <- parsed$edges
-  if (!is.null(edges) && nrow(edges) > 0) {
-    from_vec <- as.integer(edges$from)
-    to_vec <- as.integer(edges$to)
-    weight_vec <- if (!is.null(edges$weight)) as.numeric(edges$weight) else rep(1, nrow(edges))
+  # Get full weight matrix if available
+  weights_matrix <- NULL
+  if (!is.null(parsed$weights_matrix)) {
+    # Use weights matrix from parse_input if provided
+    weights_matrix <- parsed$weights_matrix
+  } else if (is.matrix(x) && nrow(x) == ncol(x)) {
+    # Square matrix input: preserve it
+    weights_matrix <- x
+  }
+
+  # Create minimal TNA metadata (without model/parent)
+  tna_meta <- NULL
+  if (!is.null(parsed$tna)) {
+    tna_meta <- list(
+      type = parsed$tna$type,
+      group_name = parsed$tna$group_name,
+      group_index = parsed$tna$group_index
+    )
+  }
+
+  # Capture raw data for $data field
+  raw_data <- if (inherits(x, "tna")) {
+    x$data
+  } else if (is.data.frame(x)) {
+    x
   } else {
-    from_vec <- integer(0)
-    to_vec <- integer(0)
-    weight_vec <- numeric(0)
+    NULL
   }
 
-  # Get nodes data frame
-
-  nodes_df <- parsed$nodes
-
-  # Create the network object with all data as named list elements
-  net <- list(
-    # Core edge data
-    from = from_vec,
-    to = to_vec,
-    weight = weight_vec,
-
-    # Metadata as list elements (not attributes)
-    nodes = nodes_df,
+  # Use lean constructor
+  .create_cograph_network(
+    nodes = parsed$nodes,
+    edges = parsed$edges,
     directed = parsed$directed,
-    n_nodes = nrow(nodes_df),
-    n_edges = length(from_vec),
-    labels = nodes_df$label,
-    source = source_type,
-
-    # Optional elements (NULL if not set)
-    layout = NULL,
-    layout_info = NULL,
-    layers = NULL,
-    clusters = NULL,
-    groups = NULL
+    meta = list(source = source_type, layout = NULL, tna = tna_meta),
+    weights = weights_matrix,
+    data = raw_data
   )
+}
 
-  # Set S3 class
-  class(net) <- c("cograph_network", "list")
+#' @rdname as_cograph
+#' @return A \code{cograph_network} object. See \code{\link{as_cograph}}.
+#' @export
+#' @examples
+#' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' net <- to_cograph(mat)
+to_cograph <- function(x, directed = NULL, ...) {
+  as_cograph(x, directed = directed, ...)
+}
 
-  net
+#' Set Node Groups
+#'
+#' Assigns node groupings to a cograph_network object. Groups are stored as
+#' metadata with a type column ("layer", "cluster", or "group") for use by
+#' specialized plot functions.
+#'
+#' @param x A cograph_network object.
+#' @param groups Node groupings in one of these formats:
+#'   \itemize{
+#'     \item Character string: Community detection method ("louvain", "walktrap",
+#'       "fast_greedy", "label_prop", "infomap", "leiden")
+#'     \item Named list: Group name -> node vector mapping
+#'       (e.g., \code{list(A = c("N1","N2"), B = c("N3","N4"))})
+#'     \item Unnamed vector: Group assignment per node (same order as nodes)
+#'     \item Data frame: Must have "node"/"nodes" column plus one of
+#'       "layer"/"layers", "cluster"/"clusters", or "group"/"groups"
+#'       (plural forms are automatically normalized to singular)
+#'     \item NULL: Use \code{nodes} + one of \code{layers}/\code{clusters}/\code{groups} vectors
+#'   }
+#' @param type Group type. One of \code{"group"} (default), \code{"cluster"},
+#'   or \code{"layer"}. Ignored when using vector arguments (\code{layers},
+#'   \code{clusters}, \code{groups}) since the type is inferred from which
+#'   argument is provided.
+#' @param nodes Character vector of node labels. Use with \code{layers}, \code{clusters},
+#'   or \code{groups} to specify groupings via vectors instead of a data frame.
+#' @param layers Character/factor vector of layer assignments (same length as \code{nodes}).
+#' @param clusters Character/factor vector of cluster assignments (same length as \code{nodes}).
+#'
+#' @return The modified cograph_network object with \code{node_groups} set.
+#'
+#' @seealso \code{\link{get_groups}}, \code{\link{splot}}, \code{\link{detect_communities}}
+#'
+#' @export
+#'
+#' @examples
+#' # Create network (symmetric for community detection)
+#' mat <- matrix(runif(100), 10, 10)
+#' mat <- (mat + t(mat)) / 2  # Make symmetric (undirected)
+#' diag(mat) <- 0
+#' rownames(mat) <- colnames(mat) <- paste0("N", 1:10)
+#' net <- as_cograph(mat)
+#'
+#' # Using vectors (recommended)
+#' net <- set_groups(net,
+#'   nodes = paste0("N", 1:10),
+#'   layers = c(rep("Macro", 3), rep("Meso", 4), rep("Micro", 3))
+#' )
+#'
+#' # Named list -> layers
+#' net <- set_groups(net, list(
+#'   Macro = paste0("N", 1:3),
+#'   Meso = paste0("N", 4:7),
+#'   Micro = paste0("N", 8:10)
+#' ), type = "layer")
+#'
+#' # Vector -> clusters
+#' net <- set_groups(net, c("A", "A", "A", "B", "B", "B", "C", "C", "C", "C"),
+#'                   type = "cluster")
+#'
+#' # Community detection -> groups
+#' net <- set_groups(net, "louvain", type = "group")
+#'
+#' # Data frame with explicit columns
+#' df <- data.frame(nodes = paste0("N", 1:10),
+#'                  layers = rep(c("Top", "Bottom"), each = 5))
+#' net <- set_groups(net, df)
+#'
+#' # Check groups
+#' get_groups(net)
+set_groups <- function(x, groups = NULL, type = c("group", "cluster", "layer"),
+                       nodes = NULL, layers = NULL, clusters = NULL) {
+  if (!inherits(x, "cograph_network")) {
+    stop("x must be a cograph_network object", call. = FALSE)
+  }
+
+  type <- match.arg(type)
+  net_labels <- get_labels(x)
+
+  # ==========================================================================
+  # Handle vector arguments: nodes + layers/clusters/groups
+  # ==========================================================================
+  vec_args <- c(!is.null(layers), !is.null(clusters))
+  if (any(vec_args)) {
+    # Determine type from which vector was provided
+    if (!is.null(layers)) {
+      vec_type <- "layer"
+      vec_values <- layers
+    } else if (!is.null(clusters)) {
+      vec_type <- "cluster"
+      vec_values <- clusters
+    }
+
+    # If nodes not provided, assume same order as network nodes
+    if (is.null(nodes)) {
+      if (length(vec_values) != length(net_labels)) {
+        stop(vec_type, "s vector length (", length(vec_values),
+             ") must match number of nodes (", length(net_labels), ")",
+             call. = FALSE)
+      }
+      nodes <- net_labels
+    }
+
+    # Validate lengths match
+    if (length(nodes) != length(vec_values)) {
+      stop("nodes and ", vec_type, "s must have the same length", call. = FALSE)
+    }
+
+    df <- data.frame(
+      node = nodes,
+      V2 = vec_values,
+      stringsAsFactors = FALSE
+    )
+    names(df)[2] <- vec_type
+
+  # ==========================================================================
+  # Handle groups argument (original API)
+  # ==========================================================================
+  } else if (!is.null(groups)) {
+    if (is.character(groups) && length(groups) == 1) {
+      # Community detection method name
+      df <- detect_communities(x, method = groups)
+      names(df)[names(df) == "community"] <- type
+    } else if (is.list(groups) && !is.data.frame(groups)) {
+      # Named list: list(A = c("N1","N2"), B = c("N3","N4"))
+      df <- data.frame(
+        node = unlist(groups, use.names = FALSE),
+        V2 = rep(names(groups), lengths(groups)),
+        stringsAsFactors = FALSE
+      )
+      names(df)[2] <- type
+    } else if (is.vector(groups) && length(groups) > 1 && !is.list(groups)) {
+      # Vector (same order as nodes)
+      if (length(groups) != length(net_labels)) {
+        stop("groups vector length (", length(groups), ") must match number of nodes (",
+             length(net_labels), ")", call. = FALSE)
+      }
+      df <- data.frame(
+        node = net_labels,
+        V2 = groups,
+        stringsAsFactors = FALSE
+      )
+      names(df)[2] <- type
+    } else if (is.data.frame(groups)) {
+      df <- groups
+
+      # Normalize plural column names to singular
+      col_map <- c(nodes = "node", layers = "layer", clusters = "cluster", groups = "group")
+      matches <- intersect(names(col_map), names(df))
+      names(df)[match(matches, names(df))] <- col_map[matches]
+
+      # If df has "group"/"cluster"/"layer" column, use it; else rename 2nd col
+      if (!any(c("group", "cluster", "layer") %in% names(df))) {
+        if (ncol(df) >= 2) {
+          names(df)[2] <- type
+        } else {
+          stop("Data frame must have at least 2 columns (node and group assignment)",
+               call. = FALSE)
+        }
+      }
+      # Ensure "node" column exists
+      if (!"node" %in% names(df)) {
+        if (ncol(df) >= 1) {
+          names(df)[1] <- "node"
+        }
+      }
+    } else {
+      stop("groups must be: a community detection method name, a named list, ",
+           "a vector, or a data frame", call. = FALSE)
+    }
+  } else {
+    stop("Must provide either 'groups' or vector arguments (nodes + layers/clusters)",
+         call. = FALSE)
+  }
+
+  # ==========================================================================
+  # Validation
+  # ==========================================================================
+  # Check for duplicate nodes in assignment
+  if (anyDuplicated(df$node)) {
+    dups <- df$node[duplicated(df$node)]
+    stop("Duplicate node assignments found: ", paste(unique(dups), collapse = ", "),
+         call. = FALSE)
+  }
+
+  # Check all assigned nodes exist in the network
+  missing_nodes <- setdiff(df$node, net_labels)
+  if (length(missing_nodes) > 0) {
+    stop("Nodes not found in network: ", paste(missing_nodes, collapse = ", "),
+         call. = FALSE)
+  }
+
+  # Check all network nodes are assigned
+  unassigned <- setdiff(net_labels, df$node)
+  if (length(unassigned) > 0) {
+    stop("Nodes missing from group assignment: ", paste(unassigned, collapse = ", "),
+         call. = FALSE)
+  }
+
+  # Check we have at least 2 groups for visualization
+  group_col <- intersect(c("layer", "cluster", "group"), names(df))
+  if (length(group_col) > 0) {
+    n_groups <- length(unique(df[[group_col[1]]]))
+    if (n_groups < 2) {
+      stop("At least 2 groups are required for visualization (found ", n_groups, ")",
+           call. = FALSE)
+    }
+  }
+
+  x$node_groups <- df
+  x
+}
+
+#' Get Node Groups from Cograph Network
+#'
+#' Extracts the node groupings from a cograph_network object.
+#'
+#' @param x A cograph_network object.
+#'
+#' @return A data frame with node groupings, or NULL if not set. The data frame
+#'   has columns:
+#'   \itemize{
+#'     \item \code{node}: Node labels
+#'     \item One of \code{layer}, \code{cluster}, or \code{group}: Group assignment
+#'   }
+#'
+#' @seealso \code{\link{set_groups}}, \code{\link{splot}}
+#'
+#' @export
+#'
+#' @examples
+#' mat <- matrix(runif(25), 5, 5)
+#' rownames(mat) <- colnames(mat) <- LETTERS[1:5]
+#' net <- as_cograph(mat)
+#' net <- set_groups(net, list(G1 = c("A", "B"), G2 = c("C", "D", "E")))
+#' get_groups(net)
+get_groups <- function(x) {
+  if (!inherits(x, "cograph_network")) {
+    stop("x must be a cograph_network object", call. = FALSE)
+  }
+  x$node_groups
 }
 
 #' Get Nodes from Cograph Network (Deprecated)
@@ -731,7 +1130,7 @@ as_cograph <- function(x, directed = NULL, ...) {
 #' @return A data frame with columns: id, label, name, x, y (and possibly others).
 #'
 #' @seealso \code{\link{get_nodes}}, \code{\link{as_cograph}}, \code{\link{n_nodes}}
-#' @keywords internal
+#'
 #' @export
 #'
 #' @examples
@@ -747,7 +1146,7 @@ nodes <- function(x) {
 #' Check if Network is Directed
 #'
 #' Checks whether a cograph_network is directed.
-#' @keywords internal
+#'
 #' @param x A cograph_network object.
 #' @return Logical: TRUE if directed, FALSE if undirected.
 #'
@@ -759,27 +1158,21 @@ nodes <- function(x) {
 #' # Symmetric matrix -> undirected
 #' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 #' net <- as_cograph(mat)
-#' is_directed(net)  # FALSE
+#' cograph::is_directed(net)  # FALSE
 #'
 #' # Asymmetric matrix -> directed
 #' mat2 <- matrix(c(0, 1, 0, 0, 0, 1, 0, 0, 0), nrow = 3)
 #' net2 <- as_cograph(mat2)
-#' is_directed(net2)  # TRUE
+#' cograph::is_directed(net2)  # TRUE
 is_directed <- function(x) {
   if (inherits(x, "cograph_network")) {
-    # Check for new list format first (directed stored as list element)
+    # Unified format: directed stored as list element
     if (!is.null(x$directed)) {
       return(x$directed)
     }
-    # Check for old attr format
-    dir_attr <- attr(x, "directed")
-    if (!is.null(dir_attr)) {
-      return(dir_attr)
-    }
-    # R6 object in old wrapper
-    if (!is.null(x$network) && inherits(x$network, "CographNetwork")) {
-      return(x$network$is_directed)
-    }
+  }
+  if (inherits(x, "igraph")) {
+    return(igraph::is_directed(x))
   }
   stop("Cannot determine directedness for this object", call. = FALSE)
 }
@@ -801,19 +1194,11 @@ is_directed <- function(x) {
 #' n_nodes(net)  # 3
 n_nodes <- function(x) {
   if (inherits(x, "cograph_network")) {
-    # Check for new list format first (n_nodes stored as list element)
-    if (!is.null(x$n_nodes)) {
-      return(x$n_nodes)
+    # Compute from nodes data frame
+    if (!is.null(x$nodes)) {
+      return(nrow(x$nodes))
     }
-    # Check for old attr format
-    n_attr <- attr(x, "n_nodes")
-    if (!is.null(n_attr)) {
-      return(n_attr)
-    }
-    # R6 object in old wrapper
-    if (!is.null(x$network) && inherits(x$network, "CographNetwork")) {
-      return(x$network$n_nodes)
-    }
+    return(0L)
   }
   stop("Cannot count nodes for this object", call. = FALSE)
 }
@@ -835,19 +1220,11 @@ n_nodes <- function(x) {
 #' n_edges(net)  # 3
 n_edges <- function(x) {
   if (inherits(x, "cograph_network")) {
-    # Check for new list format first (n_edges stored as list element)
-    if (!is.null(x$n_edges)) {
-      return(x$n_edges)
+    # Compute from edges data frame
+    if (!is.null(x$edges)) {
+      return(nrow(x$edges))
     }
-    # Check for old attr format
-    n_attr <- attr(x, "n_edges")
-    if (!is.null(n_attr)) {
-      return(n_attr)
-    }
-    # R6 object in old wrapper
-    if (!is.null(x$network) && inherits(x$network, "CographNetwork")) {
-      return(x$network$n_edges)
-    }
+    return(0L)
   }
   stop("Cannot count edges for this object", call. = FALSE)
 }

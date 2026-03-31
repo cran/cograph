@@ -2,9 +2,12 @@
 % Please edit documentation in R/class-network.R
 \name{as_cograph}
 \alias{as_cograph}
+\alias{to_cograph}
 \title{Convert to Cograph Network}
 \usage{
-as_cograph(x, directed = NULL, ...)
+as_cograph(x, directed = NULL, simplify = FALSE, ...)
+
+to_cograph(x, directed = NULL, ...)
 }
 \arguments{
 \item{x}{Network input. Can be:
@@ -20,23 +23,28 @@ as_cograph(x, directed = NULL, ...)
 
 \item{directed}{Logical. Force directed interpretation. NULL for auto-detect.}
 
+\item{simplify}{Logical or character. If FALSE (default), every transition
+from tna sequence data is a separate edge. If TRUE or a string
+("sum", "mean", "max", "min"), duplicate edges are aggregated.}
+
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
 A cograph_network object: a named list with components:
 \describe{
-\item{\code{from}}{Integer vector of source node indices}
-\item{\code{to}}{Integer vector of target node indices}
-\item{\code{weight}}{Numeric vector of edge weights}
 \item{\code{nodes}}{Data frame with id, label, (x, y if layout applied)}
+\item{\code{edges}}{Data frame with from, to, weight columns}
 \item{\code{directed}}{Logical indicating if network is directed}
-\item{\code{n_nodes}}{Integer count of nodes}
-\item{\code{n_edges}}{Integer count of edges}
-\item{\code{labels}}{Character vector of node labels}
-\item{\code{source}}{Character indicating input type}
-\item{\code{layout}}{Layout coordinates (NULL until computed)}
-\item{\code{layout_info}}{Layout algorithm info (NULL until computed)}
+\item{\code{weights}}{Full n×n weight matrix (for to_matrix round-trip)}
+\item{\code{data}}{Original estimation data (sequence matrix, edge list, etc.), or NULL}
+\item{\code{meta}}{Consolidated metadata list with sub-fields:
+\code{source} (input type string),
+\code{layout} (layout info list or NULL),
+\code{tna} (TNA metadata or NULL)}
+\item{\code{node_groups}}{Optional node groupings data frame}
 }
+
+A \code{cograph_network} object. See \code{\link{as_cograph}}.
 }
 \description{
 Creates a lightweight cograph_network object from various network inputs.
@@ -45,13 +53,14 @@ The resulting object is a named list with all data accessible via \code{$}.
 \details{
 The cograph_network format is designed to be:
 \itemize{
-\item Simple: All data accessible via \code{net$from}, \code{net$to}, \code{net$weight}, etc.
+\item Lean: Only essential data stored, computed values derived on demand
 \item Modern: Uses named list elements instead of attributes for clean \code{$} access
 \item Compatible: Works seamlessly with splot() and other cograph functions
 }
 
 Use getter functions for programmatic access:
-\code{\link{get_nodes}}, \code{\link{get_edges}}, \code{\link{get_labels}}
+\code{\link{get_nodes}}, \code{\link{get_edges}}, \code{\link{get_labels}},
+\code{\link{n_nodes}}, \code{\link{n_edges}}
 
 Use setter functions to modify:
 \code{\link{set_nodes}}, \code{\link{set_edges}}, \code{\link{set_layout}}
@@ -61,14 +70,10 @@ Use setter functions to modify:
 mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 net <- as_cograph(mat)
 
-# Direct $ access to all data
-net$from       # edge sources
-net$to         # edge targets
-net$weight     # edge weights
+# Direct $ access to core data
 net$nodes      # nodes data frame
+net$edges      # edges data frame
 net$directed   # TRUE/FALSE
-net$n_nodes    # 3
-net$n_edges    # 3
 
 # Getter functions (recommended for programmatic use)
 get_nodes(net)   # nodes data frame
@@ -76,7 +81,7 @@ get_edges(net)   # edges data frame (from, to, weight)
 get_labels(net)  # character vector of labels
 n_nodes(net)     # 3
 n_edges(net)     # 3
-is_directed(net) # FALSE (symmetric matrix)
+cograph::is_directed(net) # FALSE (symmetric matrix)
 
 # Setter functions
 net <- set_nodes(net, data.frame(id = 1:3, label = c("A", "B", "C")))
@@ -88,11 +93,12 @@ splot(net)
 
 # From igraph (if installed)
 if (requireNamespace("igraph", quietly = TRUE)) {
-  library(igraph)
-  g <- make_ring(10)
+  g <- igraph::make_ring(10)
   net <- as_cograph(g)
   splot(net)
 }
+mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+net <- to_cograph(mat)
 }
 \seealso{
 \code{\link{get_nodes}} to extract the nodes data frame,

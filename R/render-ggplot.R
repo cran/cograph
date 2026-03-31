@@ -1,7 +1,12 @@
 #' @title ggplot2 Conversion
-#' @keywords internal
 #' @description Convert Cograph network to ggplot2 object.
 #' @name render-ggplot
+#' @return A ggplot2 object representing the network.
+#' @examples
+#' \dontrun{
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' p <- sn_ggplot(adj)
+#' }
 NULL
 
 #' Convert Network to ggplot2
@@ -31,47 +36,22 @@ sn_ggplot <- function(network, title = NULL) {
   # Auto-convert matrix/data.frame/igraph to cograph_network
   network <- ensure_cograph_network(network)
 
-  net <- network$network
-  nodes <- net$get_nodes()
-  edges <- net$get_edges()
-  node_aes <- net$get_node_aes()
-  edge_aes <- net$get_edge_aes()
-  theme <- net$get_theme()
+  nodes <- get_nodes(network)
+  edges <- get_edges(network)
 
   n <- nrow(nodes)
   m <- if (is.null(edges)) 0 else nrow(edges)
 
   # Theme defaults
-  bg_color <- if (!is.null(theme)) theme$get("background") else "white"
+  bg_color <- "white"
 
-  # Resolve node aesthetics
-  node_sizes <- recycle_to_length(
-    if (!is.null(node_aes$size)) node_aes$size else 0.05,
-    n
-  )
-  node_fills <- recycle_to_length(
-    if (!is.null(node_aes$fill)) node_aes$fill else
-      if (!is.null(theme)) theme$get("node_fill") else "#4A90D9",
-    n
-  )
-  node_borders <- recycle_to_length(
-    if (!is.null(node_aes$border_color)) node_aes$border_color else
-      if (!is.null(theme)) theme$get("node_border") else "#2C5AA0",
-    n
-  )
-  node_border_widths <- recycle_to_length(
-    if (!is.null(node_aes$border_width)) node_aes$border_width else
-      if (!is.null(theme)) theme$get("node_border_width") else 1,
-    n
-  )
-  node_alphas <- recycle_to_length(
-    if (!is.null(node_aes$alpha)) node_aes$alpha else 1,
-    n
-  )
-  node_shapes <- recycle_to_length(
-    if (!is.null(node_aes$shape)) node_aes$shape else "circle",
-    n
-  )
+  # Resolve node aesthetics using defaults
+  node_sizes <- recycle_to_length(0.05, n)
+  node_fills <- recycle_to_length("#4A90D9", n)
+  node_borders <- recycle_to_length("#2C5AA0", n)
+  node_border_widths <- recycle_to_length(1, n)
+  node_alphas <- recycle_to_length(1, n)
+  node_shapes <- recycle_to_length("circle", n)
 
   # Map shapes to ggplot2 shapes
   shape_map <- c(
@@ -80,7 +60,7 @@ sn_ggplot <- function(network, title = NULL) {
     cross = 3, plus = 3
   )
   gg_shapes <- sapply(node_shapes, function(s) {
-    if (s %in% names(shape_map)) shape_map[[s]] else 21
+    if (s %in% names(shape_map)) shape_map[[s]] else 21 # nocov
   })
 
   # Build node data frame
@@ -99,32 +79,19 @@ sn_ggplot <- function(network, title = NULL) {
 
   # Build edge data frame
   if (m > 0) {
-    # Resolve edge aesthetics
-    edge_widths <- recycle_to_length(
-      if (!is.null(edge_aes$width)) edge_aes$width else
-        if (!is.null(theme)) theme$get("edge_width") else 1,
-      m
-    )
+    # Resolve edge aesthetics using defaults
+    edge_widths <- recycle_to_length(1, m)
 
-    if (!is.null(edge_aes$color)) {
-      edge_colors <- recycle_to_length(edge_aes$color, m)
+    pos_col <- "#2E7D32"
+    neg_col <- "#C62828"
+    default_col <- "gray50"
+    edge_colors <- if (!is.null(edges$weight)) {
+      ifelse(edges$weight > 0, pos_col, ifelse(edges$weight < 0, neg_col, default_col))
     } else {
-      pos_col <- if (!is.null(edge_aes$positive_color)) edge_aes$positive_color else
-        if (!is.null(theme)) theme$get("edge_positive_color") else "#2E7D32"
-      neg_col <- if (!is.null(edge_aes$negative_color)) edge_aes$negative_color else
-        if (!is.null(theme)) theme$get("edge_negative_color") else "#C62828"
-      default_col <- if (!is.null(theme)) theme$get("edge_color") else "gray50"
-      edge_colors <- if (!is.null(edges$weight)) {
-        ifelse(edges$weight > 0, pos_col, ifelse(edges$weight < 0, neg_col, default_col))
-      } else {
-        rep(default_col, m)
-      }
+      rep(default_col, m)
     }
 
-    edge_alphas <- recycle_to_length(
-      if (!is.null(edge_aes$alpha)) edge_aes$alpha else 0.8,
-      m
-    )
+    edge_alphas <- recycle_to_length(0.8, m)
 
     edge_df <- data.frame(
       x = nodes$x[edges$from],
@@ -145,7 +112,7 @@ sn_ggplot <- function(network, title = NULL) {
 
   # Add edges
   if (!is.null(edge_df) && nrow(edge_df) > 0) {
-    show_arrows <- if (!is.null(edge_aes$show_arrows)) edge_aes$show_arrows else net$is_directed
+    show_arrows <- is_directed(network)
 
     if (show_arrows) {
       p <- p + ggplot2::geom_segment(
@@ -180,12 +147,10 @@ sn_ggplot <- function(network, title = NULL) {
   )
 
   # Add labels
-  show_labels <- if (!is.null(node_aes$show_labels)) node_aes$show_labels else TRUE
+  show_labels <- TRUE
   if (show_labels) {
-    label_size <- if (!is.null(node_aes$label_size)) node_aes$label_size[1] else
-      if (!is.null(theme)) theme$get("label_size") else 10
-    label_color <- if (!is.null(node_aes$label_color)) node_aes$label_color[1] else
-      if (!is.null(theme)) theme$get("label_color") else "black"
+    label_size <- 10
+    label_color <- "black"
 
     p <- p + ggplot2::geom_text(
       data = node_df,

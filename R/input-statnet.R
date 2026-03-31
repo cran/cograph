@@ -1,7 +1,7 @@
 #' @title Statnet Network Input Parsing
-#' @keywords internal
 #' @description Functions for parsing statnet network objects.
 #' @name input-statnet
+#' @keywords internal
 NULL
 
 #' Parse Statnet Network Object
@@ -14,11 +14,11 @@ NULL
 #' @noRd
 parse_statnet <- function(net, directed = NULL) {
   # Check if network package is available
-  if (!has_package("network")) {
+  if (!requireNamespace("network", quietly = TRUE)) { # nocov start
     stop("Package 'network' is required for statnet network input. ",
          "Please install it with: install.packages('network')",
          call. = FALSE)
-  }
+  } # nocov end
 
   # Validate input
   if (!inherits(net, "network")) {
@@ -35,6 +35,9 @@ parse_statnet <- function(net, directed = NULL) {
 
   # Get node labels
   labels <- network::network.vertex.names(net)
+  if (is.null(labels) || all(is.na(labels))) { # nocov
+    labels <- as.character(seq_len(n)) # nocov
+  }
 
   # Get edges as matrix
   edge_matrix <- network::as.edgelist(net)

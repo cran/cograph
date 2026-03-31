@@ -3,6 +3,9 @@
 \name{CographLayout}
 \alias{CographLayout}
 \title{CographLayout R6 Class}
+\value{
+A \code{CographLayout} R6 object.
+}
 \description{
 Class for managing layout algorithms and computing node positions.
 }
@@ -15,7 +18,6 @@ adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 net <- CographNetwork$new(adj)
 coords <- layout$compute(net)
 }
-\keyword{internal}
 \section{Methods}{
 \subsection{Public methods}{
 \itemize{

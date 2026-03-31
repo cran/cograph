@@ -3,7 +3,7 @@
 \docType{package}
 \name{cograph-package}
 \alias{cograph-package}
-\title{cograph: Modern Network Visualization}
+\title{cograph: Modern Network Visualization for R}
 \description{
 A modern, extensible network visualization package that provides high-quality
 static and interactive network plots. cograph accepts adjacency matrices,
@@ -50,16 +50,17 @@ Built-in themes include:
 Useful links:
 \itemize{
   \item \url{https://sonsoles.me/cograph/}
+  \item \url{https://github.com/sonsoleslp/cograph}
   \item Report bugs at \url{https://github.com/sonsoleslp/cograph/issues}
 }
 
 }
 \author{
-\strong{Maintainer}: Sonsoles López-Pernas \email{sonsoles.lopez@uef.fi}
+\strong{Maintainer}: Sonsoles López-Pernas \email{sonsoles.lopez@uef.fi} [copyright holder]
 
 Authors:
 \itemize{
-  \item Mohammed Saqr
+  \item Mohammed Saqr [copyright holder]
   \item Santtu Tikka
 }
 

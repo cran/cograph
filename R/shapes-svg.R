@@ -17,18 +17,19 @@ svg_shape_registry <- new.env(parent = emptyenv())
 #' @export
 #'
 #' @examples
-#' # Register a custom SVG shape from an inline SVG string
+#' \dontrun{
+#' # Register from file
+#' register_svg_shape("custom_icon", "path/to/icon.svg")
+#'
+#' # Register from inline SVG
 #' register_svg_shape("simple_star",
 #'   '<svg viewBox="0 0 100 100">
 #'     <polygon points="50,5 20,99 95,39 5,39 80,99" fill="currentColor"/>
 #'   </svg>')
 #'
-#' # Create a small adjacency matrix
-#' adj <- matrix(c(0, 1, 1, 0, 0, 1, 1, 0, 0), nrow = 3,
-#'               dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
-#'
-#' # Use in network (requires grImport2 for SVG rendering; falls back to circle)
-#' cograph(adj) |> sn_nodes(shape = "simple_star")
+#' # Use in network
+#' cograph(adj) |> sn_nodes(shape = "custom_icon")
+#' }
 register_svg_shape <- function(name, svg_source) {
   if (!is.character(name) || length(name) != 1) {
     stop("name must be a single character string", call. = FALSE)
@@ -90,7 +91,7 @@ parse_svg <- function(svg_data) {
   }
 
   # Check for grImport2 package
-  if (!has_package("grImport2")) {
+  if (!requireNamespace("grImport2", quietly = TRUE)) {
     warning("Package 'grImport2' is required for SVG shapes. ",
             "Install with: install.packages('grImport2')",
             call. = FALSE)
@@ -139,6 +140,19 @@ draw_svg_shape <- function(x, y, size, svg_data, fill, border_color, border_widt
 
   if (is.null(parsed)) {
     # Fallback to circle if SVG parsing fails
+    fill_col <- adjust_alpha(fill, alpha)
+    border_col <- adjust_alpha(border_color, alpha)
+
+    return(grid::circleGrob(
+      x = grid::unit(x, "npc"),
+      y = grid::unit(y, "npc"),
+      r = grid::unit(size, "npc"),
+      gp = grid::gpar(fill = fill_col, col = border_col, lwd = border_width)
+    ))
+  }
+
+  # Check for grImport2
+  if (!requireNamespace("grImport2", quietly = TRUE)) {
     fill_col <- adjust_alpha(fill, alpha)
     border_col <- adjust_alpha(border_color, alpha)
 
@@ -208,7 +222,7 @@ draw_svg_shape_base <- function(x, y, size, svg_data, fill, border_color, border
   # For Base R, we attempt to use rsvg to rasterize and rasterImage to draw
   # This requires the 'rsvg' package
 
-  if (!has_package("rsvg")) {
+  if (!requireNamespace("rsvg", quietly = TRUE)) {
     # Fallback to circle
     graphics::symbols(
       x = x, y = y,

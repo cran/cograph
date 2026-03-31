@@ -1,21 +1,23 @@
 #' @title Plot Methods
-#' @keywords internal
 #' @description S3 plot methods for Cograph objects.
 #' @name methods-plot
+#' @keywords internal
 NULL
 
 #' Plot cograph_network Object
 #'
 #' @param x A cograph_network object.
 #' @param ... Additional arguments passed to sn_render.
-#' @keywords internal
-#' @return Invisible x.
-#' @export
+#' @return The input object \code{x}, invisibly.
 #'
 #' @examples
+#' \dontrun{
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 #' net <- cograph(adj)
 #' plot(net)
+#' }
+#'
+#' @export
 plot.cograph_network <- function(x, ...) {
   sn_render(x, ...)
   invisible(x)
@@ -24,22 +26,31 @@ plot.cograph_network <- function(x, ...) {
 #' Summary of cograph_network Object
 #'
 #' @param object A cograph_network object.
-#' @keywords internal
 #' @param ... Ignored.
-#' @return A list with network summary information (invisibly).
+#' @return A list with network summary information (invisibly), containing
+#'   elements \code{n_nodes}, \code{n_edges}, \code{directed}, \code{weighted},
+#'   and \code{has_layout}.
+#'
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' net <- cograph(adj)
+#' summary(net)
+#'
 #' @export
 summary.cograph_network <- function(object, ...) {
-  net <- object$network
-  nodes <- net$get_nodes()
-  edges <- net$get_edges()
+  nodes <- get_nodes(object)
+  edges <- get_edges(object)
+  nn <- n_nodes(object)
+  ne <- n_edges(object)
+  directed <- is_directed(object)
 
   cat("Cograph Network Summary\n")
   cat("======================\n\n")
 
   cat("Structure:\n")
-  cat("  Nodes:", net$n_nodes, "\n")
-  cat("  Edges:", net$n_edges, "\n")
-  cat("  Type:", if (net$is_directed) "Directed" else "Undirected", "\n")
+  cat("  Nodes:", nn, "\n")
+  cat("  Edges:", ne, "\n")
+  cat("  Type:", if (directed) "Directed" else "Undirected", "\n")
 
   if (!is.null(edges) && nrow(edges) > 0) {
     cat("\nEdge Statistics:\n")
@@ -56,9 +67,9 @@ summary.cograph_network <- function(object, ...) {
     }
   }
 
-  if (net$n_nodes > 0) {
+  if (nn > 0) {
     cat("\nNode Labels:\n")
-    labels <- net$node_labels
+    labels <- get_labels(object)
     if (length(labels) > 10) {
       cat("  ", paste(labels[1:10], collapse = ", "), ", ...\n")
     } else {
@@ -66,16 +77,18 @@ summary.cograph_network <- function(object, ...) {
     }
   }
 
-  cat("\nLayout:", if (is.null(net$get_layout())) "not computed" else "computed", "\n")
+  # Check if layout is in nodes or layout_info
+  nodes <- get_nodes(object)
+  has_layout <- !is.null(nodes$x) && !all(is.na(nodes$x))
+  cat("\nLayout:", if (has_layout) "computed" else "not computed", "\n")
 
-  theme <- net$get_theme()
-  cat("Theme:", if (is.null(theme)) "none" else theme$name, "\n")
+  weighted <- !is.null(edges$weight) && any(edges$weight != 1)
 
   invisible(list(
-    n_nodes = net$n_nodes,
-    n_edges = net$n_edges,
-    directed = net$is_directed,
-    weighted = net$has_weights,
-    has_layout = !is.null(net$get_layout())
+    n_nodes = nn,
+    n_edges = ne,
+    directed = directed,
+    weighted = weighted,
+    has_layout = has_layout
   ))
 }

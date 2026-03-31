@@ -1,273 +1,262 @@
 
-# cograph <img src="man/figures/logo.png" align="right" height="139" style="height:139px"/>
+# cograph <img src="https://sonsoles.me/cograph/reference/figures/logo.png" align="right" width="139" />
 
 <!-- badges: start -->
 
-[![Project Status: Active – The project has reached a stable, usable
-state and is being actively
-developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Project Status:
+Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
 [![R-CMD-check](https://github.com/sonsoleslp/cograph/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sonsoleslp/cograph/actions/workflows/R-CMD-check.yaml)
 [![CRAN
 status](https://www.r-pkg.org/badges/version/cograph)](https://CRAN.R-project.org/package=cograph)
-[![Codecov test
-coverage](https://codecov.io/gh/sonsoleslp/cograph/graph/badge.svg)](https://app.codecov.io/gh/sonsoleslp/cograph)
+[![Codecov](https://app.codecov.io/gh/sonsoleslp/cograph/branch/main/graph/badge.svg)](https://app.codecov.io/gh/sonsoleslp/cograph)
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 <!-- badges: end -->
 
-**cograph** is a modern R package that provides tools for the analysis,
-visualization, and manipulation of dynamical, social and complex
-networks. The package supports multiple network formats and offers
-flexible tools for heterogeneous, multi-layer, and hierarchical network
-analysis with simple syntax and extensive tool-set.
-
-Key features:
-
-- Tools for analysis, visualization, and manipulation of dynamical,
-  social, and complex networks
-- Provides network metrics including centrality measures, motif
-  analysis, and community detection
-- Supports multiple input formats: adjacency matrices, edge lists, and
-  igraph objects
-- Tools for heterogeneous, multi-layer, and hierarchical network
-  analysis
-- Publication-ready plotting with customizable layouts, node shapes,
-  edge styles, and themes
-- Intuitive, pipe-friendly API
-- Fully compatible with the `tna` package
+**cograph** is a modern R package for the analysis, visualization, and
+manipulation of complex networks. It provides publication-ready plotting
+with customizable layouts, node shapes, edge styles, and themes through
+an intuitive, pipe-friendly API. First-class support for Transition
+Network Analysis (TNA), multilayer networks, and community detection.
 
 ## Installation
 
 ``` r
-# Install from CRAN (when available)
-#install.packages("cograph")
+# Install from CRAN
+install.packages("cograph")
 
-# Or install the development version from GitHub
-# install.packages("devtools")
-#devtools::install_github("sonsoleslp/cograph")
+# Development version from GitHub
+devtools::install_github("sonsoleslp/cograph")
 ```
 
-``` r
-library(cograph)
-```
+## Features
 
-## Plotting Transition Network Analysis
+### Network Plotting
+
+| Function               | Description                             |
+|------------------------|-----------------------------------------|
+| `splot()`              | Base R network plot (core engine)       |
+| `soplot()`             | Grid/ggplot2 network rendering          |
+| `tplot()`              | qgraph drop-in replacement for TNA      |
+| `plot_htna()`          | Hierarchical multi-group TNA layouts    |
+| `plot_mtna()`          | Multi-cluster TNA with shape containers |
+| `plot_mcml()`          | Markov Chain Multi-Level visualization  |
+| `plot_mlna()`          | Multilayer 3D perspective networks      |
+| `plot_mixed_network()` | Combined symmetric/asymmetric edges     |
+
+### Flow and Comparison Plots
+
+| Function              | Description                            |
+|-----------------------|----------------------------------------|
+| `plot_transitions()`  | Alluvial/Sankey flow diagrams          |
+| `plot_alluvial()`     | Alluvial wrapper with flow coloring    |
+| `plot_trajectories()` | Individual tracking with line bundling |
+| `plot_chord()`        | Chord diagrams with ticks              |
+| `plot_heatmap()`      | Adjacency heatmaps with clustering     |
+| `plot_compare()`      | Difference network visualization       |
+| `plot_bootstrap()`    | Bootstrap CI result plots              |
+| `plot_permutation()`  | Permutation test result plots          |
+
+### Community and Higher-Order Structure
+
+| Function | Description |
+|----|----|
+| `overlay_communities()` | Community blob overlays on network plots |
+| `plot_simplicial()` | Higher-order pathway (simplicial complex) visualization |
+| `detect_communities()` | 11 igraph algorithms with shorthand wrappers |
+| `communities()` | Unified community detection interface |
+
+### Network Analysis
+
+| Function | Description |
+|----|----|
+| `centrality()` | 23+ centrality measures with individual wrappers |
+| `motifs()` / `subgraphs()` | Motif/triad census with per-actor windowing |
+| `robustness()` | Network robustness analysis |
+| `disparity_filter()` | Backbone extraction (Serrano et al. 2009) |
+| `cluster_summary()` | Between/within cluster weight aggregation |
+| `build_mcml()` | Markov Chain Multi-Level model construction |
+| `summarize_network()` | Comprehensive network-level statistics |
+| `verify_with_igraph()` | Cross-validation against igraph |
+| `simplify()` | Prune weak edges |
+
+### Multilayer Networks
+
+| Function             | Description                             |
+|----------------------|-----------------------------------------|
+| `supra_adjacency()`  | Supra-adjacency matrix construction     |
+| `layer_similarity()` | Layer comparison measures               |
+| `aggregate_layers()` | Weight aggregation across layers        |
+| `plot_ml_heatmap()`  | Multilayer heatmaps with 3D perspective |
+
+## Examples
+
+### TNA Plot
+
+The primary use case: visualize transition networks from the `tna`
+package.
 
 ``` r
 library(tna)
-tna_obj <- tna(group_regulation)
-splot(tna_obj)
+library(cograph)
+
+# Build a TNA model from sequence data
+fit <- tna(engagement)
+
+# One-liner visualization
+splot(fit)
 ```
 
-<img src="man/figures/README-unnamed-chunk-4-1.jpeg" width="100%" />
+<img src="man/figures/README-tna-plot-1.jpeg" alt="" width="100%" />
 
-## Simple network plotting
+### Simple Network
 
 ``` r
-# 10-node directed transition matrix (TNA-style)
-set.seed(42)
-states <- c("Explore", "Plan", "Monitor", "Evaluate", "Adapt",
-            "Reflect", "Regulate", "Execute", "Collaborate", "Review")
-mat <- matrix(runif(100, 0, 0.3), nrow = 10, dimnames = list(states, states))
-diag(mat) <- 0
-mat <- mat / rowSums(mat)  # row-normalize
+library(cograph)
+
+# Create a transition matrix
+states <- c("Explore", "Plan", "Monitor", "Adapt", "Reflect")
+mat <- matrix(
+  c(0.0, 0.4, 0.2, 0.1, 0.3,
+    0.3, 0.0, 0.3, 0.2, 0.2,
+    0.2, 0.3, 0.0, 0.3, 0.2,
+    0.1, 0.2, 0.4, 0.0, 0.3,
+    0.2, 0.2, 0.2, 0.4, 0.0),
+  nrow = 5, byrow = TRUE,
+  dimnames = list(states, states)
+)
+
+splot(mat)
 ```
 
-`cograph` supports statistical edge visualization with CI underlays and
-significance notation.
+<img src="man/figures/README-simple-network-1.jpeg" alt="" width="100%" />
+
+### Layouts
 
 ``` r
-# Publication-ready with CI underlays and labels
+par(mfrow = c(2, 2), mar = c(1, 1, 2, 1))
+splot(mat, layout = "oval",   title = "oval")
+splot(mat, layout = "circle", title = "circle")
+splot(mat, layout = "kk",     title = "kk")
+splot(mat, layout = "fr",     title = "fr")
+```
+
+<img src="man/figures/README-layouts-1.jpeg" alt="" width="100%" />
+
+### Edge Styling
+
+``` r
 splot(mat,
-  edge_ci = runif(sum(mat > 0), 0.05, 0.2), layout = "oval",
-  edge_label_template = "{est}{stars}",
-  edge_label_p = runif(sum(mat > 0), 0, 0.1),
-  edge_label_stars = TRUE, edge_label_bg = "transparent", edge_label_color = "maroon", 
-  edge_label_size = 0.5, edge_label_position = 0.6
+  curvature = 0.3,
+  arrow_size = 0.02,
+  edge_width = 3
 )
 ```
 
-<img src="man/figures/README-unnamed-chunk-6-1.jpeg" width="100%" />
+<img src="man/figures/README-edge-styling-1.jpeg" alt="" width="100%" />
 
-Template placeholders: `{est}`, `{low}`, `{up}`, `{range}`, `{p}`,
-`{stars}`
-
-### Pie Chart Nodes and shapes
+### Node Shapes
 
 ``` r
-set.seed(1)
-# Each node gets a vector of pie segment values
-pie_vals <- lapply(1:10, function(i) runif(4))
-pie_cols <- c("#E41A1C", "#377EB8", "#4DAF4A", "#FF7F00")
+shapes <- c("circle", "square", "hexagon", "diamond", "triangle")
+
+splot(mat,
+  node_shape = shapes,
+  node_fill = c("#E63946", "#457B9D", "#2A9D8F", "#E9C46A", "#F4A261"),
+  layout = "circle"
+)
+```
+
+<img src="man/figures/README-node-shapes-1.jpeg" alt="" width="100%" />
+
+### Donuts
+
+Donut nodes show proportional fill with optional polygon shapes.
+
+``` r
+fills <- c(0.9, 0.7, 0.5, 0.3, 0.8)
+
+splot(mat,
+  donut_fill = fills,
+  donut_color = "steelblue",
+  donut_shape = c("circle", "hexagon", "square", "diamond", "triangle")
+)
+```
+
+<img src="man/figures/README-donuts-1.jpeg" alt="" width="100%" />
+
+### Pies
+
+Pie chart nodes with per-node color palettes.
+
+``` r
+pie_vals <- list(
+  c(0.5, 0.3, 0.2),
+  c(0.4, 0.4, 0.2),
+  c(0.3, 0.3, 0.4),
+  c(0.6, 0.2, 0.2),
+  c(0.2, 0.5, 0.3)
+)
+
+pie_cols <- list(
+  c("#E63946", "#457B9D", "#2A9D8F"),
+  c("#264653", "#E9C46A", "#F4A261"),
+  c("#F72585", "#7209B7", "#3A0CA3"),
+  c("#003049", "#D62828", "#F77F00"),
+  c("#606C38", "#283618", "#DDA15E")
+)
 
 splot(mat,
   node_shape = "pie",
   pie_values = pie_vals,
-  pie_colors = pie_cols,  node_size = 10,
-  layout = "oval"
-)
-
-# Per-node color palettes
-pie_cols_multi <- list(
-  c("#E63946", "#F1FAEE", "#A8DADC"),
-  c("#264653", "#2A9D8F", "#E9C46A"),
-  c("#F72585", "#7209B7", "#3A0CA3"),
-  c("#003049", "#D62828", "#F77F00"),
-  c("#606C38", "#283618", "#DDA15E"),
-  c("#0077B6", "#00B4D8", "#90E0EF"),
-  c("#9B2226", "#AE2012", "#BB3E03"),
-  c("#023047", "#219EBC", "#8ECAE6"),
-  c("#5F0F40", "#9A031E", "#FB8B24"),
-  c("#2D00F7", "#6A00F4", "#8900F2")
-)
-splot(mat,
-  node_shape = "pie",
-  pie_values = lapply(1:10, function(i) runif(3)),
-  pie_colors = pie_cols_multi,
-  node_size = 10,
-  layout = "oval"
+  pie_colors = pie_cols,
+  layout = "circle"
 )
 ```
 
-<img src="man/figures/README-unnamed-chunk-7-1.jpeg" width="100%" />
+<img src="man/figures/README-pies-1.jpeg" alt="" width="100%" />
 
-### Donut Nodes
+### Donut + Pie Combo
+
+Combine outer donut ring with inner pie segments.
 
 ``` r
-fills <- runif(10, 0.3, 0.95)
-
-# Per-node donut color palettes
-donut_cols_multi <- list(
-  c("#003049", "#D62828", "#F77F00", "#FCBF49"),
-  c("#606C38", "#283618", "#DDA15E", "#BC6C25"),
-  c("#0077B6", "#00B4D8", "#90E0EF", "#CAF0F8"),
-  c("#9B2226", "#AE2012", "#BB3E03", "#CA6702"),
-  c("#5F0F40", "#9A031E", "#FB8B24", "#E36414"),
-  c("#023047", "#219EBC", "#8ECAE6", "#FFB703"),
-  c("#264653", "#2A9D8F", "#E9C46A", "#F4A261"),
-  c("#F72585", "#B5179E", "#7209B7", "#560BAD"),
-  c("#10002B", "#240046", "#3C096C", "#5A189A"),
-  c("#D8F3DC", "#B7E4C7", "#95D5B2", "#74C69D")
-)
 splot(mat,
-  donut_values = lapply(1:10, function(i) runif(4)),
-  donut_colors = donut_cols_multi,
-  donut_inner_ratio = 0.55,
-  node_size = 8
-)
-
-# Donut + Pie combo: outer donut ring with inner pie segments
-  splot(mat,
-  node_shape = "donut",
   donut_fill = fills,
-  donut_shape = c("circle", "hexagon", "square", "diamond", "triangle",
-                  "pentagon", "circle", "hexagon", "square", "diamond"),
-  donut_color = palette_viridis(10)
+  donut_color = "steelblue",
+  pie_values = pie_vals,
+  pie_colors = c("#E41A1C", "#377EB8", "#4DAF4A")
 )
 ```
 
-<img src="man/figures/README-unnamed-chunk-8-1.jpeg" width="100%" />
+<img src="man/figures/README-donut-pie-1.jpeg" alt="" width="100%" />
 
-### plot_htna() - Heterogeneous Multi-Group Networks
-
-`plot_htna()` creates multi-group network layouts where node groups are
-arranged in geometric patterns (bipartite, triangle, rectangle, polygon,
-or circular).
+### Chord Diagram
 
 ``` r
-layout(t(1:2)); par(mar=c(0,0,0,0))
-# Create network with 3 groups
-set.seed(42)
-nodes <- paste0("N", 1:15)
-m <- matrix(runif(225, 0, 0.3), 15, 15)
-diag(m) <- 0
-colnames(m) <- rownames(m) <- nodes
-
-node_types <- list(
-  Teacher = paste0("N", 1:5),
-  Student = paste0("N", 6:10),
-  System = paste0("N", 11:15)
-)
-
-# Polygon layout (triangle for 3 groups)
-plot_htna(m, node_types, layout = "polygon", minimum = 0.15)
-
-# Circular layout (groups as arcs)
-plot_htna(m, node_types, layout = "circular", minimum = 0.15)
+plot_chord(mat, title = "Transition Chord Diagram")
 ```
 
-<img src="man/figures/README-unnamed-chunk-9-1.jpeg" width="100%" />
+<img src="man/figures/README-chord-1.jpeg" alt="" width="100%" />
 
-### plot_mtna() - Multi-Cluster Networks
-
-`plot_mtna()` visualizes multiple network clusters with summary edges
-between clusters and individual edges within clusters. Each cluster is
-displayed as a shape (circle, square, diamond, triangle) containing its
-nodes.
+### Heatmap
 
 ``` r
-par(mar=c(0,0,0,0))
-# Create network with 6 clusters
-set.seed(42)
-nodes <- paste0("N", 1:30)
-m <- matrix(runif(900, 0, 0.3), 30, 30)
-diag(m) <- 0
-colnames(m) <- rownames(m) <- nodes
-
-clusters <- list(
-  Alpha = paste0("N", 1:5),
-  Beta = paste0("N", 6:10),
-  Gamma = paste0("N", 11:15),
-  Delta = paste0("N", 16:20),
-  Epsilon = paste0("N", 21:25),
-  Zeta = paste0("N", 26:30)
-)
-
-# Summary edges between clusters + individual edges within
-plot_mtna(m, clusters)
+plot_heatmap(mat, show_values = TRUE, colors = "viridis",
+             value_fontface = "bold", title = "Transition Heatmap")
 ```
 
-<img src="man/figures/README-unnamed-chunk-10-1.jpeg" width="100%" />
+<img src="man/figures/README-heatmap-1.jpeg" alt="" width="100%" />
 
-Key parameters: \* `spacing`: Distance between cluster centers \*
-`shape_size`: Size of cluster shells \* `node_spacing`: Node placement
-within shapes (0-1) \* `shapes`: Vector of shapes per cluster (“circle”,
-“square”, “diamond”, “triangle”) \* `summary_edges`: Show aggregated
-between-cluster edges (default TRUE) \* `within_edges`: Show individual
-within-cluster edges (default TRUE)
-
-> **Alias**: `mtna()` is available as a shorthand for `plot_mtna()`.
-
-### plot_mlna() - Multilevel 3D Networks
-
-`plot_mlna()` visualizes multilevel/multiplex networks where multiple
-layers are stacked in a 3D perspective view. Each layer contains nodes
-connected by solid edges (within-layer), while dashed lines connect
-nodes between adjacent layers (inter-layer edges).
+### Alluvial Flow
 
 ``` r
-par(mar=c(0,0,0,0))
-# Create multilevel network
-set.seed(42)
-nodes <- paste0("N", 1:21)
-m <- matrix(runif(441, 0, 0.3), 21, 21)
-diag(m) <- 0
-colnames(m) <- rownames(m) <- nodes
-
-# Define 3 layers
-layers <- list(
-  Macro = paste0("N", 1:7),
-  Meso = paste0("N", 8:14),
-  Micro = paste0("N", 15:21)
-)
-
-# Basic usage with spring layout
-plot_mlna(m, layers, layout = "spring", minimum = 0.18, legend = FALSE)
+plot_transitions(mat, flow_color_by = "from", flow_alpha = 0.5,
+                 from_title = "Source", to_title = "Target")
 ```
 
-<img src="man/figures/README-unnamed-chunk-11-1.jpeg" width="100%" />
+<img src="man/figures/README-alluvial-1.jpeg" alt="" width="100%" />
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT License.

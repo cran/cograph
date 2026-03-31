@@ -4,7 +4,7 @@
 \alias{layout_circle}
 \title{Circular Layout}
 \usage{
-layout_circle(network, order = NULL, start_angle = pi/2, clockwise = TRUE)
+layout_circle(network, order = NULL, start_angle = pi/2, clockwise = TRUE, ...)
 }
 \arguments{
 \item{network}{A CographNetwork object.}
@@ -14,6 +14,8 @@ layout_circle(network, order = NULL, start_angle = pi/2, clockwise = TRUE)
 \item{start_angle}{Starting angle in radians (default: pi/2 for top).}
 
 \item{clockwise}{Logical. Arrange nodes clockwise? Default TRUE.}
+
+\item{...}{Additional arguments (ignored).}
 }
 \value{
 Data frame with x, y coordinates.
@@ -25,4 +27,5 @@ Arrange nodes evenly spaced around a circle.
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 net <- CographNetwork$new(adj)
 coords <- layout_circle(net)
+
 }

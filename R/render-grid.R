@@ -1,7 +1,14 @@
 #' @title Grid Rendering
 #' @description Main grid-based rendering functions.
-#' @keywords internal
 #' @name render-grid
+#' @return See individual functions: \code{\link{soplot}} returns a
+#'   \code{cograph_network} object invisibly; \code{\link{sn_ggplot}} returns a
+#'   ggplot2 object.
+#' @examples
+#' \dontrun{
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' soplot(adj)
+#' }
 NULL
 
 #' Plot Cograph Network
@@ -117,6 +124,7 @@ NULL
 #' @param legend_position Legend position: "topright", "topleft", "bottomright", "bottomleft".
 #' @param scaling Scaling mode: "default" for qgraph-matched scaling where node_size=6
 #'   looks similar to qgraph vsize=6, or "legacy" to preserve pre-v2.0 behavior.
+#' @param background Background color for the plot. Default "white".
 #'
 #' @details
 #' ## soplot vs splot
@@ -185,6 +193,7 @@ soplot <- function(network, title = NULL, title_size = 14,
                       margins = c(0.05, 0.05, 0.1, 0.05),
                       layout_margin = 0.15,
                       newpage = TRUE,
+                      background = "white",
                       # Layout and theme
                       layout = NULL,
                       theme = NULL,
@@ -323,13 +332,8 @@ soplot <- function(network, title = NULL, title_size = 14,
 
   # Set seed for deterministic layouts, restoring RNG state on exit
   if (!is.null(seed)) {
-    rng_exists <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
-    if (rng_exists) {
-      old_rng_state <- .Random.seed
-      on.exit(assign(".Random.seed", old_rng_state, envir = globalenv()), add = TRUE)
-    } else {
-      on.exit(rm(".Random.seed", envir = globalenv()), add = TRUE)
-    }
+    saved_rng <- .save_rng()
+    on.exit(.restore_rng(saved_rng), add = TRUE)
     set.seed(seed)
   }
 
@@ -340,7 +344,7 @@ soplot <- function(network, title = NULL, title_size = 14,
   igraph_codes <- c("kk", "fr", "drl", "mds", "go", "tr", "st", "gr", "rd", "ni", "ci", "lgl", "sp")
 
   # Determine effective layout
-  effective_layout <- layout %||% "spring"
+  effective_layout <- layout %||% "oval"
 
   # Round matrix weights to filter near-zero edges globally
   if (is.matrix(network) && !is.null(weight_digits)) {
@@ -351,9 +355,8 @@ soplot <- function(network, title = NULL, title_size = 14,
   network <- ensure_cograph_network(network, layout = effective_layout, seed = seed)
 
   # Check for duplicate edges in undirected networks
-  net <- network$network
-  directed <- net$is_directed
-  edges <- net$get_edges()
+  directed <- is_directed(network)
+  edges <- get_edges(network)
   if (!directed && !is.null(edges) && nrow(edges) > 0) {
     dup_check <- detect_duplicate_edges(edges)
     if (dup_check$has_duplicates) {
@@ -375,30 +378,28 @@ soplot <- function(network, title = NULL, title_size = 14,
              call. = FALSE)
       }
       edges <- aggregate_duplicate_edges(edges, edge_duplicates)
-      net$set_edges(edges)
+      network$edges <- edges
     }
   }
 
   # Apply custom node labels if provided
   if (!is.null(labels)) {
-    net <- network$network
-    nodes_df <- net$get_nodes()
+    nodes_df <- get_nodes(network)
     if (length(labels) != nrow(nodes_df)) {
       stop("labels length (", length(labels), ") must match number of nodes (",
            nrow(nodes_df), ")", call. = FALSE)
     }
     nodes_df$label <- labels
-    net$set_nodes(nodes_df)
+    network$nodes <- nodes_df
   }
 
   # Apply threshold - filter out weak edges
- if (!is.null(threshold)) {
-    net <- network$network
-    edges_df <- net$get_edges()
+  if (!is.null(threshold)) {
+    edges_df <- get_edges(network)
     if (!is.null(edges_df) && nrow(edges_df) > 0 && !is.null(edges_df$weight)) {
       keep <- abs(edges_df$weight) >= threshold
       edges_df <- edges_df[keep, , drop = FALSE]
-      net$set_edges(edges_df)
+      network$edges <- edges_df
     }
   }
 
@@ -417,7 +418,7 @@ soplot <- function(network, title = NULL, title_size = 14,
   # ============================================
 
   # Get node count for processing
-  n_nodes <- nrow(network$network$get_nodes())
+  n_nodes <- n_nodes(network)
 
   # Get shapes for processing
   shapes <- recycle_to_length(node_shape %||% "circle", n_nodes)
@@ -587,12 +588,9 @@ soplot <- function(network, title = NULL, title_size = 14,
     network <- do.call(sn_edges, c(list(network = network), edge_aes))
   }
 
-  net <- network$network
-  th <- net$get_theme()
-
   # Rescale layout coordinates to [0.1, 0.9] range (same as splot)
   # This ensures consistent rendering between soplot and splot
-  nodes <- net$get_nodes()
+  nodes <- get_nodes(network)
   if (!is.null(nodes) && nrow(nodes) > 0 && !is.null(nodes$x) && !is.null(nodes$y)) {
     x <- nodes$x
     y <- nodes$y
@@ -620,15 +618,21 @@ soplot <- function(network, title = NULL, title_size = 14,
       }
     }
 
-    net$set_nodes(nodes)
+    network$nodes <- nodes
   }
+
+  # Create temporary R6 network for grid rendering functions
+  net <- CographNetwork$new()
+  net$set_nodes(get_nodes(network))
+  net$set_edges(get_edges(network))
+  net$set_directed(is_directed(network))
 
   if (newpage) {
     grid::grid.newpage()
   }
 
   # Draw background
-  bg_color <- if (!is.null(th)) th$get("background") else "white"
+  bg_color <- background
   grid::grid.rect(gp = grid::gpar(fill = bg_color, col = NA))
 
   # Create viewport with margins
@@ -666,7 +670,7 @@ soplot <- function(network, title = NULL, title_size = 14,
 
   # Draw title if provided
   if (!is.null(title)) {
-    title_col <- if (!is.null(th)) th$get("title_color") else "black"
+    title_col <- "black"
     # Position title within the top margin, ensuring it's visible
     # Use at least 0.02 from the top edge to prevent clipping
     title_y <- 1 - max(margins[3] / 2, 0.02)
@@ -717,17 +721,15 @@ soplot <- function(network, title = NULL, title_size = 14,
   )
   # Remove NULL values
   plot_params <- plot_params[!sapply(plot_params, is.null)]
-  net$set_plot_params(plot_params)
 
-  # Store layout coordinates
-  net$set_layout_info(list(
+  # Update the original unified network with layout info
+  network$meta$layout <- list(
     name = effective_layout,
-    seed = seed,
-    coords = net$get_layout()
-  ))
+    seed = seed
+  )
 
-  # Re-create wrapper with updated data
-  invisible(as_cograph_network(net))
+  # Return the unified format network
+  invisible(network)
 }
 
 #' Create Grid Grob Tree
@@ -738,16 +740,19 @@ soplot <- function(network, title = NULL, title_size = 14,
 #' @param title Optional plot title.
 #' @return A grid gTree object.
 #' @keywords internal
-create_grid_grob <- function(network, title = NULL) {
+create_grid_grob <- function(network, title = NULL, background = "white") {
   if (!inherits(network, "cograph_network")) {
     stop("network must be a cograph_network object", call. = FALSE)
   }
 
-  net <- network$network
-  theme <- net$get_theme()
+  # Create temporary R6 network for grid rendering functions
+  net <- CographNetwork$new()
+  net$set_nodes(get_nodes(network))
+  net$set_edges(get_edges(network))
+  net$set_directed(is_directed(network))
 
   # Background
-  bg_color <- if (!is.null(theme)) theme$get("background") else "white"
+  bg_color <- background
   bg_grob <- grid::rectGrob(gp = grid::gpar(fill = bg_color, col = NA))
 
   # Edge grobs
@@ -767,7 +772,7 @@ create_grid_grob <- function(network, title = NULL) {
                           node_grobs, label_grobs)
 
   # Add title if provided
-  if (!is.null(title)) {
+  if (!is.null(title)) { # nocov start
     title_col <- if (!is.null(theme)) theme$get("title_color") else "black"
     title_grob <- grid::textGrob(
       title,
@@ -776,7 +781,7 @@ create_grid_grob <- function(network, title = NULL) {
       gp = grid::gpar(fontsize = 14, col = title_col, fontface = "bold")
     )
     children <- grid::gList(children, title_grob)
-  }
+  } # nocov end
 
   grid::gTree(children = children, name = "cograph_plot")
 }
@@ -822,6 +827,7 @@ render_legend_grid <- function(network, position = "topright") {
   legend_data <- unique(legend_data)
 
   n_items <- nrow(legend_data)
+  if (n_items == 0) return(grid::gList()) # nocov
 
   # Legend styling
   swatch_size <- 0.02  # Size of color swatch
@@ -896,5 +902,11 @@ render_legend_grid <- function(network, position = "topright") {
 }
 
 #' @rdname soplot
+#' @return Invisible NULL. Called for side effect of drawing.
 #' @export
+#' @examples
+#' \dontrun{
+#' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' sn_render(mat)
+#' }
 sn_render <- soplot

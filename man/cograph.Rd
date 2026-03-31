@@ -6,10 +6,11 @@
 \usage{
 cograph(
   input,
-  layout = "spring",
+  layout = NULL,
   directed = NULL,
-  node_labels = NULL,
+  nodes = NULL,
   seed = 42,
+  simplify = FALSE,
   ...
 )
 }
@@ -25,13 +26,19 @@ cograph(
 }}
 
 \item{layout}{Layout algorithm: "circle", "spring", "groups", "grid",
-"random", "star", "bipartite", or "custom". Default "spring".}
+"random", "star", "bipartite", or "custom". Default NULL (no layout computed).
+Set to a layout name to compute immediately, or use sn_layout() later.}
 
 \item{directed}{Logical. Force directed interpretation. NULL for auto-detect.}
 
-\item{node_labels}{Character vector of node labels.}
+\item{nodes}{Node metadata. Can be NULL or a data frame with node attributes.
+If data frame has a \code{label} or \code{labels} column, those are used for display.}
 
 \item{seed}{Random seed for deterministic layouts. Default 42. Set NULL for random.}
+
+\item{simplify}{Logical or character. If FALSE (default), every transition
+from tna sequence data is a separate edge. If TRUE or a string
+("sum", "mean", "max", "min"), duplicate edges are aggregated.}
 
 \item{...}{Additional arguments passed to the layout function.}
 }
@@ -44,20 +51,26 @@ igraph, statnet network, qgraph, or tna objects and creates a visualization-read
 network object.
 }
 \examples{
-# From adjacency matrix
+# From adjacency matrix (no layout computed yet - fast!)
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-cograph(adj)
+net <- cograph(adj)
+
+# Layout computed automatically when plotting
+splot(net)  # Uses spring layout by default
 
 # From edge list
 edges <- data.frame(from = c(1, 1, 2), to = c(2, 3, 3))
 cograph(edges)
 
+# Compute layout immediately if needed
+cograph(adj, layout = "circle") |> splot()
+
 # With customization (pipe-friendly workflow)
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-cograph(adj, layout = "circle") |>
+cograph(adj) |>
   sn_nodes(fill = "steelblue") |>
   sn_edges(color = "gray50") |>
-  splot()
+  splot(layout = "circle")
 
 # Weighted network with automatic styling
 w_adj <- matrix(c(0, 0.5, -0.3, 0.5, 0, 0.4, -0.3, 0.4, 0), nrow = 3)
@@ -67,8 +80,7 @@ cograph(w_adj) |>
 
 # With igraph (if installed)
 if (requireNamespace("igraph", quietly = TRUE)) {
-  library(igraph)
-  g <- make_ring(10)
+  g <- igraph::make_ring(10)
   cograph(g) |> splot()
 }
 }

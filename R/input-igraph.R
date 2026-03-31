@@ -1,7 +1,7 @@
 #' @title igraph Input Parsing
-#' @keywords internal
 #' @description Functions for parsing igraph objects.
 #' @name input-igraph
+#' @keywords internal
 NULL
 
 #' Parse igraph Object
@@ -14,11 +14,11 @@ NULL
 #' @noRd
 parse_igraph <- function(g, directed = NULL) {
   # Check if igraph is available
- if (!has_package("igraph")) {
+ if (!requireNamespace("igraph", quietly = TRUE)) { # nocov start
     stop("Package 'igraph' is required for igraph input. ",
          "Please install it with: install.packages('igraph')",
          call. = FALSE)
-  }
+  } # nocov end
 
   # Validate input
   if (!inherits(g, "igraph")) {
@@ -89,11 +89,11 @@ parse_igraph <- function(g, directed = NULL) {
 #' @return Data frame with x, y coordinates.
 #' @noRd
 apply_igraph_layout <- function(network, layout_fn, ...) {
-  if (!has_package("igraph")) {
+  if (!requireNamespace("igraph", quietly = TRUE)) { # nocov start
     stop("Package 'igraph' is required for igraph layouts. ",
          "Please install it with: install.packages('igraph')",
          call. = FALSE)
-  }
+  } # nocov end
 
   # Convert network to igraph
   g <- network_to_igraph(network)
@@ -118,11 +118,11 @@ apply_igraph_layout <- function(network, layout_fn, ...) {
 #' @return Data frame with x, y coordinates.
 #' @noRd
 apply_igraph_layout_by_name <- function(network, layout_name, seed = 42, ...) {
-  if (!has_package("igraph")) {
+  if (!requireNamespace("igraph", quietly = TRUE)) { # nocov start
     stop("Package 'igraph' is required for igraph layouts. ",
          "Please install it with: install.packages('igraph')",
          call. = FALSE)
-  }
+  } # nocov end
 
   # Map common names to igraph functions
   layout_map <- list(
@@ -179,13 +179,8 @@ apply_igraph_layout_by_name <- function(network, layout_name, seed = 42, ...) {
 
   # Set seed for deterministic layouts, restoring RNG state on exit
   if (!is.null(seed)) {
-    rng_exists <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
-    if (rng_exists) {
-      old_rng_state <- .Random.seed
-      on.exit(assign(".Random.seed", old_rng_state, envir = globalenv()), add = TRUE)
-    } else {
-      on.exit(rm(".Random.seed", envir = globalenv()), add = TRUE)
-    }
+    saved_rng <- .save_rng()
+    on.exit(.restore_rng(saved_rng), add = TRUE)
     set.seed(seed)
   }
 
@@ -195,21 +190,36 @@ apply_igraph_layout_by_name <- function(network, layout_name, seed = 42, ...) {
 #' Convert CographNetwork to igraph
 #'
 #' Convert a CographNetwork object to an igraph object for layout computation.
+#' Handles both old R6 CographNetwork format and new lightweight cograph_network format.
 #'
-#' @param network A CographNetwork object.
+#' @param network A CographNetwork or cograph_network object.
 #' @return An igraph object.
 #' @noRd
 network_to_igraph <- function(network) {
-  edges <- network$get_edges()
-  n <- network$n_nodes
+  # Handle both old R6 format and new lightweight format
+  if (inherits(network, "CographNetwork")) {
+    # Old R6 format with methods
+    edges <- network$get_edges()
+    n <- network$n_nodes
+    is_dir <- network$is_directed
+    nodes <- network$get_nodes()
+  } else if (inherits(network, "cograph_network")) {
+    # New lightweight format - use getter functions
+    edges <- get_edges(network)
+    n <- n_nodes(network)
+    is_dir <- is_directed(network)
+    nodes <- get_nodes(network)
+  } else {
+    stop("network must be a CographNetwork or cograph_network object", call. = FALSE)
+  }
 
   if (is.null(edges) || nrow(edges) == 0) {
     # Empty graph
-    g <- igraph::make_empty_graph(n, directed = network$is_directed)
+    g <- igraph::make_empty_graph(n, directed = is_dir)
   } else {
     # Create edge list
     edge_mat <- as.matrix(edges[, c("from", "to")])
-    g <- igraph::graph_from_edgelist(edge_mat, directed = network$is_directed)
+    g <- igraph::graph_from_edgelist(edge_mat, directed = is_dir)
 
     # Add weights if present
     if (!is.null(edges$weight)) {
@@ -218,7 +228,6 @@ network_to_igraph <- function(network) {
   }
 
   # Add node labels
-  nodes <- network$get_nodes()
   if (!is.null(nodes$label)) {
     igraph::V(g)$name <- nodes$label
   }

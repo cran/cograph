@@ -24,8 +24,8 @@ test_that("cograph() handles single-node network", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_nodes, 1)
-  expect_equal(net$network$n_edges, 0)
+  expect_equal(n_nodes(net), 1)
+  expect_equal(n_edges(net), 0)
 })
 
 test_that("splot() renders single-node network", {
@@ -40,7 +40,7 @@ test_that("cograph() handles two-node network", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_nodes, 2)
+  expect_equal(n_nodes(net), 2)
 })
 
 test_that("splot() renders two-node network", {
@@ -55,8 +55,8 @@ test_that("cograph() handles network with no edges", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_nodes, 5)
-  expect_equal(net$network$n_edges, 0)
+  expect_equal(n_nodes(net), 5)
+  expect_equal(n_edges(net), 0)
 })
 
 test_that("splot() renders network with no edges", {
@@ -93,7 +93,7 @@ test_that("cograph() handles network with only self-loops", {
 
   expect_cograph_network(net)
   # Should have nodes (self-loops may or may not be counted as edges)
-  expect_equal(net$network$n_nodes, 4)
+  expect_equal(n_nodes(net), 4)
 })
 
 test_that("splot() handles self-loop rotation parameter", {
@@ -113,7 +113,7 @@ test_that("cograph() handles complete graph", {
 
   expect_cograph_network(net)
   # Complete graph of n nodes has n*(n-1)/2 undirected edges
-  expect_equal(net$network$n_edges, 10)
+  expect_equal(n_edges(net), 10)
 })
 
 test_that("splot() renders complete graph", {
@@ -128,7 +128,7 @@ test_that("cograph() handles star graph", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_edges, 4)  # n-1 edges
+  expect_equal(n_edges(net), 4)  # n-1 edges
 })
 
 test_that("splot() renders star graph", {
@@ -143,7 +143,7 @@ test_that("cograph() handles ring graph", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_edges, 6)  # n edges in a ring
+  expect_equal(n_edges(net), 6)  # n edges in a ring
 })
 
 test_that("splot() renders ring graph with circle layout", {
@@ -158,7 +158,7 @@ test_that("cograph() handles path graph", {
   net <- cograph(adj)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_edges, 4)  # n-1 edges
+  expect_equal(n_edges(net), 4)  # n-1 edges
 })
 
 test_that("cograph() handles disconnected graph", {
@@ -302,7 +302,7 @@ test_that("cograph() preserves row/column names as labels", {
   rownames(adj) <- colnames(adj) <- c("Alice", "Bob", "Charlie")
 
   net <- cograph(adj)
-  nodes <- net$network$get_nodes()
+  nodes <- get_nodes(net)
 
   expect_equal(nodes$label, c("Alice", "Bob", "Charlie"))
 })
@@ -313,7 +313,7 @@ test_that("cograph() handles only rownames (no colnames)", {
   # colnames remain NULL
 
   net <- cograph(adj)
-  nodes <- net$network$get_nodes()
+  nodes <- get_nodes(net)
 
   expect_equal(nodes$label, c("A", "B", "C"))
 })
@@ -325,7 +325,7 @@ test_that("cograph() handles mismatched row/colnames", {
 
   net <- cograph(adj)
   # Should use one of them (likely rownames)
-  nodes <- net$network$get_nodes()
+  nodes <- get_nodes(net)
   expect_equal(length(nodes$label), 3)
 })
 
@@ -404,7 +404,7 @@ test_that("cograph() handles moderately large network", {
   net <- cograph(adj, layout = "spring", seed = 42)
 
   expect_cograph_network(net)
-  expect_equal(net$network$n_nodes, 50)
+  expect_equal(n_nodes(net), 50)
 })
 
 test_that("splot() renders moderately large network", {
@@ -438,8 +438,7 @@ test_that("splot() handles custom layout with Inf values gracefully", {
   layout <- matrix(c(0, Inf, 1, 0.5, 1, 0.5), ncol = 2)
 
   result <- tryCatch({
-    # Suppress warnings about min/max of Inf values
-    suppressWarnings(with_temp_png(splot(adj, layout = layout)))
+    with_temp_png(splot(adj, layout = layout))
     "success"
   }, error = function(e) "error")
 
@@ -548,4 +547,136 @@ test_that("sn_theme() applies correctly after other customizations", {
 
   result <- safe_plot(splot(net))
   expect_true(result$success, info = result$error)
+})
+
+# ============================================
+# STRESS TESTS (LARGE NETWORKS)
+# ============================================
+
+test_that("splot() handles 100-node sparse network", {
+  skip_on_cran()
+
+  n <- 100
+  set.seed(42)
+  mat <- matrix(runif(n * n), n, n)
+  mat[mat < 0.95] <- 0  # Very sparse (~5% density)
+  mat <- mat + t(mat)  # Make symmetric
+  diag(mat) <- 0
+
+  result <- safe_plot(splot(mat, layout = "circle"))
+  expect_true(result$success, info = result$error)
+})
+
+test_that("cograph() handles 100-node network", {
+  skip_on_cran()
+
+  n <- 100
+  set.seed(42)
+  mat <- matrix(0, n, n)
+  # Add sparse edges
+  for (i in 1:(n - 1)) {
+    if (runif(1) > 0.5) {
+      mat[i, i + 1] <- mat[i + 1, i] <- runif(1)
+    }
+  }
+
+  net <- cograph(mat)
+  expect_cograph_network(net)
+  expect_equal(n_nodes(net), 100)
+})
+
+test_that("splot() handles dense network (50 nodes, 50% density)", {
+  skip_on_cran()
+
+  adj <- create_test_matrix(50, density = 0.5, seed = 42)
+
+  result <- safe_plot(splot(adj, layout = "circle"))
+  expect_true(result$success, info = result$error)
+})
+
+# ============================================
+# API COMPATIBILITY TESTS
+# ============================================
+
+test_that("splot() API core parameters work", {
+  mat <- matrix(c(0, 1, 1, 0), 2, 2)
+
+  # These should all work (core API)
+  expect_no_error(with_temp_png(splot(mat, layout = "circle")))
+  expect_no_error(with_temp_png(splot(mat, directed = TRUE)))
+  expect_no_error(with_temp_png(splot(mat, directed = FALSE)))
+  expect_no_error(with_temp_png(splot(mat, node_size = 10)))
+  expect_no_error(with_temp_png(splot(mat, edge_color = "blue")))
+  expect_no_error(with_temp_png(splot(mat, title = "Test")))
+})
+
+test_that("splot() API node aesthetics work", {
+  mat <- create_test_matrix(4)
+
+  expect_no_error(with_temp_png(splot(mat, node_fill = "steelblue")))
+  expect_no_error(with_temp_png(splot(mat, node_shape = "square")))
+  expect_no_error(with_temp_png(splot(mat, node_alpha = 0.7)))
+  expect_no_error(with_temp_png(splot(mat, node_border_color = "black")))
+  expect_no_error(with_temp_png(splot(mat, node_border_width = 2)))
+})
+
+test_that("splot() API edge aesthetics work", {
+  mat <- create_test_matrix(4, weighted = TRUE)
+
+  expect_no_error(with_temp_png(splot(mat, edge_width = 2)))
+  expect_no_error(with_temp_png(splot(mat, edge_alpha = 0.5)))
+  expect_no_error(with_temp_png(splot(mat, edge_style = 2)))
+  expect_no_error(with_temp_png(splot(mat, curvature = 0.2)))
+  expect_no_error(with_temp_png(splot(mat, edge_labels = TRUE)))
+})
+
+test_that("splot() API layout options work", {
+  mat <- create_test_matrix(5)
+
+  expect_no_error(with_temp_png(splot(mat, layout = "circle")))
+  expect_no_error(with_temp_png(splot(mat, layout = "spring", seed = 42)))
+
+  skip_if_no_igraph()
+  expect_no_error(with_temp_png(splot(mat, layout = "kk", seed = 42)))
+  expect_no_error(with_temp_png(splot(mat, layout = "fr", seed = 42)))
+})
+
+test_that("splot() API theme options work", {
+  mat <- create_test_matrix(4)
+
+  expect_no_error(with_temp_png(splot(mat, theme = "classic")))
+  expect_no_error(with_temp_png(splot(mat, theme = "dark")))
+  expect_no_error(with_temp_png(splot(mat, theme = "minimal")))
+  expect_no_error(with_temp_png(splot(mat, theme = "colorblind")))
+})
+
+# ============================================
+# IGRAPH ROUND-TRIP TESTS
+# ============================================
+
+test_that("igraph round-trip preserves structure", {
+  skip_if_no_igraph()
+
+  mat <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+  rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+
+  net <- as_cograph(mat)
+  ig <- to_igraph(net)
+  net2 <- as_cograph(ig)
+
+  expect_equal(n_nodes(net), n_nodes(net2))
+  expect_equal(n_edges(net), n_edges(net2))
+})
+
+test_that("igraph round-trip preserves weights", {
+  skip_if_no_igraph()
+
+  mat <- matrix(c(0, 0.5, 0.3, 0.5, 0, 0.7, 0.3, 0.7, 0), 3, 3)
+
+  net <- as_cograph(mat)
+  ig <- to_igraph(net)
+  net2 <- as_cograph(ig)
+
+  # Check edge count matches
+  expect_equal(n_edges(net), n_edges(net2))
 })

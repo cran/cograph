@@ -15,30 +15,61 @@ tna_color_palette <- function(n_states) {
   # Check for required packages with fallbacks
   switch(color_group,
     # 1-2 states: Accent palette (first n colors)
-    if (has_package("RColorBrewer")) {
+    if (requireNamespace("RColorBrewer", quietly = TRUE)) {
       RColorBrewer::brewer.pal(n = 3, name = "Accent")[seq_len(n_states)]
-    } else {
+    } else { # nocov start
       grDevices::hcl.colors(n_states, palette = "Set 2")
-    },
+    }, # nocov end
     # 3-8 states: Full Accent palette
-    if (has_package("RColorBrewer")) {
+    if (requireNamespace("RColorBrewer", quietly = TRUE)) {
       RColorBrewer::brewer.pal(n = n_states, name = "Accent")
-    } else {
+    } else { # nocov start
       grDevices::hcl.colors(n_states, palette = "Set 2")
-    },
+    }, # nocov end
     # 9-12 states: Set3 palette
-    if (has_package("RColorBrewer")) {
+    if (requireNamespace("RColorBrewer", quietly = TRUE)) {
       RColorBrewer::brewer.pal(n = n_states, name = "Set3")
-    } else {
+    } else { # nocov start
       grDevices::hcl.colors(n_states, palette = "Set 3")
-    },
+    }, # nocov end
     # 13+ states: colorspace qualitative HCL
-    if (has_package("colorspace")) {
+    if (requireNamespace("colorspace", quietly = TRUE)) {
       colorspace::qualitative_hcl(n = n_states, palette = "Set 3")
-    } else {
+    } else { # nocov start
       grDevices::hcl.colors(n_states, palette = "Set 3")
-    }
+    } # nocov end
   )
+}
+
+#' TNA Visual Style Defaults
+#'
+#' Returns the standard TNA visual defaults as a named list. Used by
+#' \code{splot(tna_styling = TRUE)}, \code{from_tna()}, and \code{plot_tna()}.
+#'
+#' @param n_nodes Number of nodes (for color palette). NULL skips node_fill.
+#' @param directed Logical. If TRUE, includes arrow/edge-start defaults.
+#' @return Named list of splot parameters.
+#' @keywords internal
+.tna_style_defaults <- function(n_nodes = NULL, directed = TRUE) {
+  defaults <- list(
+    layout                 = "oval",
+    edge_label_style       = "estimate",
+    edge_label_leading_zero = FALSE,
+    edge_label_size        = 0.6,
+    edge_color             = COGRAPH_SCALE$tna_edge_color,
+    edge_label_position    = 0.7,
+    node_size              = 7,
+    minimum                = 0.01
+  )
+  if (!is.null(n_nodes)) {
+    defaults$node_fill <- tna_color_palette(n_nodes)
+  }
+  if (isTRUE(directed)) {
+    defaults$arrow_size        <- 0.61
+    defaults$edge_start_length <- 0.2
+    defaults$edge_start_style  <- "dotted"
+  }
+  defaults
 }
 
 #' Convert a tna object to cograph parameters
@@ -101,25 +132,22 @@ tna_color_palette <- function(n_states) {
 #' \code{\link{splot}} and \code{\link{soplot}} for plotting engines,
 #' \code{\link{from_qgraph}} for qgraph object conversion
 #'
-#' @examples
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
 #' # Convert and plot a tna object
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   library(tna)
-#'   trans <- tna(group_regulation)
-#'   from_tna(trans)  # Plots with donut rings showing initial probabilities
+#' model <- tna::tna(tna::group_regulation)
+#' from_tna(model)  # Plots with donut rings showing initial probabilities
 #'
-#'   # Use soplot engine instead
-#'   from_tna(trans, engine = "soplot")
+#' # Use soplot engine instead
+#' from_tna(model, engine = "soplot")
 #'
-#'   # Customize the visualization
-#'   from_tna(trans, layout = "circle", donut_color = c("steelblue", "gray90"))
+#' # Customize the visualization
+#' from_tna(model, layout = "circle", donut_color = c("steelblue", "gray90"))
 #'
-#'   # Extract parameters without plotting
-#'   params <- from_tna(trans, plot = FALSE)
-#'   # Modify and plot manually
-#'   params$node_fill <- "coral"
-#'   do.call(splot, params)
-#' }
+#' # Extract parameters without plotting
+#' params <- from_tna(model, plot = FALSE)
+#' # Modify and plot manually
+#' params$node_fill <- "coral"
+#' do.call(splot, params)
 #'
 #' @export
 from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
@@ -135,11 +163,19 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
   # --- Weights matrix ---
   x <- tna_object$weights
 
+  # --- Determine directedness ---
+  # Read from tna object's $directed field if present, otherwise auto-detect
+  # from matrix symmetry (co-occurrence networks are symmetric/undirected)
+  is_directed <- if (!is.null(tna_object$directed)) {
+    tna_object$directed
+  } else if (!is.null(attr(tna_object, "directed"))) {
+    attr(tna_object, "directed")
+  } else {
+    !is_symmetric_matrix(x)
+  }
+
   # --- Build params ---
   n_states <- nrow(x)
-
-  # Auto-detect directedness from matrix symmetry
-  is_directed <- !is_symmetric_matrix(x)
 
   params <- list(
     x          = x,
@@ -151,19 +187,9 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
     donut_empty       = FALSE
   )
 
-  # --- TNA-specific visual defaults (can be overridden via ...) ---
-  params$node_fill <- tna_color_palette(n_states)
-  params$layout <- "oval"
-  params$edge_labels <- TRUE
-  params$edge_label_size <- 0.6
-  params$edge_color <- "#003355"
-  params$edge_label_position <- 0.7
-  params$node_size <- 7
-  if (is_directed) {
-    params$arrow_size <- 0.61
-    params$edge_start_length <- 0.2
-    params$edge_start_style <- "dotted"
-  }
+  # --- TNA-specific visual defaults ---
+  tna_defaults <- .tna_style_defaults(n_states, is_directed)
+  params <- c(params, tna_defaults)
 
   # --- Apply overrides ---
   for (nm in names(overrides)) {
@@ -265,28 +291,25 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
 #' \code{\link{splot}} and \code{\link{soplot}} for plotting engines,
 #' \code{\link{from_tna}} for tna object conversion
 #'
-#' @examples
+#' @examplesIf requireNamespace("qgraph", quietly = TRUE)
 #' # Convert and plot a qgraph object
-#' if (requireNamespace("qgraph", quietly = TRUE)) {
-#'   library(qgraph)
-#'   adj <- matrix(c(0, .5, .3, .5, 0, .4, .3, .4, 0), 3, 3)
-#'   q <- qgraph(adj)
-#'   from_qgraph(q)  # Plots with splot
+#' adj <- matrix(c(0, .5, .3, .5, 0, .4, .3, .4, 0), 3, 3)
+#' q <- qgraph::qgraph(adj)
+#' from_qgraph(q)  # Plots with splot
 #'
-#'   # Use soplot engine instead
-#'   from_qgraph(q, engine = "soplot")
+#' # Use soplot engine instead
+#' from_qgraph(q, engine = "soplot")
 #'
-#'   # Override extracted parameters
-#'   from_qgraph(q, node_fill = "steelblue", layout = "circle")
+#' # Override extracted parameters
+#' from_qgraph(q, node_fill = "steelblue", layout = "circle")
 #'
-#'   # Extract parameters without plotting
-#'   params <- from_qgraph(q, plot = FALSE)
-#'   names(params)  # See what was extracted
+#' # Extract parameters without plotting
+#' params <- from_qgraph(q, plot = FALSE)
+#' names(params)  # See what was extracted
 #'
-#'   # Works with themed qgraph objects
-#'   q_themed <- qgraph(adj, theme = "colorblind", posCol = "blue")
-#'   from_qgraph(q_themed)
-#' }
+#' # Works with themed qgraph objects
+#' q_themed <- qgraph::qgraph(adj, theme = "colorblind", posCol = "blue")
+#' from_qgraph(q_themed)
 #'
 #' @export
 from_qgraph <- function(qgraph_object, engine = c("splot", "soplot"), plot = TRUE,
@@ -328,7 +351,7 @@ from_qgraph <- function(qgraph_object, engine = c("splot", "soplot"), plot = TRU
 
   # --- Node aesthetics from graphAttributes$Nodes ---
   if (!is.null(ga_nodes$labels))       params$labels            <- ga_nodes$labels
-  else if (!is.null(ga_nodes$names))   params$labels            <- ga_nodes$names
+  else if (!is.null(ga_nodes$names))   params$labels            <- ga_nodes$names # nocov
   if (!is.null(ga_nodes$color))        params$node_fill         <- ga_nodes$color
   if (!is.null(ga_nodes$width))        params$node_size         <- ga_nodes$width * 1.3
   if (!is.null(ga_nodes$shape))        params$node_shape        <- map_qgraph_shape(ga_nodes$shape)
@@ -481,4 +504,74 @@ map_qgraph_shape <- function(shapes) {
   unknown <- is.na(result)
   result[unknown] <- shapes[unknown]
   unname(result)
+}
+
+#' Translate qgraph-style parameter names to cograph equivalents
+#'
+#' When splot() receives a tna object, users often pass qgraph-style parameter
+#' names (e.g., \code{size = 20}, \code{edge.color = "red"}) because the tna
+#' package uses qgraph for plotting. This function renames those keys to their
+#' cograph equivalents and applies value transforms where needed.
+#'
+#' @param dots Named list (typically from \code{list(...)}).
+#' @return Named list with qgraph keys renamed to cograph equivalents.
+#' @keywords internal
+.translate_qgraph_dots <- function(dots) {
+  if (length(dots) == 0L || is.null(names(dots))) return(dots)
+
+  # qgraph name -> cograph name
+  name_map <- c(
+    "size"                = "node_size",
+    "vsize"               = "node_size",
+    "color"               = "node_fill",
+    "pie"                 = "donut_fill",
+    "pieColor"            = "donut_color",
+    "edge.labels"         = "edge_labels",
+    "edge.label.position" = "edge_label_position",
+    "edge.label.cex"      = "edge_label_size",
+    "edge.label.color"    = "edge_label_color",
+    "edge.color"          = "edge_color",
+    "posCol"              = "edge_positive_color",
+    "negCol"              = "edge_negative_color",
+    "lty"                 = "edge_style",
+    "arrowAngle"          = "arrow_angle",
+    "mar"                 = "margins",
+    "label.cex"           = "label_size",
+    "label.color"         = "label_color",
+    "border.color"        = "node_border_color",
+    "border.width"        = "node_border_width",
+    "asize"               = "arrow_size",
+    "shape"               = "node_shape"
+  )
+
+  orig_nms <- names(dots)
+  mapped <- name_map[orig_nms]
+  has_mapping <- !is.na(mapped)
+
+  # Track which qgraph names were translated (for value transforms below)
+  translated_from <- character(0)
+
+  # Rename: skip if cograph name already present (cograph wins)
+  for (idx in which(has_mapping)) {
+    cograph_nm <- mapped[idx]
+    if (cograph_nm %in% orig_nms) next
+    translated_from <- c(translated_from, orig_nms[idx])
+    names(dots)[idx] <- cograph_nm
+  }
+
+  # Value transforms — only when the value came from a qgraph alias
+  if ("asize" %in% translated_from) {
+    dots$arrow_size <- dots$arrow_size * 0.20
+  }
+  if ("edge.label.cex" %in% translated_from) {
+    dots$edge_label_size <- dots$edge_label_size * 1.2
+  }
+  if ("lty" %in% translated_from) {
+    dots$edge_style <- map_qgraph_lty(dots$edge_style)
+  }
+  if ("shape" %in% translated_from) {
+    dots$node_shape <- map_qgraph_shape(dots$node_shape)
+  }
+
+  dots
 }

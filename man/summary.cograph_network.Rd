@@ -12,9 +12,16 @@
 \item{...}{Ignored.}
 }
 \value{
-A list with network summary information (invisibly).
+A list with network summary information (invisibly), containing
+elements \code{n_nodes}, \code{n_edges}, \code{directed}, \code{weighted},
+and \code{has_layout}.
 }
 \description{
 Summary of cograph_network Object
 }
-\keyword{internal}
+\examples{
+adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+net <- cograph(adj)
+summary(net)
+
+}

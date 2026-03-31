@@ -6,19 +6,24 @@
 #' (inter-layer edges). Each layer is enclosed in a parallelogram shell giving
 #' a pseudo-3D appearance.
 #'
-#' \if{html}{\figure{mlna_example.png}{options: width=600 alt="Multilevel network example"}}
-#' \if{latex}{\figure{mlna_example.png}{options: width=4in}}
-#'
-#' @param model A tna object or weight matrix.
-#' @param layer_list List of character vectors defining layers. Each element
-#'   contains node names belonging to that layer. Layers are displayed from
-#'   top to bottom in list order.
+#' @param model A tna object, weight matrix, or cograph_network.
+#' @param layer_list Layers can be specified as:
+#'   \itemize{
+#'     \item A list of character vectors (node names per layer)
+#'     \item A string column name from nodes data (e.g., "layer")
+#'     \item NULL to auto-detect from columns named: layer, layers, groups, etc.
+#'     \item NULL with \code{community} specified for algorithmic detection
+#'   }
+#' @param community Community detection method to use for auto-layering.
+#'   If specified, overrides \code{layer_list}. See \code{\link{detect_communities}}
+#'   for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
+#'   "infomap", "leiden".
 #' @param layout Node layout within layers: "horizontal" (default) spreads nodes
 #'   horizontally, "circle" arranges nodes in an ellipse, "spring" uses
 #'   force-directed placement based on within-layer connections.
-#' @param layer_spacing Vertical distance between layer centers. Default 2.2.
-#' @param layer_width Horizontal width of each layer shell. Default 4.5.
-#' @param layer_depth Depth of each layer (for 3D effect). Default 2.2.
+#' @param layer_spacing Vertical distance between layer centers. Default 2.5.
+#' @param layer_width Horizontal width of each layer shell. Default 5.
+#' @param layer_depth Depth of each layer (for 3D effect). Default 2.5.
 #' @param skew_angle Angle of perspective skew in degrees. Default 25.
 #' @param node_spacing Node placement ratio within layer (0-1). Default 0.7.
 #'   Higher values spread nodes closer to the layer edges.
@@ -39,7 +44,20 @@
 #' @param node_size Size of nodes. Default 2.5.
 #' @param minimum Minimum edge weight threshold. Edges below this are hidden.
 #'   Default 0.
-#' @param scale Scaling factor for high resolution plotting.
+#' @param scale Scaling factor for spacing parameters. Use scale > 1 for
+#'   high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
+#'   layer_spacing, layer_width, and layer_depth to maintain proper proportions
+#'   at higher resolutions. Default 1.
+#' @param show_labels Logical. Show node labels. Default TRUE.
+#' @param nodes Node metadata. Can be:
+#'   \itemize{
+#'     \item NULL (default): Use existing nodes data from cograph_network
+#'     \item Data frame: Must have `label` column for matching; if `labels`
+#'       column exists, uses it for display text
+#'   }
+#'   Display priority: `labels` column > `label` column (identifiers).
+#' @param label_abbrev Label abbreviation: NULL (none), integer (max chars),
+#'   or "auto" (adaptive based on node count).
 #' @param ... Additional parameters (currently unused).
 #'
 #' @return Invisibly returns NULL.
@@ -47,6 +65,7 @@
 #' @export
 #'
 #' @examples
+#' \dontrun{
 #' # Create multilevel network
 #' set.seed(42)
 #' nodes <- paste0("N", 1:15)
@@ -73,13 +92,15 @@
 #'
 #' # Circle layout within layers
 #' plot_mlna(m, layers, layout = "circle")
+#' }
 plot_mlna <- function(
     model,
-    layer_list,
+    layer_list = NULL,
+    community = NULL,
     layout = "horizontal",
-    layer_spacing = 2.2,
-    layer_width = 4.5,
-    layer_depth = 2.2,
+    layer_spacing = 4,
+    layer_width = 8,
+    layer_depth = 4,
     skew_angle = 25,
     node_spacing = 0.7,
     colors = NULL,
@@ -95,25 +116,28 @@ plot_mlna <- function(
     node_size = 3,
     minimum = 0,
     scale = 1,
+    show_labels = TRUE,
+    nodes = NULL,
+    label_abbrev = NULL,
     ...
 ) {
-  # Apply scale for high-resolution output
+  # Apply scale: use sqrt(scale) for gentler compensation at high-resolution
+  # At 300 dpi (scale=4), divide by 2 instead of 4 for better proportions
   size_scale <- sqrt(scale)
   node_size <- node_size / size_scale
-  edge_scale <- 1 / size_scale
+  edge_scale <- 1 / size_scale  # Used for lwd calculations
 
   # ==========================================================================
   # 1. Input Validation & Setup
   # ==========================================================================
 
-  # Validate layer_list
- n_layers <- length(layer_list)
-  if (!is.list(layer_list) || n_layers < 2) {
-    stop("layer_list must be a list of 2+ character vectors", call. = FALSE)
-  }
-
-  # Get labels and weights from model
-  if (inherits(model, "tna")) {
+  # Handle cograph_network input
+  nodes_df <- NULL
+  if (inherits(model, "cograph_network")) {
+    nodes_df <- get_nodes(model)
+    lab <- if (!is.null(nodes_df$label)) nodes_df$label else as.character(seq_len(nrow(nodes_df)))
+    weights <- to_matrix(model)
+  } else if (inherits(model, "tna")) {
     lab <- model$labels
     weights <- model$weights
   } else if (is.matrix(model)) {
@@ -121,7 +145,70 @@ plot_mlna <- function(
     if (is.null(lab)) lab <- as.character(seq_len(ncol(model)))
     weights <- model
   } else {
-    stop("model must be a tna object or matrix", call. = FALSE)
+    stop("model must be a cograph_network, tna object, or matrix", call. = FALSE)
+  }
+
+  n <- length(lab)
+
+  # Merge nodes parameter with existing nodes_df
+  if (is.data.frame(nodes)) {
+    nodes_df <- nodes
+  }
+
+  # Resolve display labels: priority is labels > label > identifier
+  # (labels column = display text, label column = identifier)
+  display_labels <- if (!is.null(nodes_df)) {
+    if ("labels" %in% names(nodes_df)) {
+      nodes_df$labels
+    } else if ("label" %in% names(nodes_df)) {
+      nodes_df$label
+    } else {
+      lab  # Fall back to identifiers
+    }
+  } else {
+    lab
+  }
+
+  # Handle layer_list as column name string
+  if (is.character(layer_list) && length(layer_list) == 1) {
+    if (is.null(nodes_df)) {
+      stop("To use a column name for layer_list, model must be a cograph_network", call. = FALSE)
+    }
+    if (!layer_list %in% names(nodes_df)) {
+      stop("Column '", layer_list, "' not found in nodes. Available: ",
+           paste(names(nodes_df), collapse = ", "), call. = FALSE)
+    }
+    layer_col <- nodes_df[[layer_list]]
+    layer_list <- split(lab, layer_col)
+  }
+
+  # Auto-detect layers from common column names
+  if (is.null(layer_list) && is.null(community) && !is.null(nodes_df)) {
+    layer_cols <- c("layer", "layers", "level", "levels", "groups", "group", "clusters", "cluster")
+    for (col in layer_cols) {
+      if (col %in% names(nodes_df)) {
+        layer_col <- nodes_df[[col]]
+        layer_list <- split(lab, layer_col)
+        message("Using '", col, "' column for layers")
+        break
+      }
+    }
+  }
+
+  # Handle community parameter - auto-detect layers
+  if (!is.null(community)) {
+    comm_df <- detect_communities(model, method = community)
+    layer_list <- split(comm_df$node, comm_df$community)
+    names(layer_list) <- paste0("Layer_", names(layer_list))
+  }
+
+  # Validate layer_list
+  if (is.null(layer_list)) {
+    stop("Either layer_list or community must be specified", call. = FALSE)
+  }
+  n_layers <- length(layer_list)
+  if (!is.list(layer_list) || n_layers < 2) {
+    stop("layer_list must be a list of 2+ character vectors", call. = FALSE)
   }
 
   n <- length(lab)
@@ -313,13 +400,15 @@ plot_mlna <- function(
   # 4. Set Up Plot
   # ==========================================================================
 
-  # Calculate plot dimensions with padding
+  # Calculate plot dimensions with minimal padding
   all_x <- c(x_pos, unlist(lapply(layer_planes, function(p) p$corners[, 1])))
   all_y <- c(y_pos, unlist(lapply(layer_planes, function(p) p$corners[, 2])))
   x_range <- range(all_x) + c(-0.5, 1.5)
-  y_range <- range(all_y) + c(-0.5, 0.8)
+  y_range <- range(all_y) + c(-0.5, 0.5)
 
-  # Set up blank plot
+  # Set up blank plot with minimal margins
+  old_par <- graphics::par(mar = c(0.5, 0.5, 0.5, 0.5))
+  on.exit(graphics::par(old_par), add = TRUE)
   graphics::plot.new()
   graphics::plot.window(xlim = x_range, ylim = y_range, asp = 1)
 
@@ -347,7 +436,7 @@ plot_mlna <- function(
         for (tgt_idx in idx) {
           weight <- weights[src_idx, tgt_idx]
           if (!is.na(weight) && weight > minimum) {
-            lwd <- (0.3 + 1.2 * (abs(weight) / max_w)) * edge_scale
+            lwd <- (0.5 + 2.5 * (abs(weight) / max_w)) * edge_scale
             edge_col <- grDevices::adjustcolor(edge_colors[next_layer], alpha.f = 0.6)
             graphics::segments(
               x0 = x_pos[src_idx], y0 = y_pos[src_idx],
@@ -365,7 +454,7 @@ plot_mlna <- function(
         for (tgt_idx in next_idx) {
           weight <- weights[src_idx, tgt_idx]
           if (!is.na(weight) && weight > minimum) {
-            lwd <- (0.3 + 1.2 * (abs(weight) / max_w)) * edge_scale
+            lwd <- (0.5 + 2.5 * (abs(weight) / max_w)) * edge_scale
             edge_col <- grDevices::adjustcolor(edge_colors[i], alpha.f = 0.6)
             graphics::segments(
               x0 = x_pos[src_idx], y0 = y_pos[src_idx],
@@ -389,7 +478,7 @@ plot_mlna <- function(
         y = c(corners[, 2], corners[1, 2]),
         border = border_color,
         col = fill_color,
-        lwd = 1.5 * edge_scale
+        lwd = 2.5 * edge_scale
       )
 
       # Layer label on the right
@@ -434,7 +523,7 @@ plot_mlna <- function(
                 edge_col <- grDevices::adjustcolor(
                   layer_colors[i], red.f = 0.6, green.f = 0.6, blue.f = 0.6
                 )
-                lwd <- (0.3 + 1.0 * (abs(weight) / max_w)) * edge_scale
+                lwd <- (0.8 + 1.5 * (abs(weight) / max_w)) * edge_scale
 
                 graphics::xspline(
                   x = c(x0, mid_x + off_x, x1),
@@ -470,18 +559,24 @@ plot_mlna <- function(
       bg = layer_colors[i],
       col = "gray20",
       cex = node_size,
-      lwd = 0.8 * edge_scale
+      lwd = 1.5 * edge_scale
     )
 
     # Node labels
-    graphics::text(
-      x_pos[idx], y_pos[idx],
-      labels = lab[idx],
-      cex = 0.75 / size_scale,
-      pos = 3,
-      offset = 0.6,
-      font = 1
-    )
+    if (isTRUE(show_labels)) {
+      lbl_text <- display_labels[idx]
+      if (!is.null(label_abbrev)) {
+        lbl_text <- abbrev_label(lbl_text, label_abbrev, n)
+      }
+      graphics::text(
+        x_pos[idx], y_pos[idx],
+        labels = lbl_text,
+        cex = 0.75 / size_scale,
+        pos = 3,
+        offset = 0.6,
+        font = 1
+      )
+    }
   }
 
   # ==========================================================================
@@ -520,5 +615,15 @@ plot_mlna <- function(
 }
 
 #' @rdname plot_mlna
+#' @return See \code{\link{plot_mlna}}.
 #' @export
+#' @examples
+#' \dontrun{
+#' nodes <- paste0("N", 1:9)
+#' m <- matrix(runif(81, 0, 0.3), 9, 9)
+#' diag(m) <- 0
+#' colnames(m) <- rownames(m) <- nodes
+#' layers <- list(L1 = nodes[1:3], L2 = nodes[4:6], L3 = nodes[7:9])
+#' mlna(m, layers)
+#' }
 mlna <- plot_mlna

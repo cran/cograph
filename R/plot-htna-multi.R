@@ -4,13 +4,21 @@
 #' and individual edges within clusters. Each cluster is displayed as a
 #' shape (circle, square, diamond, triangle) containing its nodes.
 #'
-#' @param x A tna object or weight matrix.
-#' @param cluster_list List of character vectors defining clusters.
-#'   Each cluster becomes a separate shape in the layout.
+#' @param x A tna object, weight matrix, cograph_network, or cluster_summary object.
+#' @param cluster_list Clusters can be specified as:
+#'   \itemize{
+#'     \item A list of character vectors (node names per cluster)
+#'     \item A string column name from nodes data (e.g., "groups")
+#'     \item NULL with \code{community} specified for auto-detection
+#'   }
+#' @param community Community detection method to use for auto-clustering.
+#'   If specified, overrides \code{cluster_list}. See \code{\link{detect_communities}}
+#'   for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
+#'   "infomap", "leiden".
 #' @param layout How to arrange the clusters: "circle" (default),
 #'   "grid", "horizontal", "vertical".
-#' @param spacing Distance between cluster centers. Default 3.
-#' @param shape_size Size of each cluster shape (shell radius). Default 1.2.
+#' @param spacing Distance between cluster centers. Default 4.
+#' @param shape_size Size of each cluster shape (shell radius). Default 1.8.
 #' @param node_spacing Radius for node placement within shapes (0-1 relative
 #'   to shape_size). Default 0.5.
 #' @param colors Vector of colors for each cluster. Default auto-generated.
@@ -21,21 +29,45 @@
 #' @param bundle_strength How tightly to bundle edges (0-1). Default 0.8.
 #' @param summary_edges Logical. Show aggregated summary edges between clusters instead
 #'   of individual node edges. Default TRUE.
+#' @param aggregation Method for aggregating edge weights between clusters:
+#'   "sum" (total flow), "mean" (average strength), "max" (strongest link),
+#'   "min" (weakest link), "median", or "density" (normalized by possible edges).
+#'   Default "sum". Only used when summary_edges = TRUE.
 #' @param within_edges Logical. When summary_edges is TRUE, also show individual
 #'   edges within each cluster. Default TRUE.
 #' @param show_border Logical. Draw a border around each cluster. Default TRUE.
 #' @param legend Logical. Whether to show legend. Default TRUE.
 #' @param legend_position Position for legend. Default "topright".
 #' @param curvature Edge curvature. Default 0.3.
-#' @param node_size Size of nodes inside shapes. Default 2.
-#' @param scale Scaling factor for high resolution plotting.
+#' @param node_size Size of nodes inside shapes. Default 3.
+#' @param layout_margin Margin around the layout as fraction of range. Default 0.15.
+#' @param scale Scaling factor for spacing parameters. Use scale > 1 for
+#'   high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
+#'   spacing and shape_size to maintain proper proportions at higher resolutions.
+#'   Default 1.
+#' @param show_labels Logical. Show node labels inside clusters. Default FALSE.
+#' @param nodes Node metadata. Can be:
+#'   \itemize{
+#'     \item NULL (default): Use existing nodes data from cograph_network
+#'     \item Data frame: Must have `label` column for matching; if `labels`
+#'       column exists, uses it for display text
+#'   }
+#'   Display priority: `labels` column > `label` column (identifiers).
+#' @param label_size Label text size. Default NULL (auto-scaled).
+#' @param label_abbrev Label abbreviation: NULL (none), integer (max chars),
+#'   or "auto" (adaptive based on node count).
+#' @param cluster_shape Shape for cluster summary nodes when using summary view.
+#'   Can be single value or vector. Overrides \code{shapes}. Default NULL (use shapes).
 #' @param ... Additional parameters passed to plot_tna().
 #'
-#' @return Invisibly returns NULL for summary mode, or the plot_tna result.
+#' @return Invisibly returns a cluster_summary object for summary mode, or the
+#'   plot_tna result otherwise.
 #'
 #' @export
+#' @seealso \code{\link{cluster_summary}}, \code{\link{plot_mcml}}
 #'
 #' @examples
+#' \dontrun{
 #' # Create network with 4 clusters
 #' nodes <- paste0("N", 1:20)
 #' m <- matrix(runif(400, 0, 0.3), 20, 20)
@@ -52,14 +84,19 @@
 #' # Summary edges between clusters + individual edges within
 #' plot_mtna(m, clusters, summary_edges = TRUE)
 #'
+#' # With node labels
+#' plot_mtna(m, clusters, show_labels = TRUE, label_abbrev = 3)
+#'
 #' # Control spacing and sizes
 #' plot_mtna(m, clusters, spacing = 4, shape_size = 1.5, node_spacing = 0.6)
+#' }
 plot_mtna <- function(
     x,
-    cluster_list,
+    cluster_list = NULL,
+    community = NULL,
     layout = "circle",
-    spacing = 3,
-    shape_size = 1.2,
+    spacing = 4,
+    shape_size = 1.8,
     node_spacing = 0.5,
     colors = NULL,
     shapes = NULL,
@@ -67,31 +104,37 @@ plot_mtna <- function(
     bundle_edges = TRUE,
     bundle_strength = 0.8,
     summary_edges = TRUE,
+    aggregation = c("sum", "mean", "max", "min", "median", "density"),
     within_edges = TRUE,
     show_border = TRUE,
     legend = TRUE,
     legend_position = "topright",
     curvature = 0.3,
-    node_size = 2,
+    node_size = 3,
+    layout_margin = 0.15,
     scale = 1,
+    show_labels = FALSE,
+    nodes = NULL,
+    label_size = NULL,
+    label_abbrev = NULL,
+    cluster_shape = NULL,
     ...
 ) {
-  # Apply scale for high-resolution output
+  # Match aggregation method
+  aggregation <- match.arg(aggregation)
+
+  # Apply scale: use sqrt(scale) for gentler compensation at high-resolution
   size_scale <- sqrt(scale)
   node_size <- node_size / size_scale
   edge_scale <- 1 / size_scale
 
-  dots <- list(...)
-  edge_lwd_mult <- if (!is.null(dots$edge.lwd)) dots$edge.lwd else 1
-
-  # Validate cluster_list
- n_clusters <- length(cluster_list)
-  if (!is.list(cluster_list) || n_clusters < 2) {
-    stop("cluster_list must be a list of 2+ character vectors", call. = FALSE)
-  }
-
-  # Get labels and weights from x
-  if (inherits(x, "tna")) {
+  # Handle cograph_network input
+  nodes_df <- NULL
+  if (inherits(x, "cograph_network")) {
+    nodes_df <- get_nodes(x)
+    lab <- if (!is.null(nodes_df$label)) nodes_df$label else as.character(seq_len(nrow(nodes_df)))
+    weights <- to_matrix(x)
+  } else if (inherits(x, "tna")) {
     lab <- x$labels
     weights <- x$weights
   } else if (is.matrix(x)) {
@@ -99,7 +142,70 @@ plot_mtna <- function(
     if (is.null(lab)) lab <- as.character(seq_len(ncol(x)))
     weights <- x
   } else {
-    stop("x must be a tna object or matrix", call. = FALSE)
+    stop("x must be a cograph_network, tna object, or matrix", call. = FALSE)
+  }
+
+  n <- length(lab)
+
+  # Merge nodes parameter with existing nodes_df
+  if (is.data.frame(nodes)) {
+    nodes_df <- nodes
+  }
+
+  # Resolve display labels: priority is labels > label > identifier
+  # (labels column = display text, label column = identifier)
+  display_labels <- if (!is.null(nodes_df)) {
+    if ("labels" %in% names(nodes_df)) {
+      nodes_df$labels
+    } else if ("label" %in% names(nodes_df)) {
+      nodes_df$label
+    } else {
+      lab  # Fall back to identifiers
+    }
+  } else {
+    lab
+  }
+
+  # Handle cluster_list as column name string
+  if (is.character(cluster_list) && length(cluster_list) == 1) {
+    if (is.null(nodes_df)) {
+      stop("To use a column name for clusters, x must be a cograph_network", call. = FALSE)
+    }
+    if (!cluster_list %in% names(nodes_df)) {
+      stop("Column '", cluster_list, "' not found in nodes. Available: ",
+           paste(names(nodes_df), collapse = ", "), call. = FALSE)
+    }
+    cluster_col <- nodes_df[[cluster_list]]
+    cluster_list <- split(lab, cluster_col)
+  }
+
+  # Auto-detect clusters from common column names
+  if (is.null(cluster_list) && is.null(community) && !is.null(nodes_df)) {
+    cluster_cols <- c("clusters", "cluster", "groups", "group", "community", "module")
+    for (col in cluster_cols) {
+      if (col %in% names(nodes_df)) {
+        cluster_col <- nodes_df[[col]]
+        cluster_list <- split(lab, cluster_col)
+        message("Using '", col, "' column for clusters")
+        break
+      }
+    }
+  }
+
+  # Handle community parameter - auto-detect clusters
+  if (!is.null(community)) {
+    comm_df <- detect_communities(x, method = community)
+    cluster_list <- split(comm_df$node, comm_df$community)
+    names(cluster_list) <- paste0("Cluster_", names(cluster_list))
+  }
+
+  # Validate cluster_list
+  if (is.null(cluster_list)) {
+    stop("Either cluster_list or community must be specified", call. = FALSE)
+  }
+  n_clusters <- length(cluster_list)
+  if (!is.list(cluster_list) || n_clusters < 2) {
+    stop("cluster_list must be a list of 2+ character vectors", call. = FALSE)
   }
 
   n <- length(lab)
@@ -278,16 +384,10 @@ plot_mtna <- function(
 
   # Handle summary edges mode
   if (summary_edges) {
-    # Create aggregated cluster-to-cluster weight matrix
-    cluster_weights <- matrix(0, nrow = n_clusters, ncol = n_clusters)
-    for (i in seq_len(n_clusters)) {
-      for (j in seq_len(n_clusters)) {
-        if (i != j) {
-          # Sum all edges from cluster i to cluster j
-          cluster_weights[i, j] <- sum(weights[cluster_indices[[i]], cluster_indices[[j]]], na.rm = TRUE)
-        }
-      }
-    }
+    # Use cluster_summary for aggregation (removes duplicated logic)
+    cs <- cluster_summary(weights, cluster_list, method = aggregation,
+                          type = "raw", compute_within = FALSE)
+    cluster_weights <- cs$macro$weights
 
     # Create cluster-level layout (centers)
     cluster_layout <- as.matrix(cluster_centers)
@@ -306,14 +406,25 @@ plot_mtna <- function(
       cluster_edge_colors[i, ] <- edge_colors[i]
     }
 
+    # Get edge.lwd multiplier from ... (default 1)
+    dots <- list(...)
+    edge_lwd_mult <- if (!is.null(dots$edge.lwd)) dots$edge.lwd else 1
+
     # For summary view, we need to draw manually after setting up the plot
     # First create empty plot with correct dimensions
     all_x <- cluster_centers[, 1]
     all_y <- cluster_centers[, 2]
-    x_range <- range(all_x) + c(-shape_size * 2, shape_size * 2)
-    y_range <- range(all_y) + c(-shape_size * 2, shape_size * 2)
+    # Compute margin: use layout_margin fraction of range, but ensure at least shape_size*1.2
+    x_base <- range(all_x)
+    y_base <- range(all_y)
+    x_margin <- max(diff(x_base) * layout_margin * 0.5, shape_size * 0.8)
+    y_margin <- max(diff(y_base) * layout_margin * 0.5, shape_size * 0.8)
+    x_range <- c(x_base[1] - x_margin, x_base[2] + x_margin)
+    y_range <- c(y_base[1] - y_margin, y_base[2] + y_margin)
 
-    # Set up blank plot
+    # Set up blank plot with minimal margins
+    old_par <- graphics::par(mar = c(0.5, 0.5, 0.5, 0.5))
+    on.exit(graphics::par(old_par), add = TRUE)
     graphics::plot.new()
     graphics::plot.window(xlim = x_range, ylim = y_range, asp = 1)
 
@@ -354,8 +465,9 @@ plot_mtna <- function(
         # Vertices at angles: pi/2, pi/2 + 2*pi/3, pi/2 + 4*pi/3
         vertex_angles <- c(pi/2, pi/2 + 2*pi/3, pi/2 + 4*pi/3)
 
-        # Normalize angle to [0, 2*pi) - R %% always returns non-negative
+        # Normalize angle to [0, 2*pi)
         norm_angle <- angle %% (2 * pi)
+        if (norm_angle < 0) norm_angle <- norm_angle + 2 * pi # nocov (R %% always non-negative)
 
         # Find which edge we're hitting
         # Edge midpoint angles are between vertices
@@ -389,17 +501,21 @@ plot_mtna <- function(
           }
         } else {
           # Bottom or right edge
-          if (norm_angle >= 3*pi/2 && norm_angle < 11*pi/6) {
-            edge_center <- 3*pi/2
+          if (norm_angle >= 3*pi/2 || norm_angle < pi/6) {
+            if (norm_angle >= 3*pi/2 && norm_angle < 11*pi/6) {
+              edge_center <- 3*pi/2
+            } else {
+              edge_center <- pi/6
+              if (norm_angle > pi) edge_center <- edge_center + 2*pi # nocov (needs >=7 clusters at 330+ deg)
+            }
           } else {
-            edge_center <- pi/6
-            if (norm_angle > pi) edge_center <- edge_center + 2*pi # nocov
+            edge_center <- pi/6 # nocov (tautological: Branch C condition equals inner if)
           }
         }
 
         # Calculate distance using apothem formula
         angle_diff <- abs(norm_angle - edge_center)
-        if (angle_diff > pi) angle_diff <- 2*pi - angle_diff # nocov
+        if (angle_diff > pi) angle_diff <- 2*pi - angle_diff # nocov (sector logic keeps diff < pi/3)
 
         # Clamp to avoid division issues near vertices
         angle_diff <- min(angle_diff, pi/3 - 0.01)
@@ -443,7 +559,7 @@ plot_mtna <- function(
           # Edge weight determines line width
           weight <- cluster_weights[i, j]
           max_weight <- max(cluster_weights, na.rm = TRUE)
-          lwd <- (0.5 + 2.5 * (weight / max_weight)) * edge_scale * edge_lwd_mult
+          lwd <- (1 + 5 * (weight / max_weight)) * edge_scale * edge_lwd_mult
 
           # Draw curved line using xspline
           mid_x <- (x0 + x1) / 2
@@ -456,10 +572,10 @@ plot_mtna <- function(
             # Offset perpendicular to line
             off_x <- -dy / len * curvature * len * 0.3
             off_y <- dx / len * curvature * len * 0.3
-          } else {
-            off_x <- 0 # nocov
-            off_y <- 0 # nocov
-          }
+          } else { # nocov start
+            off_x <- 0
+            off_y <- 0
+          } # nocov end
 
           graphics::xspline(
             x = c(x0, mid_x + off_x, x1),
@@ -485,10 +601,10 @@ plot_mtna <- function(
           # Draw edge label
           dots <- list(...)
           if (is.null(dots$edge.labels) || !isFALSE(dots$edge.labels)) {
-            label_cex <- if (!is.null(dots$edge.label.cex)) dots$edge.label.cex else 0.6
+            label_cex <- if (!is.null(dots$edge.label.cex)) dots$edge.label.cex else 0.9
             graphics::text(mid_x + off_x * 1.3, mid_y + off_y * 1.3,
                           labels = round(weight, 2),
-                          cex = label_cex,
+                          cex = label_cex / size_scale,
                           col = "gray40")
           }
         }
@@ -511,7 +627,7 @@ plot_mtna <- function(
           y = center_y + shell_radius * sin(theta),
           border = shell_color,
           col = fill_color,
-          lwd = 1.5 * edge_scale
+          lwd = 3 * edge_scale
         )
       } else if (shape == "square") {
         graphics::rect(
@@ -521,7 +637,7 @@ plot_mtna <- function(
           ytop = center_y + shell_radius,
           border = shell_color,
           col = fill_color,
-          lwd = 1.5 * edge_scale
+          lwd = 3 * edge_scale
         )
       } else if (shape == "diamond") {
         graphics::polygon(
@@ -529,7 +645,7 @@ plot_mtna <- function(
           y = center_y + shell_radius * c(1, 0, -1, 0, 1),
           border = shell_color,
           col = fill_color,
-          lwd = 1.5 * edge_scale
+          lwd = 3 * edge_scale
         )
       } else if (shape == "triangle") {
         angles <- c(pi/2, pi/2 + 2*pi/3, pi/2 + 4*pi/3, pi/2)
@@ -538,7 +654,7 @@ plot_mtna <- function(
           y = center_y + shell_radius * sin(angles),
           border = shell_color,
           col = fill_color,
-          lwd = 1.5 * edge_scale
+          lwd = 3 * edge_scale
         )
       } else {
         theta <- seq(0, 2 * pi, length.out = 100)
@@ -547,7 +663,7 @@ plot_mtna <- function(
           y = center_y + shell_radius * sin(theta),
           border = shell_color,
           col = fill_color,
-          lwd = 1.5 * edge_scale
+          lwd = 3 * edge_scale
         )
       }
     }
@@ -587,10 +703,10 @@ plot_mtna <- function(
                   # Edge width based on weight
                   max_within <- max(weights[idx, idx], na.rm = TRUE)
                   if (max_within > 0) {
-                    lwd <- (0.3 + 1.0 * (weight / max_within)) * edge_scale * edge_lwd_mult
-                  } else {
-                    lwd <- 0.5 * edge_scale * edge_lwd_mult # nocov
-                  }
+                    lwd <- (0.5 + 2 * (weight / max_within)) * edge_scale * edge_lwd_mult
+                  } else { # nocov start (weight > 0 implies max_within > 0)
+                    lwd <- 1 * edge_scale * edge_lwd_mult
+                  } # nocov end
 
                   # Curved edge
                   mid_x <- (x0 + x1) / 2
@@ -667,6 +783,17 @@ plot_mtna <- function(
                       col = "gray30",
                       cex = node_size)
 
+      # Draw node labels if requested
+      if (isTRUE(show_labels)) {
+        lbl_text <- display_labels[idx]
+        if (!is.null(label_abbrev)) {
+          lbl_text <- abbrev_label(lbl_text, label_abbrev, n)
+        }
+        lbl_cex <- if (is.null(label_size)) 0.7 / size_scale else label_size / size_scale
+        graphics::text(inner_x, inner_y, labels = lbl_text,
+                       cex = lbl_cex, pos = 3, offset = 0.4, col = "gray20")
+      }
+
       # Draw cluster label
       cluster_names <- names(cluster_list)
       if (!is.null(cluster_names)) {
@@ -678,7 +805,7 @@ plot_mtna <- function(
       }
     }
 
-    result <- NULL
+    result <- cs
   } else {
     # Regular mode - show all individual edges
     dots <- list(...)
@@ -712,7 +839,7 @@ plot_mtna <- function(
           y = center_y + border_radius * sin(theta),
           border = cluster_colors[i],
           col = NA,
-          lwd = 2 * edge_scale,
+          lwd = 2,
           lty = 2
         )
       }
@@ -740,8 +867,8 @@ plot_mtna <- function(
       pch = pch_values,
       pt.bg = cluster_colors,
       col = edge_colors,
-      pt.cex = 1.5 / size_scale,
-      cex = 0.8 / size_scale,
+      pt.cex = 2.5 / size_scale,
+      cex = 1.4 / size_scale,
       bty = "n",
       title = "Clusters"
     )
@@ -751,5 +878,15 @@ plot_mtna <- function(
 }
 
 #' @rdname plot_mtna
+#' @return See \code{\link{plot_mtna}}.
 #' @export
+#' @examples
+#' \dontrun{
+#' nodes <- paste0("N", 1:12)
+#' m <- matrix(runif(144, 0, 0.3), 12, 12)
+#' diag(m) <- 0
+#' colnames(m) <- rownames(m) <- nodes
+#' clusters <- list(C1 = nodes[1:4], C2 = nodes[5:8], C3 = nodes[9:12])
+#' mtna(m, clusters)
+#' }
 mtna <- plot_mtna

@@ -81,25 +81,23 @@ The following visual defaults are applied for TNA plots (all can be overridden v
 }
 }
 \examples{
+\dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 # Convert and plot a tna object
-if (requireNamespace("tna", quietly = TRUE)) {
-  library(tna)
-  trans <- tna(group_regulation)
-  from_tna(trans)  # Plots with donut rings showing initial probabilities
+model <- tna::tna(tna::group_regulation)
+from_tna(model)  # Plots with donut rings showing initial probabilities
 
-  # Use soplot engine instead
-  from_tna(trans, engine = "soplot")
+# Use soplot engine instead
+from_tna(model, engine = "soplot")
 
-  # Customize the visualization
-  from_tna(trans, layout = "circle", donut_color = c("steelblue", "gray90"))
+# Customize the visualization
+from_tna(model, layout = "circle", donut_color = c("steelblue", "gray90"))
 
-  # Extract parameters without plotting
-  params <- from_tna(trans, plot = FALSE)
-  # Modify and plot manually
-  params$node_fill <- "coral"
-  do.call(splot, params)
-}
-
+# Extract parameters without plotting
+params <- from_tna(model, plot = FALSE)
+# Modify and plot manually
+params$node_fill <- "coral"
+do.call(splot, params)
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 \code{\link{cograph}} for creating networks from scratch,

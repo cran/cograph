@@ -15,15 +15,34 @@ NULL
 #'   - A data frame with edge list (from, to, optional weight columns)
 #'   - An igraph object
 #'   - A cograph_network object
+#'   - A tna object (from tna package)
+#'   - A group_tna object (list of tna objects from tna package).
+#'     Use parameter `i` to select a specific group, or omit to plot all groups.
 #' @param layout Layout algorithm: "circle", "spring", "groups", or a matrix
 #'   of x,y coordinates, or an igraph layout function. Also supports igraph
-#'   two-letter codes: "kk", "fr", "drl", "mds", "ni", etc. Default is "oval"
+#'   two-letter codes: "kk", "fr", "drl", "mds", "ni", etc.
 #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
 #' @param seed Random seed for deterministic layouts. Default 42.
 #' @param theme Theme name: "classic", "dark", "minimal", "colorblind", etc.
 #'
 #' @param node_size Node size(s). Single value or vector. Default 3.
 #' @param node_size2 Secondary node size for ellipse/rectangle height.
+#' @param scale_nodes_by Scale node sizes by a centrality measure. Can be:
+#'   \itemize{
+#'     \item A measure name: "degree", "strength", "betweenness", "closeness",
+#'       "eigenvector", "pagerank", "authority", "hub", "harmonic", etc.
+#'     \item A directional shorthand: "indegree", "outdegree", "instrength",
+#'       "outstrength", "incloseness", "outcloseness", "inharmonic",
+#'       "outharmonic", "ineccentricity", "outeccentricity".
+#'     \item A list with measure and parameters: list("pagerank", damping = 0.9)
+#'   }
+#'   When used, node_size is ignored. Use node_size_range to control the
+#'   min/max size. Default NULL (no centrality scaling).
+#' @param node_size_range Size range for centrality-based scaling. Numeric
+#'   vector c(min_size, max_size). Default c(2, 8).
+#' @param scale_nodes_scale Dampening exponent for centrality-based sizing.
+#'   Values < 1 compress differences (e.g., 0.5 applies square root), values > 1
+#'   exaggerate differences. Default 1 (linear).
 #' @param node_shape Node shape(s): "circle", "square", "triangle", "diamond",
 #'   "pentagon", "hexagon", "star", "heart", "ellipse", "cross", or any custom
 #'   SVG shape registered with register_svg_shape().
@@ -116,6 +135,8 @@ NULL
 #' @param edge_label_shadow_color Color for edge label shadow. Default "gray40".
 #' @param edge_label_shadow_offset Offset distance for shadow in points. Default 0.5.
 #' @param edge_label_shadow_alpha Transparency for shadow (0-1). Default 0.5.
+#' @param edge_label_halo Logical: enable white halo/outline around edge labels for
+#'   readability over dark edges? Default FALSE. When TRUE, overrides shadow settings.
 #' @param edge_style Line type(s): 1=solid, 2=dashed, 3=dotted, etc.
 #' @param curvature Edge curvature. 0 for straight, positive/negative for curves.
 #' @param curve_scale Logical: auto-curve reciprocal edges?
@@ -143,11 +164,15 @@ NULL
 #' @param edge_ci_color Underlay color. NA (default) uses main edge color.
 #' @param edge_ci_style Line type for underlay: 1=solid, 2=dashed, 3=dotted. Default 2.
 #' @param edge_ci_arrows Logical: show arrows on underlay? Default FALSE.
+#' @param edge_priority Numeric vector of edge priorities. Higher values render on top.
+#'   Useful for ensuring significant edges appear above non-significant ones.
 #'
 #' @param edge_label_style Preset style: "none", "estimate", "full", "range", "stars".
 #' @param edge_label_template Template with placeholders: \{est\}, \{range\}, \{low\}, \{up\}, \{p\}, \{stars\}.
 #'   Overrides edge_label_style if provided.
 #' @param edge_label_digits Decimal places for estimates. Default 2.
+#' @param edge_label_leading_zero Logical: show leading zero for values < 1? Default TRUE.
+#'   Set to FALSE to display ".5" instead of "0.5".
 #' @param edge_label_oneline Logical: single line format? Default TRUE.
 #' @param edge_label_ci_format CI format: "bracket" for `[low, up]` or "dash" for `low-up`.
 #' @param edge_ci_lower Numeric vector of lower CI bounds for labels.
@@ -195,6 +220,15 @@ NULL
 #' @param legend_node_sizes Logical: show node size scale in legend?
 #' @param groups Group assignments for node coloring/legend.
 #' @param node_names Alternative names for legend (separate from labels).
+#' @param tna_styling Logical or NULL. If \code{TRUE}, applies TNA visual defaults
+#'   (oval layout, TNA color palette, edge labels as estimates, dotted edge starts,
+#'   etc.) as a base layer. Any explicitly provided argument overrides the TNA default.
+#'   If \code{FALSE}, no TNA styling is applied. If \code{NULL} (default),
+#'   automatically set to \code{TRUE} when \code{x} is a tna object, \code{FALSE}
+#'   otherwise. Can be used with any input type (matrix, igraph, cograph_network).
+#' @param i Group index or name when x is a group_tna object. If NULL (default),
+#'   plots all groups in a grid. If specified (e.g., i = 1 or i = "Treatment"),
+#'   plots only that group.
 #'
 #' @param filetype Output format: "default" (screen), "png", "pdf", "svg", "jpeg", "tiff".
 #' @param filename Output filename (without extension).
@@ -308,6 +342,7 @@ NULL
 #' # Circle layout with labels
 #' splot(adj, layout = "circle", labels = c("A", "B", "C", "D"))
 #'
+#' @export
 splot <- function(
     x,
     layout = "oval",
@@ -318,6 +353,9 @@ splot <- function(
     # Node aesthetics
     node_size = NULL,
     node_size2 = NULL,
+    scale_nodes_by = NULL,
+    node_size_range = c(2, 8),
+    scale_nodes_scale = 1,
     node_shape = "circle",
     node_svg = NULL,
     svg_preserve_aspect = TRUE,
@@ -377,7 +415,7 @@ splot <- function(
     edge_labels = FALSE,
     edge_label_size = 0.8,
     edge_label_color = "gray30",
-    edge_label_bg = "white",
+    edge_label_bg = NA,
     edge_label_position = 0.5,
     edge_label_offset = 0,
     edge_label_fontface = "plain",
@@ -385,6 +423,7 @@ splot <- function(
     edge_label_shadow_color = "gray40",
     edge_label_shadow_offset = 0.5,
     edge_label_shadow_alpha = 0.5,
+    edge_label_halo = TRUE,
     edge_style = 1,
     curvature = 0,
     curve_scale = TRUE,
@@ -409,6 +448,7 @@ splot <- function(
     edge_ci_color = NA,
     edge_ci_style = 2,
     edge_ci_arrows = FALSE,
+    edge_priority = NULL,
 
     # Edge Label Templates
     edge_label_style = "none",
@@ -416,6 +456,7 @@ splot <- function(
     edge_label_digits = 2,
     edge_label_oneline = TRUE,
     edge_label_ci_format = "bracket",
+    edge_label_leading_zero = TRUE,
     edge_ci_lower = NULL,
     edge_ci_upper = NULL,
     edge_label_p = NULL,
@@ -456,6 +497,12 @@ splot <- function(
     groups = NULL,
     node_names = NULL,
 
+    # TNA styling
+    tna_styling = NULL,
+
+    # Group selection (for group_tna)
+    i = NULL,
+
     # Output
     filetype = "default",
     filename = file.path(tempdir(), "splot"),
@@ -469,25 +516,157 @@ splot <- function(
   # 1. INPUT PROCESSING
   # ============================================
 
+  # --- Collect explicitly-provided user args (for dispatch forwarding) ---
+  # match.call only captures args the user actually typed, not defaults
+  .user_explicit <- as.list(match.call(expand.dots = FALSE))[-1]
+  .user_explicit$x <- NULL
+  .dots <- list(...)
+
+  # Translate qgraph-style args for tna-family objects (early, before any dispatch)
+  if (inherits(x, c("tna", "group_tna", "tna_bootstrap",
+                     "tna_permutation", "group_tna_permutation"))) {
+    .dots <- .translate_qgraph_dots(.dots)
+  }
+
+  # Evaluate user-explicit args once from local scope (safe, no re-eval of AST)
+  # Exclude "..." — those are already captured in .dots
+  .user_args <- mget(setdiff(names(.user_explicit), "..."), envir = environment())
+
   # Handle tna objects directly
   if (inherits(x, "tna")) {
     tna_params <- from_tna(x, engine = "splot", plot = FALSE)
-    # User-supplied args override tna defaults (only if explicitly provided)
-    call_args <- tna_params
-    user_args <- as.list(match.call(expand.dots = FALSE))[-1]
-    user_args$x <- NULL  # already set via tna_params$x
-    for (nm in names(user_args)) {
-      val <- eval(user_args[[nm]], envir = parent.frame())
-      if (!is.null(val)) call_args[[nm]] <- val
+    # tna_styling is implicitly TRUE for tna objects unless user said FALSE
+    if (identical(tna_styling, FALSE)) {
+      # Strip visual defaults, keep only structural data
+      structural <- c("x", "labels", "directed", "weight_digits",
+                      "donut_fill", "donut_inner_ratio", "donut_empty")
+      tna_params <- tna_params[intersect(names(tna_params), structural)]
     }
+    call_args <- .collect_dispatch_args(.user_args, .dots, base = tna_params)
+    call_args$tna_styling <- NULL  # consumed; don't pass to recursive call
     return(do.call(splot, call_args))
+  }
+
+  # Handle group_tna objects (list of tna objects from tna package)
+  if (inherits(x, "group_tna")) {
+    n_groups <- length(x)
+    group_names <- names(x)
+    if (is.null(group_names)) group_names <- paste0("Group ", seq_len(n_groups))
+
+    # Build forwarded args: everything the user explicitly provided except x and i
+    fwd_args <- .collect_dispatch_args(.user_args, .dots, skip = c("x", "i"))
+
+    # If i is specified, plot just that group
+    if (!is.null(i)) {
+      # Resolve group index
+      if (is.character(i)) {
+        idx <- match(i, group_names)
+        if (is.na(idx)) {
+          stop("Group '", i, "' not found. Available groups: ",
+               paste(group_names, collapse = ", "), call. = FALSE)
+        }
+      } else {
+        idx <- as.integer(i)
+        if (idx < 1 || idx > n_groups) {
+          stop("Group index ", idx, " out of range. Available: 1 to ", n_groups, call. = FALSE)
+        }
+      }
+
+      # Set title to group name if not provided
+      if (is.null(fwd_args$title)) fwd_args$title <- group_names[idx]
+
+      return(do.call(splot, c(list(x = x[[idx]]), fwd_args)))
+    }
+
+    # No i specified: plot all groups in a grid
+    n_cols <- ceiling(sqrt(n_groups))
+    n_rows <- ceiling(n_groups / n_cols)
+
+    old_par <- graphics::par(mfrow = c(n_rows, n_cols), mar = c(1, 1, 2, 1))
+    on.exit(graphics::par(old_par), add = TRUE)
+
+    for (idx in seq_len(n_groups)) {
+      grp_fwd <- fwd_args
+      grp_fwd$title <- if (is.null(fwd_args$title)) {
+        group_names[idx]
+      } else {
+        paste(fwd_args$title, "-", group_names[idx])
+      }
+      do.call(splot, c(list(x = x[[idx]]), grp_fwd))
+    }
+
+    return(invisible(NULL))
+  }
+
+  # ============================================
+  # HANDLE cluster_summary / mcml
+  # ============================================
+
+  # Handle cluster_summary / mcml objects -> dispatch to plot_mcml
+  if (inherits(x, c("cluster_summary", "mcml"))) {
+    return(do.call(plot_mcml, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Dispatch to specialized methods for bootstrap objects
+  if (inherits(x, "tna_bootstrap")) {
+    return(do.call(splot.tna_bootstrap, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Dispatch to specialized methods for permutation test objects
+  if (inherits(x, "tna_permutation")) {
+    return(do.call(splot.tna_permutation, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Dispatch for group permutation tests
+  if (inherits(x, "group_tna_permutation")) {
+    return(do.call(splot.group_tna_permutation, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Dispatch for tna disparity filter results
+  if (inherits(x, "tna_disparity")) {
+    return(do.call(splot.tna_disparity, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: base netobject — apply directed/undirected styling defaults
+  if (inherits(x, "netobject")) {
+    return(do.call(splot.netobject, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: bootstrap object
+  if (inherits(x, "net_bootstrap")) {
+    return(do.call(splot.net_bootstrap, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: permutation test object
+  if (inherits(x, "net_permutation")) {
+    return(do.call(splot.net_permutation, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: glasso bootstrap object
+  if (inherits(x, "boot_glasso")) {
+    return(do.call(splot.boot_glasso, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: group of netobjects
+  if (inherits(x, "netobject_group")) {
+    return(do.call(plot_netobject_group, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: multilevel netobject
+  if (inherits(x, "netobject_ml")) {
+    return(do.call(plot_netobject_ml, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: mixed wtna (transition + co-occurrence)
+  if (inherits(x, "wtna_mixed")) {
+    return(do.call(splot.wtna_mixed, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
   }
 
   # ============================================
   # HANDLE DEPRECATED PARAMETERS
   # ============================================
   # Detect which arguments were explicitly provided by the user
-  explicit_args <- names(match.call())
+  explicit_args <- names(.user_explicit)
 
   # For params with NULL defaults, simple check works
   edge_size <- handle_deprecated_param(edge_size, esize, "edge_size", "esize")
@@ -517,6 +696,58 @@ splot <- function(
   # Convert edge_label_fontface to numeric if string (for backwards compat with renderers)
   edge_label_fontface_num <- fontface_to_numeric(edge_label_fontface)
 
+  # ============================================
+  # APPLY TNA STYLING DEFAULTS
+  # ============================================
+  # tna_styling = TRUE applies TNA visual defaults as a base layer.
+  # Any user-explicit arg always wins. NULL defaults are filled;
+
+  # non-NULL defaults are only overridden if the user didn't specify them.
+  if (isTRUE(tna_styling)) {
+    # Detect directedness for TNA defaults (matrix or network)
+    .tna_dir <- if (!is.null(directed)) {
+      directed
+    } else if (is.matrix(x)) {
+      !is_symmetric_matrix(x)
+    } else {
+      TRUE
+    }
+    .tna_n <- if (is.matrix(x)) nrow(x) else NULL
+    .tna_defs <- .tna_style_defaults(.tna_n, .tna_dir)
+
+    # Parameters with NULL defaults — fill if user didn't set them
+    if (is.null(node_fill) && !is.null(.tna_defs$node_fill))
+      node_fill <- .tna_defs$node_fill
+    if (is.null(node_size))
+      node_size <- .tna_defs$node_size
+    if (is.null(edge_color))
+      edge_color <- .tna_defs$edge_color
+
+    # Parameters with non-NULL defaults — only override if user didn't explicitly set
+    if (!"layout" %in% explicit_args)
+      layout <- .tna_defs$layout
+    if (!"edge_label_style" %in% explicit_args)
+      edge_label_style <- .tna_defs$edge_label_style
+    if (!"edge_label_leading_zero" %in% explicit_args)
+      edge_label_leading_zero <- .tna_defs$edge_label_leading_zero
+    if (!"edge_label_size" %in% explicit_args)
+      edge_label_size <- .tna_defs$edge_label_size
+    if (!"edge_label_position" %in% explicit_args)
+      edge_label_position <- .tna_defs$edge_label_position
+    if (!"minimum" %in% explicit_args)
+      minimum <- .tna_defs$minimum
+
+    # Directed-only defaults
+    if (isTRUE(.tna_dir)) {
+      if (!"arrow_size" %in% explicit_args && !is.null(.tna_defs$arrow_size))
+        arrow_size <- .tna_defs$arrow_size
+      if (!"edge_start_length" %in% explicit_args && !is.null(.tna_defs$edge_start_length))
+        edge_start_length <- .tna_defs$edge_start_length
+      if (!"edge_start_style" %in% explicit_args && !is.null(.tna_defs$edge_start_style))
+        edge_start_style <- .tna_defs$edge_start_style
+    }
+  }
+
   # Round matrix weights to filter near-zero edges globally
   if (is.matrix(x) && !is.null(weight_digits)) {
     x <- round(x, weight_digits)
@@ -524,18 +755,13 @@ splot <- function(
 
   # Set seed for deterministic layouts, restoring RNG state on exit
   if (!is.null(seed)) {
-    rng_exists <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
-    if (rng_exists) {
-      old_rng_state <- .Random.seed
-      on.exit(assign(".Random.seed", old_rng_state, envir = globalenv()), add = TRUE)
-    } else {
-      on.exit(rm(".Random.seed", envir = globalenv()), add = TRUE)
-    }
+    saved_rng <- .save_rng()
+    on.exit(.restore_rng(saved_rng), add = TRUE)
     set.seed(seed)
   }
 
   # Convert to cograph_network if needed
-  network <- ensure_cograph_network(x, layout = layout, seed = seed, ...)
+  network <- ensure_cograph_network(x, layout = layout, seed = seed, directed = directed, ...)
 
   # Apply theme if specified
   if (!is.null(theme)) {
@@ -544,7 +770,7 @@ splot <- function(
       # Extract theme colors
       if (is.null(node_fill)) node_fill <- th$get("node_fill")
       if (is.null(node_border_color)) node_border_color <- th$get("node_border_color")
-      background <- th$get("background")
+      if (is.null(background)) background <- th$get("background")
       if (length(label_color) == 1 && label_color == "black") label_color <- th$get("label_color")
       if (length(edge_positive_color) == 1 && edge_positive_color == "#2E7D32") edge_positive_color <- th$get("edge_positive_color")
       if (length(edge_negative_color) == 1 && edge_negative_color == "#C62828") edge_negative_color <- th$get("edge_negative_color")
@@ -557,8 +783,12 @@ splot <- function(
   edges <- get_edges(network)
   is_net_directed <- is_directed(network)
 
-  # Get layout coordinates from nodes (ensure_cograph_network always sets x/y)
-  layout_coords <- data.frame(x = nodes$x, y = nodes$y)
+  # Get layout coordinates from nodes if available
+  if ("x" %in% names(nodes) && !all(is.na(nodes$x))) {
+    layout_coords <- data.frame(x = nodes$x, y = nodes$y)
+  } else {
+    layout_coords <- NULL # nocov
+  }
 
   # (oval layout uses elliptical spacing but nodes remain circular via aspect=TRUE)
 
@@ -571,38 +801,17 @@ splot <- function(
   }
 
   # Check for duplicate edges in undirected networks
-  if (!directed && !is.null(edges) && nrow(edges) > 0) {
-    dup_check <- detect_duplicate_edges(edges)
-    if (dup_check$has_duplicates) {
-      if (is.null(edge_duplicates)) {
-        # Build error message
-        dup_msg <- vapply(dup_check$info, function(d) {
-          sprintf("  - Nodes %d-%d: %d edges (weights: %s)",
-                  d$nodes[1], d$nodes[2], d$count,
-                  paste(round(d$weights, 2), collapse = ", "))
-        }, character(1))
-        stop("Found ", length(dup_check$info), " duplicate edge pair(s) in undirected network:\n",
-             paste(dup_msg, collapse = "\n"), "\n\n",
-             "Specify how to handle with edge_duplicates parameter:\n",
-             "  edge_duplicates = \"sum\"   # Sum weights\n",
-             "  edge_duplicates = \"mean\"  # Average weights\n",
-             "  edge_duplicates = \"first\" # Keep first edge\n",
-             "  edge_duplicates = \"max\"   # Keep max weight\n",
-             "  edge_duplicates = \"min\"   # Keep min weight\n",
-             call. = FALSE)
-      }
-      edges <- aggregate_duplicate_edges(edges, edge_duplicates)
-      n_edges <- nrow(edges)
-      # Update the network object with deduplicated edges (old format only)
-      if (!is.null(network$network) && inherits(network$network, "CographNetwork")) {
-        network$network$set_edges(edges)
-      }
-    }
-  }
+  edges <- check_duplicate_edges(edges, directed, edge_duplicates)
+  n_edges <- nrow(edges)
+  if (!is.null(network)) network$edges <- edges
 
   # ============================================
   # 2. LAYOUT HANDLING
   # ============================================
+
+  if (is.null(layout_coords)) { # nocov start
+    stop("Layout coordinates not available", call. = FALSE)
+  } # nocov end
 
   layout_mat <- as.matrix(layout_coords[, c("x", "y")])
 
@@ -647,7 +856,22 @@ splot <- function(
   scale <- get_scale_constants(scaling)
 
   # Node sizes (qgraph-style, using scale constants)
-  vsize_usr <- resolve_node_sizes(node_size, n_nodes, scaling = scaling)
+  # Check for centrality-based scaling first
+  centrality_info <- NULL
+  if (!is.null(scale_nodes_by)) {
+    centrality_info <- resolve_centrality_sizes(
+      x = x,
+      scale_by = scale_nodes_by,
+      size_range = node_size_range,
+      n = n_nodes,
+      scaling = scaling,
+      scale_exp = scale_nodes_scale
+    )
+    vsize_usr <- centrality_info$sizes
+  } else {
+    vsize_usr <- resolve_node_sizes(node_size, n_nodes, scaling = scaling)
+  }
+
   vsize2_usr <- if (!is.null(node_size2)) {
     resolve_node_sizes(node_size2, n_nodes, scaling = scaling)
   } else {
@@ -675,16 +899,20 @@ splot <- function(
   # Vectorize node_alpha
   node_alphas <- recycle_to_length(node_alpha, n_nodes)
 
-  # Apply alpha to node colors (vectorized)
-  node_colors <- mapply(function(col, alpha) {
-    if (alpha < 1) adjust_alpha(col, alpha) else col
-  }, node_colors, node_alphas, SIMPLIFY = TRUE, USE.NAMES = FALSE)
+  # Apply alpha to node colors (skip if all alpha=1)
+  if (any(node_alphas < 1)) {
+    node_colors <- mapply(function(col, alpha) {
+      if (alpha < 1) adjust_alpha(col, alpha) else col
+    }, node_colors, node_alphas, SIMPLIFY = TRUE, USE.NAMES = FALSE)
+  }
 
-  # Border colors
+  # Border colors (compute on unique colors to avoid redundant col2rgb calls)
   if (is.null(node_border_color)) {
-    node_border_color <- sapply(node_colors, function(c) {
+    unique_cols <- unique(node_colors)
+    darkened <- setNames(vapply(unique_cols, function(c) {
       tryCatch(adjust_brightness(c, -0.3), error = function(e) "black")
-    })
+    }, character(1)), unique_cols)
+    node_border_color <- unname(darkened[node_colors])
   }
   border_colors <- recycle_to_length(node_border_color, n_nodes)
 
@@ -712,10 +940,27 @@ splot <- function(
     edges <- filter_edges_by_weight(edges, effective_threshold)
     n_edges <- nrow(edges)
 
-    # Subset edge_labels to match filtered edges
-    if (n_edges < orig_n_edges && is.character(edge_labels) && length(edge_labels) == orig_n_edges) {
+    # Subset all per-edge vectors to match filtered edge count
+    if (n_edges < orig_n_edges) {
       keep_idx <- which(abs(orig_weights) >= effective_threshold)
-      edge_labels <- edge_labels[keep_idx]
+      .subset_if_per_edge <- function(v) {
+        if (!is.null(v) && length(v) == orig_n_edges) v[keep_idx] else v
+      }
+      if (is.character(edge_labels) && length(edge_labels) == orig_n_edges)
+        edge_labels <- edge_labels[keep_idx]
+      edge_style             <- .subset_if_per_edge(edge_style)
+      edge_color             <- .subset_if_per_edge(edge_color)
+      edge_width             <- .subset_if_per_edge(edge_width)
+      edge_priority          <- .subset_if_per_edge(edge_priority)
+      edge_ci                <- .subset_if_per_edge(edge_ci)
+      edge_ci_alpha          <- .subset_if_per_edge(edge_ci_alpha)
+      edge_ci_scale          <- .subset_if_per_edge(edge_ci_scale)
+      edge_ci_color          <- .subset_if_per_edge(edge_ci_color)
+      edge_label_fontface    <- .subset_if_per_edge(edge_label_fontface)
+      edge_label_position    <- .subset_if_per_edge(edge_label_position)
+      edge_label_p           <- .subset_if_per_edge(edge_label_p)
+      edge_ci_lower          <- .subset_if_per_edge(edge_ci_lower)
+      edge_ci_upper          <- .subset_if_per_edge(edge_ci_upper)
     }
   }
 
@@ -733,11 +978,13 @@ splot <- function(
     # Edge colors
     edge_colors <- resolve_edge_colors(edges, edge_color, edge_positive_color, edge_negative_color)
 
-    # Vectorize edge_alpha and apply to edge colors
+    # Vectorize edge_alpha and apply to edge colors (skip if all alpha=1)
     edge_alphas <- recycle_to_length(edge_alpha, n_edges)
-    edge_colors <- mapply(function(col, alpha) {
-      if (alpha < 1) adjust_alpha(col, alpha) else col
-    }, edge_colors, edge_alphas, SIMPLIFY = TRUE, USE.NAMES = FALSE)
+    if (any(edge_alphas < 1)) {
+      edge_colors <- mapply(function(col, alpha) {
+        if (alpha < 1) adjust_alpha(col, alpha) else col
+      }, edge_colors, edge_alphas, SIMPLIFY = TRUE, USE.NAMES = FALSE)
+    }
 
     # Apply edge_cutoff threshold for transparency: edges below cutoff are faded
     if (!is.null(edge_cutoff) && edge_cutoff > 0 && "weight" %in% names(edges)) {
@@ -767,105 +1014,15 @@ splot <- function(
       scaling = scaling
     )
 
-    # Line types - convert string values to numeric
-    edge_styles_raw <- recycle_to_length(edge_style, n_edges)
-    ltys <- sapply(edge_styles_raw, function(s) {
-      if (is.character(s)) {
-        switch(s,
-          "solid" = 1,
-          "dashed" = 2,
-          "dotted" = 3,
-          "dotdash" = 4,
-          "longdash" = 5,
-          "twodash" = 6,
-          1  # default
-        )
-      } else {
-        s
-      }
-    })
+    # Line types and dotted-width adjustment
+    es <- resolve_edge_styles(edge_style, edge_widths, n_edges)
+    ltys <- es$ltys
+    edge_widths <- es$edge_widths
 
-    # Adjust line widths for dotted style (reduce by 30% to avoid overly thick appearance)
-    for (i in seq_along(ltys)) {
-      if (ltys[i] == 3) {  # dotted
-        edge_widths[i] <- edge_widths[i] * 0.7
-      }
-    }
-
-    # Handle curves mode:
-    # FALSE = all straight
-    # TRUE or "mutual" = only reciprocal edges curved (opposite directions)
-    # "force" = all edges curved (reciprocals opposite, singles inward)
-    #
-    # curvature parameter sets the MAGNITUDE of curves (default 0.25)
-    # curves parameter controls WHICH edges get curved
-    is_reciprocal <- rep(FALSE, n_edges)
-
-    # Identify reciprocal pairs
-    for (i in seq_len(n_edges)) {
-      from_i <- edges$from[i]
-      to_i <- edges$to[i]
-      if (from_i == to_i) next
-      for (j in seq_len(n_edges)) {
-        if (j != i && edges$from[j] == to_i && edges$to[j] == from_i) {
-          is_reciprocal[i] <- TRUE
-          break
-        }
-      }
-    }
-
-    # Curve magnitude (user-specified or default 0.25)
-    curve_magnitude <- if (curvature == 0) 0.175 else abs(curvature)
-
-    # Initialize curves vector to 0 (straight)
-    curves_vec <- rep(0, n_edges)
-
-    # Calculate network center for curve direction
-    center_x <- mean(layout_mat[, 1])
-    center_y <- mean(layout_mat[, 2])
-
-    if (identical(curves, TRUE) || identical(curves, "mutual")) {
-      # Curve reciprocal edges in opposite directions.
-      # Use canonical ordering (lower node index first) so both edges in a pair
-      # compute the same perpendicular reference, then assign opposite signs.
-      for (i in seq_len(n_edges)) {
-        if (is_reciprocal[i]) {
-          from_idx <- edges$from[i]
-          to_idx <- edges$to[i]
-
-          # Canonical direction: always compute perp from lower-index to higher-index node
-          lo <- min(from_idx, to_idx)
-          hi <- max(from_idx, to_idx)
-          dx_canon <- layout_mat[hi, 1] - layout_mat[lo, 1]
-          dy_canon <- layout_mat[hi, 2] - layout_mat[lo, 2]
-
-          # Perpendicular vector (consistent for both edges in the pair)
-          perp_x <- -dy_canon
-          perp_y <- dx_canon
-
-          # Check if positive perp moves outward from center
-          mid_x <- (layout_mat[from_idx, 1] + layout_mat[to_idx, 1]) / 2
-          mid_y <- (layout_mat[from_idx, 2] + layout_mat[to_idx, 2]) / 2
-          test_x <- mid_x + perp_x * 0.1
-          test_y <- mid_y + perp_y * 0.1
-          dist_to_center_pos <- sqrt((test_x - center_x)^2 + (test_y - center_y)^2)
-          dist_to_center_orig <- sqrt((mid_x - center_x)^2 + (mid_y - center_y)^2)
-          outward_sign <- if (dist_to_center_pos > dist_to_center_orig) 1 else -1
-
-          # Both edges get the same sign. The renderer computes perp from the
-          # edge's own from->to direction, which flips for hi->lo vs lo->hi.
-          # Same sign + flipped perp = opposite curve directions.
-          curves_vec[i] <- outward_sign * curve_magnitude
-        }
-      }
-    } else if (identical(curves, "force")) {
-      # Curve all edges with the specified magnitude
-      for (i in seq_len(n_edges)) {
-        if (edges$from[i] == edges$to[i]) next  # Skip self-loops
-        curves_vec[i] <- curve_magnitude
-      }
-    }
-    # If curves = FALSE, curves_vec stays at 0 (straight edges)
+    # Compute per-edge curvatures (reciprocal detection + direction)
+    curve_result <- compute_edge_curvatures(curvature, curves, edges, layout_mat)
+    curves_vec <- curve_result$curves_vec
+    is_reciprocal <- curve_result$is_reciprocal
 
     curve_pivots <- recycle_to_length(curve_pivot, n_edges)
     curve_shapes <- recycle_to_length(curve_shape, n_edges)
@@ -904,6 +1061,7 @@ splot <- function(
         p_prefix = edge_label_p_prefix,
         ci_format = edge_label_ci_format,
         oneline = edge_label_oneline,
+        leading_zero = edge_label_leading_zero,
         n = n_edges
       )
     } else {
@@ -914,7 +1072,7 @@ splot <- function(
     # CI underlay parameters
     edge_ci_vec <- if (!is.null(edge_ci)) recycle_to_length(edge_ci, n_edges) else NULL
     edge_ci_colors <- if (!is.null(edge_ci_vec)) {
-      if (is.na(edge_ci_color)) {
+      if (length(edge_ci_color) == 1 && is.na(edge_ci_color)) {
         # Use main edge colors
         edge_colors
       } else {
@@ -937,7 +1095,7 @@ splot <- function(
     } else if (filetype == "pdf") {
       grDevices::pdf(full_filename, width = width, height = height)
     } else if (filetype == "svg") {
-      grDevices::svg(full_filename, width = width, height = height) # nocov
+      grDevices::svg(full_filename, width = width, height = height)
     } else if (filetype == "jpeg" || filetype == "jpg") {
       grDevices::jpeg(full_filename, width = width, height = height,
                       units = "in", res = res, quality = 100)
@@ -961,16 +1119,11 @@ splot <- function(
   title_space <- if (!is.null(title)) max(1.5, title_size * 1.2) else 0
   graphics::par(mar = c(margins[1], margins[2], margins[3] + title_space, margins[4]))
 
-  # Calculate plot limits
-  x_range <- range(layout_mat[, 1], na.rm = TRUE)
-  y_range <- range(layout_mat[, 2], na.rm = TRUE)
-
-  # Add margin to limits (configurable via layout_margin parameter)
-  x_margin <- diff(x_range) * layout_margin
-  y_margin <- diff(y_range) * layout_margin
-
-  xlim <- c(x_range[1] - x_margin, x_range[2] + x_margin)
-  ylim <- c(y_range[1] - y_margin, y_range[2] + y_margin)
+  # Calculate plot limits accounting for node radii, self-loops, and margins
+  lims <- compute_plot_limits(layout_mat, vsize_usr, layout_margin,
+                              edges, n_edges, loop_rotations)
+  xlim <- lims$xlim
+  ylim <- lims$ylim
 
   # Create plot
   graphics::plot(
@@ -1029,6 +1182,7 @@ splot <- function(
       edge_label_shadow_color = edge_label_shadow_color,
       edge_label_shadow_offset = edge_label_shadow_offset,
       edge_label_shadow_alpha = edge_label_shadow_alpha,
+      edge_label_halo = edge_label_halo,
       # CI underlay parameters
       edge_ci = edge_ci_vec,
       edge_ci_scale = edge_ci_scale,
@@ -1036,6 +1190,7 @@ splot <- function(
       edge_ci_color = edge_ci_colors,
       edge_ci_style = edge_ci_style,
       edge_ci_arrows = edge_ci_arrows,
+      edge_priority = edge_priority,
       is_reciprocal = is_reciprocal,
       # Edge start style parameters
       edge_start_style = edge_start_style,
@@ -1048,99 +1203,16 @@ splot <- function(
   # 7. RENDER NODES
   # ============================================
 
-  # Auto-enable donut fill when node_shape is "donut" but no fill specified
-  if (is.null(donut_fill) && is.null(donut_values)) {
-    if (any(shapes == "donut")) {
-      # Create per-node fill: 1.0 for donut nodes, NA for others
-      donut_fill <- ifelse(shapes == "donut", 1.0, NA)
-    }
-  }
-
-  # Handle donut_fill: convert to list format if provided
-  # donut_fill takes precedence over donut_values for the new simplified API
-  effective_donut_values <- donut_values
-  if (!is.null(donut_fill)) {
-    # Convert donut_fill to list format for internal use
-    if (!is.list(donut_fill)) {
-      fill_vec <- recycle_to_length(donut_fill, n_nodes)
-      effective_donut_values <- as.list(fill_vec)
-    } else {
-      effective_donut_values <- donut_fill
-    }
-  }
-
-  # When donut_empty = TRUE, replace NA values with 0 so empty rings still render
-  if (donut_empty && !is.null(effective_donut_values)) {
-    for (di in seq_along(effective_donut_values)) {
-      if (length(effective_donut_values[[di]]) == 1 && is.na(effective_donut_values[[di]])) {
-        effective_donut_values[[di]] <- 0
-      }
-    }
-  }
-
-  # Handle donut_color (new simplified API) and donut_colors (deprecated)
-  # Priority: donut_color > donut_colors
-  effective_donut_colors <- NULL
-  effective_bg_color <- donut_bg_color
-
-  if (!is.null(donut_color)) {
-    if (is.list(donut_color) && length(donut_color) == 2 * n_nodes) {
-      # List with 2×n_nodes: per-node (fill, bg) pairs - extract odd indices for fill
-      effective_donut_colors <- as.list(donut_color[seq(1, 2 * n_nodes, by = 2)])
-    } else if (length(donut_color) == 2) {
-      # Two colors: fill + background for ALL nodes
-      effective_donut_colors <- as.list(rep(donut_color[1], n_nodes))
-      effective_bg_color <- donut_color[2]
-    } else if (length(donut_color) == 1) {
-      # Single color: fill for all nodes
-      effective_donut_colors <- as.list(rep(donut_color, n_nodes))
-    } else {
-      # Multiple colors (not 2): treat as per-node fill colors
-      cols <- recycle_to_length(donut_color, n_nodes)
-      effective_donut_colors <- as.list(cols)
-    }
-  } else if (!is.null(donut_colors)) {
-    # Deprecated: use old donut_colors parameter
-    effective_donut_colors <- donut_colors
-  } else if (any(shapes == "donut") || !is.null(effective_donut_values)) {
-    # Default fill color: light gray when donuts are being used
-    effective_donut_colors <- as.list(rep("maroon", n_nodes))
-  }
-
-  # Determine effective donut shapes - inherit from node_shape by default
-  # If donut_shape is NULL or "circle" (default), inherit from node_shape
-  # Otherwise, use the explicitly set donut_shape
-  valid_donut_base_shapes <- c("circle", "square", "hexagon", "triangle", "diamond", "pentagon")
-  if (is.null(donut_shape) || identical(donut_shape, "circle")) {
-    # Inherit from node_shape, but only if it's a valid donut base shape
-    # donut, donut_pie, double_donut_pie and custom SVG shapes default to "circle"
-    special_donut_shapes <- c("donut", "donut_pie", "double_donut_pie")
-    effective_donut_shapes <- ifelse(
-      shapes %in% valid_donut_base_shapes,
-      shapes,
-      "circle"  # Default for SVG shapes and special shapes
-    )
-  } else {
-    # User explicitly set donut_shape - vectorize and use it
-    effective_donut_shapes <- recycle_to_length(donut_shape, n_nodes)
-  }
-
-  # Vectorize donut_border_color for per-node support
-  effective_donut_border_color <- if (!is.null(donut_border_color)) {
-    recycle_to_length(donut_border_color, n_nodes)
-  } else {
-    NULL
-  }
-
-  # Vectorize donut_outer_border_color for per-node support (double border feature)
-  effective_donut_outer_border_color <- if (!is.null(donut_outer_border_color)) {
-    recycle_to_length(donut_outer_border_color, n_nodes)
-  } else {
-    NULL
-  }
-
-  # Vectorize donut_line_type for per-node support
-  effective_donut_line_type <- recycle_to_length(donut_line_type, n_nodes)
+  # Resolve donut parameters
+  dp <- resolve_donut_params(
+    donut_fill = donut_fill, donut_values = donut_values,
+    donut_color = donut_color, donut_colors = donut_colors,
+    donut_bg_color = donut_bg_color, donut_shape = donut_shape,
+    donut_border_color = donut_border_color,
+    donut_outer_border_color = donut_outer_border_color,
+    donut_line_type = donut_line_type, donut_empty = donut_empty,
+    shapes = shapes, n_nodes = n_nodes
+  )
 
   render_nodes_splot(
     layout = layout_mat,
@@ -1153,15 +1225,15 @@ splot <- function(
     pie_values = pie_values,
     pie_colors = pie_colors,
     pie_border_width = pie_border_width,
-    donut_values = effective_donut_values,
-    donut_colors = effective_donut_colors,
-    donut_border_color = effective_donut_border_color,
+    donut_values = dp$donut_values,
+    donut_colors = dp$donut_colors,
+    donut_border_color = dp$donut_border_color,
     donut_border_width = donut_border_width,
-    donut_outer_border_color = effective_donut_outer_border_color,
-    donut_line_type = effective_donut_line_type,
+    donut_outer_border_color = dp$donut_outer_border_color,
+    donut_line_type = dp$donut_line_type,
     donut_inner_ratio = donut_inner_ratio,
-    donut_bg_color = effective_bg_color,
-    donut_shape = effective_donut_shapes,
+    donut_bg_color = dp$bg_color,
+    donut_shape = dp$donut_shapes,
     donut_show_value = donut_show_value,
     donut_value_size = donut_value_size,
     donut_value_color = donut_value_color,
@@ -1234,9 +1306,11 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
                                edge_label_fontface,
                                edge_label_shadow = FALSE, edge_label_shadow_color = "gray40",
                                edge_label_shadow_offset = 0.5, edge_label_shadow_alpha = 0.5,
+                               edge_label_halo = TRUE,
                                edge_ci = NULL, edge_ci_scale = 2.0,
                                edge_ci_alpha = 0.15, edge_ci_color = NULL,
                                edge_ci_style = 2, edge_ci_arrows = FALSE,
+                               edge_priority = NULL,
                                is_reciprocal = NULL,
                                edge_start_style = "solid", edge_start_length = 0.15,
                                edge_start_dot_density = "12") {
@@ -1250,8 +1324,13 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
   center_x <- mean(layout[, 1])
   center_y <- mean(layout[, 2])
 
-  # Get render order (weakest to strongest)
-  order_idx <- get_edge_order(edges)
+  # Get render order (weakest to strongest, low priority to high priority)
+  order_idx <- get_edge_order(edges, priority = edge_priority)
+
+  # Expand CI parameters to per-edge vectors
+  edge_ci_scales <- expand_param(edge_ci_scale, m, "edge_ci_scale")
+  edge_ci_alphas <- expand_param(edge_ci_alpha, m, "edge_ci_alpha")
+  edge_ci_arrows_vec <- expand_param(edge_ci_arrows, m, "edge_ci_arrows")
 
   # Storage for label positions
   label_positions <- vector("list", m)
@@ -1286,9 +1365,16 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
 
   # Helper function to calculate curve direction (bend INWARD toward center)
   calc_curve_direction <- function(curve_val, start_x, start_y, end_x, end_y) {
-    if (length(curve_val) == 0 || is.na(curve_val)) {
-      return(0)
+    # Defensive check: ensure all coordinates are valid scalars
+    if (length(start_x) == 0 || length(start_y) == 0 ||
+        length(end_x) == 0 || length(end_y) == 0 ||
+        any(is.na(c(start_x, start_y, end_x, end_y)))) {
+      return(if (length(curve_val) > 0) curve_val else 0) # nocov
     }
+
+    if (length(curve_val) == 0 || is.na(curve_val)) { # nocov start
+      return(0)
+    } # nocov end
 
     if (curve_val > 1e-6) {
       mid_x <- (start_x + end_x) / 2
@@ -1301,7 +1387,7 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
       # Perpendicular to edge direction (same as draw_curved_edge_base)
       # Clockwise rotation: (dx, dy) -> (dy, -dx)
       len <- sqrt(dx^2 + dy^2)
-      if (length(len) == 0 || is.na(len) || len < 1e-10) return(curve_val)
+      if (length(len) == 0 || is.na(len) || len < 1e-10) return(curve_val) # nocov
       px <- dy / len
       py <- -dx / len
 
@@ -1342,9 +1428,9 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
     if (from_idx == to_idx) {
       # PASS 1: Draw CI underlay for self-loop (if edge_ci provided)
       if (!is.null(edge_ci) && !is.na(edge_ci[i]) && edge_ci[i] > 0) {
-        underlay_width <- edge_width[i] * (1 + edge_ci[i] * edge_ci_scale)
+        underlay_width <- edge_width[i] * (1 + edge_ci[i] * edge_ci_scales[i])
         underlay_col <- if (!is.null(edge_ci_color)) edge_ci_color[i] else edge_color[i]
-        underlay_col <- adjust_alpha(underlay_col, edge_ci_alpha)
+        underlay_col <- adjust_alpha(underlay_col, edge_ci_alphas[i])
 
         draw_self_loop_base(
           x1, y1, node_sizes[from_idx],
@@ -1352,7 +1438,7 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
           lwd = underlay_width,
           lty = edge_ci_style,
           rotation = loop_rotation[i],
-          arrow = edge_ci_arrows,
+          arrow = edge_ci_arrows_vec[i],
           asize = arrow_size[i],
           arrow_angle = arrow_angle
         )
@@ -1397,9 +1483,9 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
 
     # PASS 1: Draw CI underlay (if edge_ci provided)
     if (!is.null(edge_ci) && !is.na(edge_ci[i]) && edge_ci[i] > 0) {
-      underlay_width <- edge_width[i] * (1 + edge_ci[i] * edge_ci_scale)
+      underlay_width <- edge_width[i] * (1 + edge_ci[i] * edge_ci_scales[i])
       underlay_col <- if (!is.null(edge_ci_color)) edge_ci_color[i] else edge_color[i]
-      underlay_col <- adjust_alpha(underlay_col, edge_ci_alpha)
+      underlay_col <- adjust_alpha(underlay_col, edge_ci_alphas[i])
 
       if (abs(curve_i) > 1e-6) {
         draw_curved_edge_base(
@@ -1409,7 +1495,7 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
           col = underlay_col,
           lwd = underlay_width,
           lty = edge_ci_style,
-          arrow = edge_ci_arrows,
+          arrow = edge_ci_arrows_vec[i],
           asize = arrow_size[i],
           bidirectional = FALSE,
           arrow_angle = arrow_angle
@@ -1420,7 +1506,7 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
           col = underlay_col,
           lwd = underlay_width,
           lty = edge_ci_style,
-          arrow = edge_ci_arrows,
+          arrow = edge_ci_arrows_vec[i],
           asize = arrow_size[i],
           bidirectional = FALSE,
           arrow_angle = arrow_angle
@@ -1481,21 +1567,22 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
     edge_label_shadow_offsets <- expand_param(edge_label_shadow_offset, m, "edge_label_shadow_offset")
     edge_label_shadow_alphas <- expand_param(edge_label_shadow_alpha, m, "edge_label_shadow_alpha")
 
+    # Apply halo effect if enabled (overrides shadow settings)
+    edge_label_halos <- expand_param(edge_label_halo, m, "edge_label_halo")
+    for (i in seq_len(m)) {
+      if (isTRUE(edge_label_halos[i])) {
+        edge_label_shadows[i] <- "halo"
+        edge_label_shadow_colors[i] <- "white"
+        edge_label_shadow_alphas[i] <- 1.0
+        if (edge_label_shadow_offsets[i] < 0.5) {
+          edge_label_shadow_offsets[i] <- 0.6
+        }
+      }
+    }
+
     # Handle edge_label_fontface - convert strings to numbers if needed
     edge_label_fontfaces <- expand_param(edge_label_fontface, m, "edge_label_fontface")
-    edge_label_fontfaces <- sapply(edge_label_fontfaces, function(ff) {
-      if (is.character(ff)) {
-        switch(ff,
-          "plain" = 1,
-          "bold" = 2,
-          "italic" = 3,
-          "bold.italic" = 4,
-          1  # default
-        )
-      } else {
-        ff
-      }
-    })
+    edge_label_fontfaces <- vapply(edge_label_fontfaces, fontface_to_numeric, numeric(1))
 
     for (i in seq_len(m)) {
       if (!is.null(edge_labels[i]) && !is.na(edge_labels[i]) && edge_labels[i] != "") {
@@ -1617,20 +1704,43 @@ render_nodes_splot <- function(layout, node_size, node_size2, node_shape, node_f
         pie_vals <- pie_values[[i]]
         pie_cols <- if (!is.null(pie_colors) && length(pie_colors) >= i) pie_colors[[i]] else NULL
 
-        draw_donut_pie_node_base(
-          x, y, node_size[i],
-          donut_value = donut_val,
-          donut_color = donut_col,
-          pie_values = pie_vals,
-          pie_colors = pie_cols,
-          pie_default_color = node_fill[i],
-          inner_ratio = donut_inner_ratios[i],
-          bg_color = donut_bg_colors[i],
-          border.col = node_border_color[i],
-          border.width = node_border_width[i],
-          pie_border.width = pie_border_width,
-          donut_border.width = donut_border_width
-        )
+        # Get per-node donut shape
+        current_donut_shape <- if (length(donut_shape) >= i) donut_shape[i] else "circle"
+
+        if (current_donut_shape != "circle") {
+          # Use polygon donut with pie for non-circular shapes
+          draw_polygon_donut_pie_node_base(
+            x, y, node_size[i],
+            donut_value = donut_val,
+            donut_color = donut_col,
+            donut_shape = current_donut_shape,
+            pie_values = pie_vals,
+            pie_colors = pie_cols,
+            pie_default_color = node_fill[i],
+            inner_ratio = donut_inner_ratios[i],
+            bg_color = donut_bg_colors[i],
+            border.col = node_border_color[i],
+            border.width = node_border_width[i],
+            pie_border.width = pie_border_width,
+            donut_border.width = donut_border_width
+          )
+        } else {
+          # Use circular donut with pie (default)
+          draw_donut_pie_node_base(
+            x, y, node_size[i],
+            donut_value = donut_val,
+            donut_color = donut_col,
+            pie_values = pie_vals,
+            pie_colors = pie_cols,
+            pie_default_color = node_fill[i],
+            inner_ratio = donut_inner_ratios[i],
+            bg_color = donut_bg_colors[i],
+            border.col = node_border_color[i],
+            border.width = node_border_width[i],
+            pie_border.width = pie_border_width,
+            donut_border.width = donut_border_width
+          )
+        }
       }
 
     } else if (has_donut) {
@@ -1778,13 +1888,7 @@ render_nodes_splot <- function(layout, node_size, node_size2, node_shape, node_f
         # "center" - no offset
 
         # Convert fontface string to numeric (per-node)
-        fontface_num <- switch(label_fontfaces[i],
-          "plain" = 1,
-          "bold" = 2,
-          "italic" = 3,
-          "bold.italic" = 4,
-          1
-        )
+        fontface_num <- fontface_to_numeric(label_fontfaces[i])
 
         draw_node_label_base(
           lx, ly,
@@ -1966,4 +2070,24 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
     cex = cex,
     seg.len = 1.5
   )
+}
+
+#' Collect user-explicit args for dispatch forwarding
+#'
+#' Merges evaluated user args and dots, optionally starting from a base list.
+#' Used by splot() to forward all user-provided parameters across dispatch
+#' boundaries (bootstrap, permutation, cluster, etc.).
+#'
+#' @param user_args Named list of evaluated user-explicit args.
+#' @param dots The ... args (already evaluated).
+#' @param skip Character vector of arg names to exclude (default "x").
+#' @param base Optional base list to merge on top of (e.g., tna_params).
+#' @return Named list of args ready for do.call().
+#' @noRd
+.collect_dispatch_args <- function(user_args, dots, skip = "x", base = list()) {
+  nms <- setdiff(names(user_args), skip)
+  result <- base
+  result[nms] <- user_args[nms]
+  result[names(dots)] <- dots
+  result
 }

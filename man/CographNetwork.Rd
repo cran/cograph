@@ -3,6 +3,9 @@
 \name{CographNetwork}
 \alias{CographNetwork}
 \title{CographNetwork R6 Class}
+\value{
+A \code{CographNetwork} R6 object.
+}
 \description{
 Core class representing a network for visualization. Stores nodes, edges,
 layout coordinates, and aesthetic mappings.
@@ -17,7 +20,6 @@ net$n_nodes
 net$n_edges
 net$is_directed
 }
-\keyword{internal}
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
 \describe{
@@ -29,7 +31,7 @@ net$is_directed
 
 \item{\code{has_weights}}{Whether edges have weights.}
 
-\item{\code{node_labels}}{Vector of node labels.}
+\item{\code{node_labels}}{Vector of node labels (priority: labels > label).}
 }
 \if{html}{\out{</div>}}
 }
@@ -66,7 +68,12 @@ net$is_directed
 \subsection{Method \code{new()}}{
 Create a new CographNetwork object.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{CographNetwork$new(input = NULL, directed = NULL, node_labels = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{CographNetwork$new(
+  input = NULL,
+  directed = NULL,
+  nodes = NULL,
+  simplify = FALSE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -76,7 +83,12 @@ Create a new CographNetwork object.
 
 \item{\code{directed}}{Logical. Force directed interpretation. NULL for auto-detect.}
 
-\item{\code{node_labels}}{Character vector of node labels.}
+\item{\code{nodes}}{Node metadata. Can be NULL or a data frame with node attributes.
+If data frame has a \code{label} or \code{labels} column, those are used for display.}
+
+\item{\code{simplify}}{Logical or character. If FALSE (default), every transition
+from tna sequence data is a separate edge. If TRUE or a string
+("sum", "mean", "max", "min"), duplicate edges are aggregated.}
 }
 \if{html}{\out{</div>}}
 }

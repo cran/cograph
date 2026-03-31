@@ -7,11 +7,12 @@
 \usage{
 plot_mlna(
   model,
-  layer_list,
+  layer_list = NULL,
+  community = NULL,
   layout = "horizontal",
-  layer_spacing = 2.2,
-  layer_width = 4.5,
-  layer_depth = 2.2,
+  layer_spacing = 4,
+  layer_width = 8,
+  layer_depth = 4,
   skew_angle = 25,
   node_spacing = 0.7,
   colors = NULL,
@@ -27,16 +28,20 @@ plot_mlna(
   node_size = 3,
   minimum = 0,
   scale = 1,
+  show_labels = TRUE,
+  nodes = NULL,
+  label_abbrev = NULL,
   ...
 )
 
 mlna(
   model,
-  layer_list,
+  layer_list = NULL,
+  community = NULL,
   layout = "horizontal",
-  layer_spacing = 2.2,
-  layer_width = 4.5,
-  layer_depth = 2.2,
+  layer_spacing = 4,
+  layer_width = 8,
+  layer_depth = 4,
   skew_angle = 25,
   node_spacing = 0.7,
   colors = NULL,
@@ -52,25 +57,37 @@ mlna(
   node_size = 3,
   minimum = 0,
   scale = 1,
+  show_labels = TRUE,
+  nodes = NULL,
+  label_abbrev = NULL,
   ...
 )
 }
 \arguments{
-\item{model}{A tna object or weight matrix.}
+\item{model}{A tna object, weight matrix, or cograph_network.}
 
-\item{layer_list}{List of character vectors defining layers. Each element
-contains node names belonging to that layer. Layers are displayed from
-top to bottom in list order.}
+\item{layer_list}{Layers can be specified as:
+\itemize{
+\item A list of character vectors (node names per layer)
+\item A string column name from nodes data (e.g., "layer")
+\item NULL to auto-detect from columns named: layer, layers, groups, etc.
+\item NULL with \code{community} specified for algorithmic detection
+}}
+
+\item{community}{Community detection method to use for auto-layering.
+If specified, overrides \code{layer_list}. See \code{\link{detect_communities}}
+for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
+"infomap", "leiden".}
 
 \item{layout}{Node layout within layers: "horizontal" (default) spreads nodes
 horizontally, "circle" arranges nodes in an ellipse, "spring" uses
 force-directed placement based on within-layer connections.}
 
-\item{layer_spacing}{Vertical distance between layer centers. Default 2.2.}
+\item{layer_spacing}{Vertical distance between layer centers. Default 2.5.}
 
-\item{layer_width}{Horizontal width of each layer shell. Default 4.5.}
+\item{layer_width}{Horizontal width of each layer shell. Default 5.}
 
-\item{layer_depth}{Depth of each layer (for 3D effect). Default 2.2.}
+\item{layer_depth}{Depth of each layer (for 3D effect). Default 2.5.}
 
 \item{skew_angle}{Angle of perspective skew in degrees. Default 25.}
 
@@ -106,12 +123,30 @@ Use 1 for solid, 3 for dotted.}
 \item{minimum}{Minimum edge weight threshold. Edges below this are hidden.
 Default 0.}
 
-\item{scale}{Scaling factor for high resolution plotting.}
+\item{scale}{Scaling factor for spacing parameters. Use scale > 1 for
+high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
+layer_spacing, layer_width, and layer_depth to maintain proper proportions
+at higher resolutions. Default 1.}
+
+\item{show_labels}{Logical. Show node labels. Default TRUE.}
+
+\item{nodes}{Node metadata. Can be:
+\itemize{
+\item NULL (default): Use existing nodes data from cograph_network
+\item Data frame: Must have \code{label} column for matching; if \code{labels}
+column exists, uses it for display text
+}
+Display priority: \code{labels} column > \code{label} column (identifiers).}
+
+\item{label_abbrev}{Label abbreviation: NULL (none), integer (max chars),
+or "auto" (adaptive based on node count).}
 
 \item{...}{Additional parameters (currently unused).}
 }
 \value{
 Invisibly returns NULL.
+
+See \code{\link{plot_mlna}}.
 }
 \description{
 Visualizes multilevel/multiplex networks where multiple layers are stacked
@@ -120,11 +155,8 @@ in a 3D perspective view. Each layer contains nodes connected by solid edges
 (inter-layer edges). Each layer is enclosed in a parallelogram shell giving
 a pseudo-3D appearance.
 }
-\details{
-\if{html}{\figure{mlna_example.png}{options: width=600 alt="Multilevel network example"}}
-\if{latex}{\figure{mlna_example.png}{options: width=4in}}
-}
 \examples{
+\dontrun{
 # Create multilevel network
 set.seed(42)
 nodes <- paste0("N", 1:15)
@@ -151,4 +183,13 @@ plot_mlna(m, layers,
 
 # Circle layout within layers
 plot_mlna(m, layers, layout = "circle")
+}
+\dontrun{
+nodes <- paste0("N", 1:9)
+m <- matrix(runif(81, 0, 0.3), 9, 9)
+diag(m) <- 0
+colnames(m) <- rownames(m) <- nodes
+layers <- list(L1 = nodes[1:3], L2 = nodes[4:6], L3 = nodes[7:9])
+mlna(m, layers)
+}
 }

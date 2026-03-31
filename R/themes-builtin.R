@@ -1,7 +1,10 @@
 #' @title Built-in Themes
 #' @description Pre-defined themes for network visualization.
-#' @keywords internal
 #' @name themes-builtin
+#' @return A \code{CographTheme} object.
+#' @examples
+#' theme_cograph_classic()
+#' theme_cograph_dark()
 NULL
 
 #' Classic Theme

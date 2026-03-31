@@ -7,10 +7,11 @@
 \usage{
 plot_mtna(
   x,
-  cluster_list,
+  cluster_list = NULL,
+  community = NULL,
   layout = "circle",
-  spacing = 3,
-  shape_size = 1.2,
+  spacing = 4,
+  shape_size = 1.8,
   node_spacing = 0.5,
   colors = NULL,
   shapes = NULL,
@@ -18,22 +19,30 @@ plot_mtna(
   bundle_edges = TRUE,
   bundle_strength = 0.8,
   summary_edges = TRUE,
+  aggregation = c("sum", "mean", "max", "min", "median", "density"),
   within_edges = TRUE,
   show_border = TRUE,
   legend = TRUE,
   legend_position = "topright",
   curvature = 0.3,
-  node_size = 2,
+  node_size = 3,
+  layout_margin = 0.15,
   scale = 1,
+  show_labels = FALSE,
+  nodes = NULL,
+  label_size = NULL,
+  label_abbrev = NULL,
+  cluster_shape = NULL,
   ...
 )
 
 mtna(
   x,
-  cluster_list,
+  cluster_list = NULL,
+  community = NULL,
   layout = "circle",
-  spacing = 3,
-  shape_size = 1.2,
+  spacing = 4,
+  shape_size = 1.8,
   node_spacing = 0.5,
   colors = NULL,
   shapes = NULL,
@@ -41,28 +50,44 @@ mtna(
   bundle_edges = TRUE,
   bundle_strength = 0.8,
   summary_edges = TRUE,
+  aggregation = c("sum", "mean", "max", "min", "median", "density"),
   within_edges = TRUE,
   show_border = TRUE,
   legend = TRUE,
   legend_position = "topright",
   curvature = 0.3,
-  node_size = 2,
+  node_size = 3,
+  layout_margin = 0.15,
   scale = 1,
+  show_labels = FALSE,
+  nodes = NULL,
+  label_size = NULL,
+  label_abbrev = NULL,
+  cluster_shape = NULL,
   ...
 )
 }
 \arguments{
-\item{x}{A tna object or weight matrix.}
+\item{x}{A tna object, weight matrix, cograph_network, or cluster_summary object.}
 
-\item{cluster_list}{List of character vectors defining clusters.
-Each cluster becomes a separate shape in the layout.}
+\item{cluster_list}{Clusters can be specified as:
+\itemize{
+\item A list of character vectors (node names per cluster)
+\item A string column name from nodes data (e.g., "groups")
+\item NULL with \code{community} specified for auto-detection
+}}
+
+\item{community}{Community detection method to use for auto-clustering.
+If specified, overrides \code{cluster_list}. See \code{\link{detect_communities}}
+for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
+"infomap", "leiden".}
 
 \item{layout}{How to arrange the clusters: "circle" (default),
 "grid", "horizontal", "vertical".}
 
-\item{spacing}{Distance between cluster centers. Default 3.}
+\item{spacing}{Distance between cluster centers. Default 4.}
 
-\item{shape_size}{Size of each cluster shape (shell radius). Default 1.2.}
+\item{shape_size}{Size of each cluster shape (shell radius). Default 1.8.}
 
 \item{node_spacing}{Radius for node placement within shapes (0-1 relative
 to shape_size). Default 0.5.}
@@ -81,6 +106,11 @@ to shape_size). Default 0.5.}
 \item{summary_edges}{Logical. Show aggregated summary edges between clusters instead
 of individual node edges. Default TRUE.}
 
+\item{aggregation}{Method for aggregating edge weights between clusters:
+"sum" (total flow), "mean" (average strength), "max" (strongest link),
+"min" (weakest link), "median", or "density" (normalized by possible edges).
+Default "sum". Only used when summary_edges = TRUE.}
+
 \item{within_edges}{Logical. When summary_edges is TRUE, also show individual
 edges within each cluster. Default TRUE.}
 
@@ -92,14 +122,40 @@ edges within each cluster. Default TRUE.}
 
 \item{curvature}{Edge curvature. Default 0.3.}
 
-\item{node_size}{Size of nodes inside shapes. Default 2.}
+\item{node_size}{Size of nodes inside shapes. Default 3.}
 
-\item{scale}{Scaling factor for high resolution plotting.}
+\item{layout_margin}{Margin around the layout as fraction of range. Default 0.15.}
+
+\item{scale}{Scaling factor for spacing parameters. Use scale > 1 for
+high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
+spacing and shape_size to maintain proper proportions at higher resolutions.
+Default 1.}
+
+\item{show_labels}{Logical. Show node labels inside clusters. Default FALSE.}
+
+\item{nodes}{Node metadata. Can be:
+\itemize{
+\item NULL (default): Use existing nodes data from cograph_network
+\item Data frame: Must have \code{label} column for matching; if \code{labels}
+column exists, uses it for display text
+}
+Display priority: \code{labels} column > \code{label} column (identifiers).}
+
+\item{label_size}{Label text size. Default NULL (auto-scaled).}
+
+\item{label_abbrev}{Label abbreviation: NULL (none), integer (max chars),
+or "auto" (adaptive based on node count).}
+
+\item{cluster_shape}{Shape for cluster summary nodes when using summary view.
+Can be single value or vector. Overrides \code{shapes}. Default NULL (use shapes).}
 
 \item{...}{Additional parameters passed to plot_tna().}
 }
 \value{
-Invisibly returns NULL for summary mode, or the plot_tna result.
+Invisibly returns a cluster_summary object for summary mode, or the
+plot_tna result otherwise.
+
+See \code{\link{plot_mtna}}.
 }
 \description{
 Visualizes multiple network clusters with summary edges between clusters
@@ -107,6 +163,7 @@ and individual edges within clusters. Each cluster is displayed as a
 shape (circle, square, diamond, triangle) containing its nodes.
 }
 \examples{
+\dontrun{
 # Create network with 4 clusters
 nodes <- paste0("N", 1:20)
 m <- matrix(runif(400, 0, 0.3), 20, 20)
@@ -123,6 +180,21 @@ clusters <- list(
 # Summary edges between clusters + individual edges within
 plot_mtna(m, clusters, summary_edges = TRUE)
 
+# With node labels
+plot_mtna(m, clusters, show_labels = TRUE, label_abbrev = 3)
+
 # Control spacing and sizes
 plot_mtna(m, clusters, spacing = 4, shape_size = 1.5, node_spacing = 0.6)
+}
+\dontrun{
+nodes <- paste0("N", 1:12)
+m <- matrix(runif(144, 0, 0.3), 12, 12)
+diag(m) <- 0
+colnames(m) <- rownames(m) <- nodes
+clusters <- list(C1 = nodes[1:4], C2 = nodes[5:8], C3 = nodes[9:12])
+mtna(m, clusters)
+}
+}
+\seealso{
+\code{\link{cluster_summary}}, \code{\link{plot_mcml}}
 }

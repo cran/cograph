@@ -1,5 +1,5 @@
-#' @title cograph: Modern Network Visualization
-#' @keywords internal
+#' @title cograph: Modern Network Visualization for R
+#'
 #' @description
 #' A modern, extensible network visualization package that provides high-quality
 #' static and interactive network plots. cograph accepts adjacency matrices,
@@ -38,10 +38,12 @@
 #'
 #' @docType package
 #' @name cograph-package
+#' @keywords internal
 #'
 #' @import R6
 #' @import grid
 #' @import ggplot2
+#' @importFrom graphics abline legend lines par plot
 #' @importFrom grDevices col2rgb rgb colorRampPalette pdf png svg dev.off adjustcolor
 #' @importFrom stats runif rnorm setNames median
 #' @importFrom utils modifyList

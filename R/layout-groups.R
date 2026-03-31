@@ -1,6 +1,7 @@
 #' @title Group-based Layout
 #' @description Arrange nodes in groups, with each group in a circular arrangement.
 #' @name layout-groups
+#' @keywords internal
 NULL
 
 #' Group-based Layout
@@ -17,7 +18,6 @@ NULL
 #' @param inner_radius Radius of nodes within each group (default: 0.15).
 #' @param outer_radius Radius for positioning group centers (default: 0.35).
 #' @return Data frame with x, y coordinates.
-#' @export
 #'
 #' @examples
 #' # Create a network with groups
@@ -28,10 +28,16 @@ NULL
 #' net <- CographNetwork$new(adj)
 #' groups <- c(1, 1, 1, 2, 2, 2, 3, 3, 3)
 #' coords <- layout_groups(net, groups)
+#'
+#' @export
 layout_groups <- function(network, groups, group_positions = NULL,
                           inner_radius = 0.15, outer_radius = 0.35) {
 
-  n <- network$n_nodes
+  n <- if (inherits(network, "cograph_network") && !inherits(network, "CographNetwork")) {
+    n_nodes(network)
+  } else {
+    network$n_nodes
+  }
 
   if (n == 0) {
     return(data.frame(x = numeric(0), y = numeric(0)))

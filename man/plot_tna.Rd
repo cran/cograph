@@ -16,7 +16,7 @@ plot_tna(
   edge.labels = TRUE,
   edge.label.position = 0.7,
   edge.label.cex = 0.6,
-  edge.color = "#003355",
+  edge.color = COGRAPH_SCALE$tna_edge_color,
   vsize = 7,
   pie = NULL,
   pieColor = NULL,
@@ -41,7 +41,7 @@ tplot(
   edge.labels = TRUE,
   edge.label.position = 0.7,
   edge.label.cex = 0.6,
-  edge.color = "#003355",
+  edge.color = COGRAPH_SCALE$tna_edge_color,
   vsize = 7,
   pie = NULL,
   pieColor = NULL,
@@ -102,6 +102,8 @@ tplot(
 }
 \value{
 Invisibly returns the cograph_network object from splot().
+
+Invisibly returns the cograph_network object from splot().
 }
 \description{
 A drop-in replacement for qgraph::qgraph() that uses cograph's splot engine.
@@ -118,4 +120,8 @@ plot_tna(m, vsize = 15, edge.label.cex = 2, layout = "circle")
 # With custom colors
 plot_tna(m, color = rainbow(5), vsize = 10)
 
+\dontrun{
+m <- matrix(runif(25), 5, 5)
+tplot(m)
+}
 }

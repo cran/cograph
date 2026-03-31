@@ -232,34 +232,23 @@ draw_curved_edge_base <- function(x1, y1, x2, y2, curve = 0.2, curvePivot = 0.5,
   # Create smooth curve using multiple control points (qgraph approach)
   # Use 5 points for smoother curve: start, 1/4, mid, 3/4, end
   t_vals <- c(0, 0.25, 0.5, 0.75, 1)
-  n_pts <- length(t_vals)
+  # Vectorized control point computation
+  bx <- x1 + t_vals * dx
+  by <- y1 + t_vals * dy
 
-  ctrl_x <- numeric(n_pts)
-  ctrl_y <- numeric(n_pts)
-
-  for (i in seq_along(t_vals)) {
-    t <- t_vals[i]
-    # Base point along edge
-    bx <- x1 + t * dx
-    by <- y1 + t * dy
-
-    # Parabolic offset - maximum at curvePivot, zero at ends
-    # This creates a smooth symmetric curve
-    offset_factor <- 4 * t * (1 - t)  # Parabola peaking at t=0.5
-
-    # Adjust for pivot position (shift the peak)
-    if (curvePivot != 0.5) {
-      # Skewed parabola
-      if (t <= curvePivot) {
-        offset_factor <- (t / curvePivot)^2 * 4 * curvePivot * (1 - curvePivot)
-      } else {
-        offset_factor <- ((1 - t) / (1 - curvePivot))^2 * 4 * curvePivot * (1 - curvePivot)
-      }
-    }
-
-    ctrl_x[i] <- bx + curve_offset * offset_factor * px
-    ctrl_y[i] <- by + curve_offset * offset_factor * py
+  # Parabolic offset - maximum at curvePivot, zero at ends
+  if (curvePivot != 0.5) {
+    # Skewed parabola
+    peak <- 4 * curvePivot * (1 - curvePivot)
+    offset_factor <- ifelse(t_vals <= curvePivot,
+      (t_vals / curvePivot)^2 * peak,
+      ((1 - t_vals) / (1 - curvePivot))^2 * peak)
+  } else {
+    offset_factor <- 4 * t_vals * (1 - t_vals)
   }
+
+  ctrl_x <- bx + curve_offset * offset_factor * px
+  ctrl_y <- by + curve_offset * offset_factor * py
 
   # Generate smooth xspline through control points
   # shape = 1 for smooth interpolation, 0 for corners at endpoints
@@ -427,10 +416,11 @@ draw_self_loop_base <- function(x, y, node_size, col = "gray50", lwd = 1,
 #' @param col Text color.
 #' @param bg Background color (or NA for none).
 #' @param font Font face.
-#' @param shadow Logical: enable drop shadow?
-#' @param shadow_color Shadow color.
-#' @param shadow_offset Shadow offset distance.
-#' @param shadow_alpha Shadow transparency.
+#' @param shadow Logical or character: FALSE for none, TRUE or "shadow" for drop shadow,
+#'   "halo" for outline rim around text.
+#' @param shadow_color Shadow/halo color.
+#' @param shadow_offset Shadow/halo offset distance.
+#' @param shadow_alpha Shadow/halo transparency.
 #' @keywords internal
 draw_edge_label_base <- function(x, y, label, cex = 0.8, col = "gray30",
                                  bg = "white", font = 1,
@@ -457,8 +447,34 @@ draw_edge_label_base <- function(x, y, label, cex = 0.8, col = "gray30",
     )
   }
 
-  # Draw shadow text first (if enabled)
-  if (shadow) {
+  # Determine shadow style
+  shadow_style <- if (is.logical(shadow)) {
+    if (shadow) "shadow" else "none"
+  } else if (is.character(shadow)) {
+    shadow
+  } else {
+    "none"
+  }
+
+  # Draw shadow/halo text first (if enabled)
+  if (shadow_style == "halo") {
+    # Draw text in 16 directions for smooth halo/rim effect
+    shadow_off <- shadow_offset * 0.01  # Scale for user coordinates
+    shadow_col <- adjust_alpha(shadow_color, shadow_alpha)
+
+    # 16 directions for smooth halo (22.5 deg spacing)
+    angles <- seq(0, 2 * pi, length.out = 17)[-17]
+    for (angle in angles) {
+      graphics::text(
+        x = x + shadow_off * cos(angle),
+        y = y + shadow_off * sin(angle),
+        labels = label,
+        cex = cex,
+        col = shadow_col,
+        font = font
+      )
+    }
+  } else if (shadow_style == "shadow") {
     # Convert points to user coordinate offset
     shadow_off <- shadow_offset * 0.01  # Scale for user coordinates
     shadow_col <- adjust_alpha(shadow_color, shadow_alpha)
@@ -558,9 +574,166 @@ get_edge_label_position <- function(x1, y1, x2, y2, position = 0.5,
   # Add additional offset in the direction of the curve bulge
   # This moves the label to the convex side of the curve
   curve_direction <- sign(curve)
+  if (curve_direction == 0) curve_direction <- 1 # nocov
 
   list(
     x = curve_x + label_offset * curve_direction * px,
     y = curve_y + label_offset * curve_direction * py
   )
+}
+
+#' Render All Edges
+#'
+#' Renders all edges in the network.
+#'
+#' @param edges Edge data frame with from, to columns.
+#' @param layout Matrix with x, y columns.
+#' @param node_sizes Vector of node sizes.
+#' @param shapes Vector of node shapes.
+#' @param edge.color Vector of edge colors.
+#' @param edge.width Vector of edge widths.
+#' @param lty Vector of line types.
+#' @param curve Vector of curvatures.
+#' @param curvePivot Vector of curve pivot positions.
+#' @param arrows Logical or vector: draw arrows?
+#' @param asize Arrow size.
+#' @param bidirectional Logical or vector: bidirectional arrows?
+#' @param loopRotation Vector of loop rotation angles.
+#' @param edge.labels Vector of edge labels or NULL.
+#' @param edge.label.cex Label size.
+#' @param edge.label.bg Label background color.
+#' @param edge.label.position Label position along edge.
+#' @keywords internal
+render_edges_base <- function(edges, layout, node_sizes, shapes = "circle",
+                              edge.color = "gray50", edge.width = 1, lty = 1,
+                              curve = 0, curvePivot = 0.5, arrows = TRUE,
+                              asize = 0.02, bidirectional = FALSE,
+                              loopRotation = NULL, edge.labels = NULL,
+                              edge.label.cex = 0.8, edge.label.bg = "white",
+                              edge.label.position = 0.5) {
+  m <- nrow(edges)
+  if (m == 0) return(invisible())
+
+  n <- nrow(layout)
+
+  # Calculate network center for inward curve direction
+  center_x <- mean(layout[, 1])
+  center_y <- mean(layout[, 2])
+
+  # Vectorize parameters
+  edge.color <- recycle_to_length(edge.color, m)
+  edge.width <- recycle_to_length(edge.width, m)
+  lty <- recycle_to_length(lty, m)
+  curve <- recycle_to_length(curve, m)
+  curvePivot <- recycle_to_length(curvePivot, m)
+  arrows <- recycle_to_length(arrows, m)
+  asize <- recycle_to_length(asize, m)
+  bidirectional <- recycle_to_length(bidirectional, m)
+  node_sizes <- recycle_to_length(node_sizes, n)
+  shapes <- recycle_to_length(shapes, n)
+
+  # Loop rotation
+  if (is.null(loopRotation)) {
+    loopRotation <- resolve_loop_rotation(NULL, edges, layout)
+  } else {
+    loopRotation <- recycle_to_length(loopRotation, m)
+  }
+
+  # Get render order (weakest to strongest)
+  order_idx <- get_edge_order(edges)
+
+  # Storage for label positions
+  label_positions <- vector("list", m)
+
+  for (i in order_idx) {
+    from_idx <- edges$from[i]
+    to_idx <- edges$to[i]
+
+    x1 <- layout[from_idx, 1]
+    y1 <- layout[from_idx, 2]
+    x2 <- layout[to_idx, 1]
+    y2 <- layout[to_idx, 2]
+
+    # Self-loop
+    if (from_idx == to_idx) {
+      draw_self_loop_base(
+        x1, y1, node_sizes[from_idx],
+        col = edge.color[i],
+        lwd = edge.width[i],
+        lty = lty[i],
+        rotation = loopRotation[i],
+        arrow = arrows[i],
+        asize = asize[i]
+      )
+
+      # Label position for self-loop (at top of loop)
+      loop_dist <- node_sizes[from_idx] * 2.5
+      label_positions[[i]] <- list(
+        x = x1 + loop_dist * cos(loopRotation[i]),
+        y = y1 + loop_dist * sin(loopRotation[i])
+      )
+      next
+    }
+
+    # Calculate edge endpoints (offset from node centers)
+    angle_to <- splot_angle(x1, y1, x2, y2)
+    angle_from <- splot_angle(x2, y2, x1, y1)
+
+    start <- cent_to_edge(x1, y1, angle_to, node_sizes[from_idx], NULL, shapes[from_idx])
+    end <- cent_to_edge(x2, y2, angle_from, node_sizes[to_idx], NULL, shapes[to_idx])
+
+    # Use curve value as-is (direction already calculated by caller)
+    curve_i <- curve[i]
+
+    # Draw edge
+    if (abs(curve_i) > 1e-6) {
+      draw_curved_edge_base(
+        start$x, start$y, end$x, end$y,
+        curve = curve_i,
+        curvePivot = curvePivot[i],
+        col = edge.color[i],
+        lwd = edge.width[i],
+        lty = lty[i],
+        arrow = arrows[i],
+        asize = asize[i],
+        bidirectional = bidirectional[i]
+      )
+    } else {
+      draw_straight_edge_base(
+        start$x, start$y, end$x, end$y,
+        col = edge.color[i],
+        lwd = edge.width[i],
+        lty = lty[i],
+        arrow = arrows[i],
+        asize = asize[i],
+        bidirectional = bidirectional[i]
+      )
+    }
+
+    # Store label position
+    label_positions[[i]] <- get_edge_label_position(
+      start$x, start$y, end$x, end$y,
+      position = edge.label.position,
+      curve = curve_i,
+      curvePivot = curvePivot[i]
+    )
+  }
+
+  # Draw edge labels
+  if (!is.null(edge.labels)) {
+    edge.labels <- recycle_to_length(edge.labels, m)
+
+    for (i in seq_len(m)) {
+      if (!is.null(edge.labels[i]) && !is.na(edge.labels[i]) && edge.labels[i] != "") {
+        pos <- label_positions[[i]]
+        draw_edge_label_base(
+          pos$x, pos$y,
+          label = edge.labels[i],
+          cex = edge.label.cex,
+          col = "gray30",
+          bg = edge.label.bg
+        )
+      }
+    }
+  }
 }

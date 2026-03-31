@@ -1,7 +1,7 @@
 #' @title qgraph Input Parsing
-#' @keywords internal
 #' @description Functions for parsing qgraph objects.
 #' @name input-qgraph
+#' @keywords internal
 NULL
 
 #' Parse qgraph Object
@@ -14,11 +14,11 @@ NULL
 #' @noRd
 parse_qgraph <- function(q, directed = NULL) {
  # Check if qgraph is available
-  if (!has_package("qgraph")) {
+  if (!requireNamespace("qgraph", quietly = TRUE)) { # nocov start
     stop("Package 'qgraph' is required for qgraph input. ",
          "Please install it with: install.packages('qgraph')",
          call. = FALSE)
-  }
+  } # nocov end
 
   # Validate input
   if (!inherits(q, "qgraph") && is.null(q$Arguments)) {
@@ -48,10 +48,10 @@ parse_qgraph <- function(q, directed = NULL) {
   if (!is.null(ga_nodes$names)) {
     labels <- ga_nodes$names
     n <- length(labels)
-  } else if (!is.null(ga_nodes$labels)) {
+  } else if (!is.null(ga_nodes$labels)) { # nocov start
     labels <- ga_nodes$labels
     n <- length(labels)
-  } else {
+  } else { # nocov end
     # Infer from input matrix or edge list
     input_mat <- q$Arguments$input
     if (!is.null(input_mat) && is.matrix(input_mat)) {

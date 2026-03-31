@@ -96,28 +96,26 @@ with hanging labels.
 }
 }
 \examples{
+\dontshow{if (requireNamespace("qgraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 # Convert and plot a qgraph object
-if (requireNamespace("qgraph", quietly = TRUE)) {
-  library(qgraph)
-  adj <- matrix(c(0, .5, .3, .5, 0, .4, .3, .4, 0), 3, 3)
-  q <- qgraph(adj)
-  from_qgraph(q)  # Plots with splot
+adj <- matrix(c(0, .5, .3, .5, 0, .4, .3, .4, 0), 3, 3)
+q <- qgraph::qgraph(adj)
+from_qgraph(q)  # Plots with splot
 
-  # Use soplot engine instead
-  from_qgraph(q, engine = "soplot")
+# Use soplot engine instead
+from_qgraph(q, engine = "soplot")
 
-  # Override extracted parameters
-  from_qgraph(q, node_fill = "steelblue", layout = "circle")
+# Override extracted parameters
+from_qgraph(q, node_fill = "steelblue", layout = "circle")
 
-  # Extract parameters without plotting
-  params <- from_qgraph(q, plot = FALSE)
-  names(params)  # See what was extracted
+# Extract parameters without plotting
+params <- from_qgraph(q, plot = FALSE)
+names(params)  # See what was extracted
 
-  # Works with themed qgraph objects
-  q_themed <- qgraph(adj, theme = "colorblind", posCol = "blue")
-  from_qgraph(q_themed)
-}
-
+# Works with themed qgraph objects
+q_themed <- qgraph::qgraph(adj, theme = "colorblind", posCol = "blue")
+from_qgraph(q_themed)
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 \code{\link{cograph}} for creating networks from scratch,
