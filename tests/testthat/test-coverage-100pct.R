@@ -2,7 +2,7 @@
 # Test Coverage 100% - Targets all remaining uncovered lines
 # =============================================================================
 
-skip_on_cran()
+skip_coverage_tests()
 
 # ---- zzz.R (lines 9, 13, 17, 21, 24) ----
 # .onLoad runs at package load. covr can't instrument it.
@@ -316,18 +316,19 @@ test_that("membership with named nodes", {
   mat <- matrix(c(0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0), 4, 4,
                 dimnames = list(LETTERS[1:4], LETTERS[1:4]))
   comm <- community_fast_greedy(mat)
-  m <- membership.cograph_communities(comm)
+  m <- membership(comm)
   expect_true(!is.null(names(m)))
 })
 
 test_that("modularity fallback returns NA on error", {
-  # Create a communities object with no igraph backing
-  fake_comm <- list(
-    membership = c(1, 1, 2, 2),
-    algorithm = "fake",
-    names = LETTERS[1:4]
+  # Create a bare communities data frame with no igraph backing
+  fake_comm <- data.frame(
+    node = LETTERS[1:4],
+    community = c(1L, 1L, 2L, 2L),
+    stringsAsFactors = FALSE
   )
-  class(fake_comm) <- "cograph_communities"
+  attr(fake_comm, "algorithm") <- "fake"
+  class(fake_comm) <- c("cograph_communities", "data.frame")
   result <- tryCatch(
     modularity.cograph_communities(fake_comm),
     error = function(e) NA_real_
@@ -412,7 +413,7 @@ test_that("tna_color_palette returns colors for various state counts", {
 # ---- output-save.R (lines 63-64, 79-81) ----
 
 test_that("sn_save: SVG output", {
-  skip_on_cran()
+  skip_coverage_tests()
   mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3,
                 dimnames = list(LETTERS[1:3], LETTERS[1:3]))
   net <- cograph(mat)
@@ -428,7 +429,7 @@ test_that("sn_save: SVG output", {
 })
 
 test_that("sn_save: PS output", {
-  skip_on_cran()
+  skip_coverage_tests()
   mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3,
                 dimnames = list(LETTERS[1:3], LETTERS[1:3]))
   net <- cograph(mat)
@@ -452,7 +453,7 @@ test_that("sn_save: PS output", {
 # ---- plot-bootstrap.R (line 244) ----
 
 test_that("plot_bootstrap: very wide CI caps relative uncertainty", {
-  skip_on_cran()
+  skip_coverage_tests()
   # Create minimal bootstrap object
   mat <- matrix(c(0, 0.5, 0.3, 0.5, 0, 0.4, 0.3, 0.4, 0), 3, 3,
                 dimnames = list(LETTERS[1:3], LETTERS[1:3]))
@@ -485,7 +486,7 @@ test_that("plot_compare: extract weights from cograph_network", {
 # ---- plot-permutation.R (line 230) ----
 
 test_that("plot_permutation: negative weight formatting", {
-  skip_on_cran()
+  skip_coverage_tests()
   # Create minimal permutation object with negative weights
   perm_obj <- list(
     edges = list(
@@ -611,7 +612,7 @@ test_that("splot: donut shape without explicit values", {
 })
 
 test_that("splot: SVG filetype output", {
-  skip_on_cran()
+  skip_coverage_tests()
   mat <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3,
                 dimnames = list(LETTERS[1:3], LETTERS[1:3]))
   tmpfile <- tempfile(fileext = ".svg")

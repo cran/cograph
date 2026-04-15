@@ -1,11 +1,10 @@
 Package: cograph
 Title: Analysis and Visualization of Complex Networks
-Version: 2.0.0
+Version: 2.1.1
 Authors@R: c(
     person("Mohammed", "Saqr", role = c("aut", "cph")),
     person("Sonsoles", "L\u00f3pez-Pernas",
-           email = "sonsoles.lopez@uef.fi", role = c("aut", "cre", "cph")),
-    person("Santtu", "Tikka", role = "aut")
+           email = "sonsoles.lopez@uef.fi", role = c("aut", "cre", "cph"))
   )
 Description: Provides tools for the analysis, visualization, and manipulation
   of dynamical, social (Saqr et al. (2024) <doi:10.1007/978-3-031-54464-4_10>) and 
@@ -18,22 +17,22 @@ URL: https://sonsoles.me/cograph/,
         https://github.com/sonsoleslp/cograph
 BugReports: https://github.com/sonsoleslp/cograph/issues
 Depends: R (>= 4.1.0)
-Imports: R6, grid, grDevices, ggplot2, stats, utils
-Suggests: igraph, network, scales, testthat (>= 3.0.0), knitr,
-        rmarkdown, digest, grImport2, rsvg, qgraph, tna, gifski,
-        brainGraph, RColorBrewer, colorspace, Matrix, centiserve, sna,
-        reticulate, gridExtra, Nestimate
-Additional_repositories: https://mohsaqr.r-universe.dev
+Imports: ggplot2, grDevices, grid, Matrix, R6, stats, utils
+Suggests: backbone, brainGraph, centiserve, colorspace, digest, dplyr,
+        gifski, gridExtra, grImport2, igraph, influenceR, jsonlite,
+        knitr, Nestimate, network, qgraph, RColorBrewer, reticulate,
+        rmarkdown, rsvg, scales, sna, testthat (>= 3.0.0), tidygraph,
+        tna, tnet
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Encoding: UTF-8
+Language: en-US
 RoxygenNote: 7.3.3
 LazyData: true
 NeedsCompilation: no
-Packaged: 2026-03-31 18:34:58 UTC; slopezpe
+Packaged: 2026-04-15 08:57:39 UTC; slopezpe
 Author: Mohammed Saqr [aut, cph],
-  Sonsoles López-Pernas [aut, cre, cph],
-  Santtu Tikka [aut]
+  Sonsoles López-Pernas [aut, cre, cph]
 Maintainer: Sonsoles López-Pernas <sonsoles.lopez@uef.fi>
 Repository: CRAN
-Date/Publication: 2026-03-31 19:10:02 UTC
+Date/Publication: 2026-04-15 09:30:02 UTC

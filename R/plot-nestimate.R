@@ -17,43 +17,50 @@ NULL
 #' @param ... Additional arguments passed to \code{splot()}.
 #'
 #' @return Invisibly returns the plot.
-#' @keywords internal
+#' @rdname splot
 #' @export
 splot.netobject <- function(x, ...) {
-  args   <- list(...)
-  is_dir <- isTRUE(x$directed)
-  labels <- x$nodes$label %||% rownames(x$weights)
+  args <- list(...)
+  if (is.null(args$labels)) args$labels <- x$nodes$label %||% rownames(x$weights)
 
-  if (is.null(args$labels)) args$labels <- labels
-
-  # Auto-detect integer weights → suppress decimal places on matrix and labels
+  # Auto-suppress ".00" tails on integer-valued matrices (counts/frequencies).
   if (is.null(args$weight_digits)) {
     nz <- x$weights[x$weights != 0]
     if (length(nz) > 0 && all(nz == floor(nz))) {
-      args$weight_digits      <- 0L
+      args$weight_digits <- 0L
       if (is.null(args$edge_label_digits)) args$edge_label_digits <- 0L
     }
   }
 
-  if (is_dir) {
-    # Directed: tna_styling = TRUE applies all TNA defaults (oval layout,
-    # node palette, arrow sizing, dotted edge starts, minimum = 0.01, etc.)
-    # If the netobject carries initial probabilities (tna/ftna/atna), show donuts.
+  # Sequence-based TNA family uses TNA styling (oval layout, palette, etc.);
+  # correlation-family (glasso/cor/pcor/ising) uses psych styling. Direction
+  # alone isn't the right signal — build_cna and wtna cooccurrence are
+  # undirected TNA-family networks and still belong in oval layout with no
+  # arrows. When $method is missing (legacy mocks, hand-built netobjects),
+  # fall back to direction: directed -> TNA, undirected -> psych.
+  tna_methods <- c("relative", "frequency", "attention",
+                   "co_occurrence", "wtna", "wtna_cooccurrence")
+  use_tna <- if (!is.null(x$method)) {
+    x$method %in% tna_methods
+  } else {
+    isTRUE(x$directed)
+  }
+
+  if (use_tna) {
     if (!is.null(x$initial) && is.null(args$donut_fill)) {
       args$donut_fill  <- as.numeric(x$initial)
       args$donut_empty <- args$donut_empty %||% FALSE
     }
-    do.call(splot, c(list(x = x$weights, tna_styling = TRUE), args))
+    if (is.null(args$tna_styling)) args$tna_styling <- TRUE
   } else {
-    # Undirected: same node/edge styling but spring layout, no arrows, solid edges.
-    # Set these in args so match.call() in splot sees them as explicit and
-    # tna_styling's layout guard does not override them.
-    if (is.null(args$layout))            args$layout      <- "spring"
-    if (!"directed"    %in% names(args)) args$directed    <- FALSE
-    if (!"show_arrows" %in% names(args)) args$show_arrows <- FALSE
-    if (is.null(args$edge_style))        args$edge_style  <- 1
-    do.call(splot, c(list(x = x$weights, tna_styling = TRUE), args))
+    if (!is.null(x$predictability) && is.null(args$donut_fill)) {
+      args$donut_fill  <- as.numeric(x$predictability)
+      args$donut_empty <- args$donut_empty %||% FALSE
+    }
+    if (is.null(args$psych_styling)) args$psych_styling <- TRUE
   }
+
+  do.call(splot, c(list(x = x$weights), args))
 }
 
 #' Plot Nestimate GLASSO Bootstrap Results
@@ -74,7 +81,7 @@ splot.netobject <- function(x, ...) {
 #' @param ... Additional arguments passed to \code{splot()}.
 #'
 #' @return Invisibly returns the plot.
-#' @keywords internal
+#' @rdname splot
 #' @export
 splot.boot_glasso <- function(x,
                               use_thresholded     = TRUE,
@@ -104,7 +111,6 @@ splot.boot_glasso <- function(x,
   weights       <- if (use_thresholded) x$thresholded_pcor else x$original_pcor
   eff_threshold <- inclusion_threshold %||% (1 - (x$alpha %||% 0.05))
   weights       <- weights * (inclusion_matrix >= eff_threshold)
-  diag(weights) <- 0
 
   args    <- list(...)
   n_nodes <- nrow(weights)
@@ -152,7 +158,7 @@ splot.boot_glasso <- function(x,
 #'   (\code{type = "overlay"}) or \code{\link{splot}} (\code{type = "group"}).
 #'
 #' @return Invisibly returns \code{x}.
-#' @keywords internal
+#' @rdname splot
 #' @export
 splot.wtna_mixed <- function(x, type = c("overlay", "group"), ...) {
   type <- match.arg(type)
@@ -308,3 +314,136 @@ plot_netobject_ml <- function(x,
 #' @rdname plot_netobject_ml
 #' @export
 plot.netobject_ml <- function(x, ...) plot_netobject_ml(x, ...)
+
+
+#' Plot a Group Bootstrap Result
+#'
+#' Plots each cluster's \code{net_bootstrap} in a grid, routing every panel
+#' through \code{splot.net_bootstrap} so significance styling (solid vs
+#' dashed edges) is preserved. Earlier versions extracted \code{bs$original}
+#' per cluster and handed plain netobjects to \code{splot()}, which
+#' dispatches to \code{splot.netobject} — that path has no concept of
+#' significance, so every edge rendered identically.
+#'
+#' @param x A \code{net_bootstrap_group} object (list of \code{net_bootstrap}).
+#' @param nrow,ncol Grid dimensions. Defaults to auto-computed square layout.
+#' @param common_scale Logical: use the same maximum weight across panels? Default TRUE.
+#' @param ... Additional arguments passed to \code{splot.net_bootstrap}
+#'   (e.g. \code{display = "significant"}, \code{show_stars = FALSE}).
+#'
+#' @return Invisibly returns \code{x}.
+#' @export
+#' @examples
+#' \dontrun{
+#' grp <- Nestimate::cluster_network(data, k = 2)
+#' gbs <- Nestimate::bootstrap_network(grp, iter = 100)
+#' plot_net_bootstrap_group(gbs)
+#' }
+plot_net_bootstrap_group <- function(x,
+                                     nrow         = NULL,
+                                     ncol         = NULL,
+                                     common_scale = TRUE,
+                                     ...) {
+  n_groups    <- length(x)
+  group_names <- names(x) %||% paste0("Group ", seq_len(n_groups))
+
+  if (n_groups == 0) {
+    message("No groups to display")
+    return(invisible(NULL))
+  }
+
+  max_abs <- NULL
+  if (common_scale) {
+    all_w <- unlist(lapply(x, function(bs) abs(bs$original$weights)))
+    max_abs <- max(all_w, na.rm = TRUE)
+    if (!is.finite(max_abs) || max_abs == 0) max_abs <- NULL # nocov
+  }
+
+  if (n_groups == 1) {
+    args <- list(...)
+    if (is.null(args$title)) args$title <- group_names[1]
+    if (!is.null(max_abs))   args$maximum <- max_abs
+    return(do.call(splot, c(list(x = x[[1]]), args)))
+  }
+
+  if (is.null(ncol)) ncol <- ceiling(sqrt(n_groups))
+  if (is.null(nrow)) nrow <- ceiling(n_groups / ncol)
+
+  old_par <- graphics::par(mfrow = c(nrow, ncol), mar = c(2, 2, 3, 1))
+  on.exit(graphics::par(old_par), add = TRUE)
+
+  for (k in seq_len(n_groups)) {
+    args <- list(...)
+    if (is.null(args$title)) args$title <- group_names[k]
+    if (!is.null(max_abs))   args$maximum <- max_abs
+    do.call(splot, c(list(x = x[[k]]), args))
+  }
+
+  invisible(x)
+}
+
+#' @rdname plot_net_bootstrap_group
+#' @export
+plot.net_bootstrap_group <- function(x, ...) plot_net_bootstrap_group(x, ...)
+
+
+#' Plot Centrality Stability Results
+#'
+#' Visualizes the centrality stability analysis from a \code{net_stability}
+#' object. Shows how centrality correlations drop as cases are removed.
+#'
+#' @param x A \code{net_stability} object (from \code{Nestimate::centrality_stability}).
+#' @param ... Additional graphical arguments.
+#'
+#' @return Invisibly returns \code{x}.
+#' @export
+#' @examples
+#' \dontrun{
+#' net <- Nestimate::build_network(data, method = "tna")
+#' cs <- Nestimate::centrality_stability(net, iter = 100)
+#' plot_net_stability(cs)
+#' }
+plot_net_stability <- function(x, ...) {
+  measures   <- x$measures
+  drop_prop  <- x$drop_prop
+  threshold  <- x$threshold %||% 0.7
+  n_measures <- length(measures)
+
+  # Set up colors
+  cols <- if (n_measures <= 8) {
+    grDevices::palette.colors(n_measures, "R4")
+  } else {
+    grDevices::rainbow(n_measures)
+  }
+
+  # Compute mean correlation at each drop proportion
+  plot(NULL, xlim = range(drop_prop), ylim = c(0, 1),
+       xlab = "Proportion of cases dropped",
+       ylab = "Mean correlation with original",
+       main = "Centrality Stability", ...)
+
+  for (i in seq_along(measures)) {
+    corr_mat <- x$correlations[[measures[i]]]
+    # corr_mat is iter x length(drop_prop) matrix
+    mean_corrs <- colMeans(corr_mat, na.rm = TRUE)
+    graphics::lines(drop_prop, mean_corrs, col = cols[i], lwd = 2)
+    graphics::points(drop_prop, mean_corrs, col = cols[i], pch = 16, cex = 0.8)
+  }
+
+  # Threshold line
+  graphics::abline(h = threshold, lty = 2, col = "gray50")
+  graphics::text(max(drop_prop), threshold, paste("threshold =", threshold),
+                 adj = c(1, -0.5), cex = 0.8, col = "gray50")
+
+  # CS-coefficient labels
+  cs_vals <- x$cs
+  cs_text <- paste0(names(cs_vals), " CS=", round(cs_vals, 2))
+  graphics::legend("bottomleft", legend = cs_text, col = cols, lwd = 2,
+                   bty = "n", cex = 0.8)
+
+  invisible(x)
+}
+
+#' @rdname plot_net_stability
+#' @export
+plot.net_stability <- function(x, ...) plot_net_stability(x, ...)

@@ -2,6 +2,7 @@
 % Please edit documentation in R/motifs-extract.R
 \name{extract_motifs}
 \alias{extract_motifs}
+\alias{print.cograph_motif_analysis}
 \title{Extract Motifs from Network Data}
 \usage{
 extract_motifs(
@@ -21,6 +22,8 @@ extract_motifs(
   n_perm = 100,
   seed = NULL
 )
+
+\method{print}{cograph_motif_analysis}(x, n = 20, ...)
 }
 \arguments{
 \item{x}{Input data. Can be:
@@ -81,8 +84,9 @@ NULL returns all results. Default NULL.}
 
 \item{by_type}{If TRUE, group results by MAN type in output. Default FALSE.}
 
-\item{min_transitions}{Minimum total transitions for a person to be included
-(individual level) or minimum triad weight (aggregate). Default 5.}
+\item{min_transitions}{At individual level: minimum total transitions for a
+person to be included in the analysis. At aggregate level: minimum triad
+weight to count as present. Default 5.}
 
 \item{significance}{Logical. Run permutation significance test? Default FALSE.}
 
@@ -134,31 +138,23 @@ plus all triangle patterns}
 }
 
 \examples{
-\dontrun{
-Mod <- tna::tna(tna::group_regulation)
-
-# Basic: triangles only (default) - individual level for tna
-m <- extract_motifs(Mod)
+# Small aggregate example — no significance test for speed
+mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
+rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
+m <- extract_motifs(mat, significance = FALSE)
 print(m)
 
-# Top 20 with significance testing
-m <- extract_motifs(Mod, top = 20, significance = TRUE, n_perm = 100)
-plot(m)
+\dontrun{
+if (requireNamespace("tna", quietly = TRUE)) {
+  Mod <- tna::tna(tna::group_regulation)
 
-# From a matrix (aggregate level)
-mat <- Mod$weights
-m <- extract_motifs(mat)
+  # Individual-level from tna — keep n_perm tiny for example speed
+  m <- extract_motifs(Mod, top = 10, significance = TRUE,
+                      n_perm = 10L, seed = 1)
 
-# Only feed-forward loops
-m <- extract_motifs(Mod, include_types = "030T")
-
-# Triangles but exclude cliques
-m <- extract_motifs(Mod, pattern = "triangle", exclude_types = "300")
-
-# From data.frame with ID column (individual level)
-# df has columns: id, from, to (and optionally weight)
-# m <- extract_motifs(data = df, id = "id")
-# m <- extract_motifs(data = df, id = c("group", "person"))
+  # Filter to feed-forward loops only
+  m <- extract_motifs(Mod, include_types = "030T", significance = FALSE)
+}
 }
 
 }

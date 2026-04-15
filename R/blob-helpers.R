@@ -274,7 +274,9 @@
 #' @return Character vector of pathway strings.
 #' @noRd
 .extract_hon_pathways <- function(x, label_map = NULL) {
-  edges <- x$edges
+  # Nestimate net_hon stores higher-order edges in $ho_edges with a
+  # $from_order column; $edges is the flattened first-order projection.
+  edges <- x$ho_edges %||% x$edges
   ho <- edges[edges$from_order > 1L, , drop = FALSE]
   if (nrow(ho) == 0L) return(character(0))
   ho <- ho[order(-ho$count), , drop = FALSE]
@@ -324,6 +326,73 @@
     src <- parts[-length(parts)]
     tgt <- parts[length(parts)]
     paste0(paste(src, collapse = " "), " -> ", tgt)
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Extract pathways from association rules (net_association_rules)
+#'
+#' Converts rules \code{{A, B} => {C}} into simplicial pathway strings
+#' (\code{"A B -> C"}). Sorted by lift (descending).
+#'
+#' @param x A \code{net_association_rules} object from
+#'   \code{Nestimate::association_rules()}.
+#' @return Character vector of pathway strings.
+#' @noRd
+.extract_association_pathways <- function(x) {
+  rules <- x$rules
+  if (nrow(rules) == 0L) return(character(0))
+  rules <- rules[order(-rules$lift, -rules$confidence), , drop = FALSE]
+  # Normalise antecedent/consequent columns to space-separated itemset strings.
+  # Works on both Nestimate shapes: list-column (character vectors per row) and
+  # character-column ("A, B" per row). Vectorized per column — no per-row split.
+  norm_col <- function(col) {
+    if (is.list(col)) vapply(col, paste, character(1), collapse = " ")
+    else              gsub(",\\s*", " ", col)
+  }
+  paste(norm_col(rules$antecedent), "->", norm_col(rules$consequent))
+}
+
+#' Extract pathways from link predictions (net_link_prediction)
+#'
+#' For each top predicted edge, includes common neighbor evidence as
+#' source nodes: \code{"A cn1 cn2 -> B"}. Falls back to simple
+#' \code{"A -> B"} when adjacency matrix is unavailable.
+#'
+#' @param x A \code{net_link_prediction} object from
+#'   \code{Nestimate::predict_links()}.
+#' @param method Character or NULL. Which method's predictions to use.
+#' @param max_evidence Integer. Max evidence nodes per pathway.
+#' @return Character vector of pathway strings.
+#' @noRd
+.extract_link_prediction_pathways <- function(x, method = NULL,
+                                               max_evidence = 3L) {
+  if (is.null(method)) method <- x$methods[1]
+  df <- x$predictions[x$predictions$method == method, , drop = FALSE]
+  df <- df[order(-df$score), , drop = FALSE]
+  if (nrow(df) == 0L) return(character(0))
+
+  A <- x$adjacency
+  if (is.null(A)) {
+    return(paste(df$from, "->", df$to))
+  }
+
+  nodes <- x$nodes
+  vapply(seq_len(nrow(df)), function(i) {
+    from_idx <- match(df$from[i], nodes)
+    to_idx <- match(df$to[i], nodes)
+    from_out <- A[from_idx, ] > 0
+    to_in <- A[, to_idx] > 0
+    cn_mask <- from_out & to_in
+    cn_mask[from_idx] <- FALSE
+    cn_mask[to_idx] <- FALSE
+    cn_indices <- which(cn_mask)
+    cn_nodes <- nodes[cn_indices]
+    if (length(cn_nodes) > max_evidence) {
+      cn_weights <- A[from_idx, cn_indices] + A[cn_indices, to_idx]
+      cn_nodes <- cn_nodes[order(-cn_weights)][seq_len(max_evidence)]
+    }
+    sources <- c(df$from[i], cn_nodes)
+    paste0(paste(sources, collapse = " "), " -> ", df$to[i])
   }, character(1), USE.NAMES = FALSE)
 }
 
@@ -388,7 +457,9 @@
     Nestimate::build_hon(seq_data, ...)
   } else if (method == "hypa") {
     Nestimate::build_hypa(seq_data, ...)
+  } else if (method == "rules") {
+    Nestimate::association_rules(seq_data, ...)
   } else {
-    stop("method must be 'hon' or 'hypa'.", call. = FALSE)
+    stop("method must be 'hon', 'hypa', or 'rules'.", call. = FALSE)
   }
 }

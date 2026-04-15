@@ -25,6 +25,11 @@ centrality(
   lambda = 1,
   k = 3,
   states = NULL,
+  decay_parameter = 0.5,
+  dmnc_epsilon = 1.7,
+  membership = NULL,
+  katz_alpha = 0.1,
+  hubbell_weight = 0.5,
   ...
 )
 }
@@ -32,13 +37,39 @@ centrality(
 \item{x}{Network input (matrix, igraph, network, cograph_network, tna object)}
 
 \item{measures}{Which measures to calculate. Default "all" calculates all
-available measures. Can be a character vector of measure names:
-"degree", "strength", "betweenness", "closeness", "eigenvector",
-"pagerank", "authority", "hub", "eccentricity", "coreness",
-"constraint", "transitivity", "harmonic", "diffusion", "leverage",
-"kreach", "alpha", "power", "subgraph", "laplacian",
-"load", "current_flow_closeness", "current_flow_betweenness", "voterank",
-"percolation".}
+available measures (87 total). Can be a character vector of measure names.
+\strong{Core} (igraph-backed): "degree", "strength", "betweenness", "closeness",
+"eigenvector", "pagerank", "authority", "hub", "eccentricity", "coreness",
+"constraint", "transitivity", "harmonic", "alpha", "power", "subgraph".
+\strong{Native}: "diffusion", "leverage", "kreach", "laplacian", "load",
+"current_flow_closeness", "current_flow_betweenness", "voterank",
+"percolation".
+\strong{Distance-based}: "radiality", "lin", "decay", "residual_closeness",
+"dangalchev", "generalized_closeness", "harary", "average_distance",
+"barycenter", "wiener", "closeness_vitality".
+\strong{Spectral/walk}: "communicability", "communicability_betweenness",
+"random_walk".
+\strong{Path-based}: "stress", "flow_betweenness".
+\strong{Local/neighborhood}: "lobby", "entropy", "semilocal", "clusterrank",
+"bottleneck", "centroid", "mnc", "dmnc", "lac", "topological_coefficient",
+"bridging", "local_bridging", "effective_size", "diversity",
+"cross_clique", "markov".
+\strong{Influence}: "integration", "expected", "gilschmidt".
+\strong{Directed-only}: "salsa", "leaderrank", "trophic_level", "pairwisedis",
+"prestige_domain", "prestige_domain_proximity".
+\strong{Community-aware} (require \code{membership}): "participation",
+"within_module_z", "gateway", "brokerage_coordinator",
+"brokerage_itinerant", "brokerage_representative",
+"brokerage_gatekeeper", "brokerage_liaison" (the last 5 also require
+a directed graph; see \code{\link{centrality_brokerage_coordinator}}).
+\strong{Zoo (batch 2)}: "gravity", "collective_influence", "local_hindex",
+"hindex_strength", "onion", "second_order", "infection", "nonbacktracking",
+"spanning_tree".
+\strong{Classical (batch 3, reference-validated)}: "katz" (Katz 1953),
+"hubbell" (Hubbell 1965), "information" (Stephenson-Zelen 1989),
+"reaching_local" (Mones et al. 2012). See \code{\link{centrality_katz}},
+\code{\link{centrality_hubbell}}, \code{\link{centrality_information}},
+\code{\link{centrality_pairwisedis}}, \code{\link{centrality_reaching_local}}.}
 
 \item{mode}{For directed networks: "all", "in", or "out". Affects degree,
 strength, closeness, eccentricity, coreness, and harmonic centrality.}
@@ -98,6 +129,25 @@ Default NULL (standard PageRank). Values should sum to 1.}
 centrality. Each value represents how "activated" or "infected" a node is.
 Default NULL (all nodes get state 1, equivalent to betweenness).}
 
+\item{decay_parameter}{Numeric. Decay parameter for decay and generalized
+closeness centrality. Default 0.5. Must be between 0 and 1.}
+
+\item{dmnc_epsilon}{Numeric. Epsilon exponent for DMNC (Density of Maximum
+Neighborhood Component). Default 1.7 as recommended by Lin et al. (2008).
+centiserve uses 1.67 (four-community assumption). Must be between 1 and 2.}
+
+\item{membership}{Integer vector of community assignments (one per node) for
+community-aware measures: participation, within_module_z, gateway.
+Default NULL. Required when requesting these measures.}
+
+\item{katz_alpha}{Attenuation factor for Katz centrality. Must satisfy
+\eqn{\alpha < 1 / \rho(A)}. Default 0.1 (matches centiserve and NetworkX
+conventions). Only used when \code{"katz"} is in \code{measures}.}
+
+\item{hubbell_weight}{Weight factor \eqn{w} for Hubbell centrality. Must
+satisfy \eqn{w \cdot \rho(W) \le 1} for solvability. Default 0.5. Only
+used when \code{"hubbell"} is in \code{measures}.}
+
 \item{...}{Additional arguments (currently unused)}
 }
 \value{
@@ -154,6 +204,63 @@ voting mechanism. Returns normalized rank (1 = most influential)}
 \item{percolation}{Percolation centrality - importance for spreading processes.
 Uses node states (0-1) to weight paths. When all states equal, equivalent
 to betweenness. Useful for epidemic/information spreading analysis.}
+\item{radiality}{Radiality centrality (centiserve). Sum of (diam + 1 - d)
+normalized by n-1.}
+\item{lin}{Lin's centrality. Reachable nodes squared divided by sum of
+distances.}
+\item{decay}{Decay centrality. Sum of delta^d for parameter delta.}
+\item{residual_closeness}{Residual closeness. Sum of 1/2^d.}
+\item{dangalchev}{Dangalchev closeness (alias for residual closeness).}
+\item{generalized_closeness}{Generalized closeness. Sum of alpha^d.}
+\item{harary}{Harary centrality. Sum of 1/d^2 for all reachable pairs.}
+\item{average_distance}{Average distance (centiserve). Sum of distances /
+(n+1).}
+\item{barycenter}{Barycenter centrality. 1 / sum of distances.}
+\item{wiener}{Wiener index. Total sum of shortest path distances from node.}
+\item{closeness_vitality}{Closeness vitality. Drop in Wiener index when
+node removed.}
+\item{communicability}{Total communicability. Row sums of matrix exponential.}
+\item{communicability_betweenness}{Communicability betweenness. Fraction of
+communicability through each node.}
+\item{random_walk}{Random walk centrality. Inverse sum of random walk
+distances (requires connected graph).}
+\item{stress}{Stress centrality. Number of shortest paths through node.}
+\item{flow_betweenness}{Flow betweenness. Max-flow based betweenness.}
+\item{lobby}{Lobby index (h-index of neighborhood).}
+\item{entropy}{Graph entropy centrality. Entropy change on node removal.}
+\item{semilocal}{Semi-local centrality. Triple-nested neighborhood sum.}
+\item{clusterrank}{ClusterRank. Clustering coefficient times neighbor
+degree sum.}
+\item{bottleneck}{Bottleneck centrality. Count of shortest path trees where
+node is critical.}
+\item{centroid}{Centroid value. Minimum f(v,i) across all nodes.}
+\item{mnc}{Maximum Neighborhood Component size.}
+\item{dmnc}{Density of Maximum Neighborhood Component.}
+\item{topological_coefficient}{Topological coefficient. Shared neighbor
+ratio.}
+\item{bridging}{Bridging centrality. Betweenness times bridging
+coefficient.}
+\item{local_bridging}{Local bridging. (1/degree) times bridging
+coefficient.}
+\item{effective_size}{Burt's effective size. Degree minus redundancy.}
+\item{diversity}{Diversity centrality. Shannon entropy of edge weight
+distribution.}
+\item{cross_clique}{Cross-clique connectivity. Count of cliques containing
+node.}
+\item{markov}{Markov centrality. Inverse mean first passage time
+(requires connected graph).}
+\item{integration}{Integration centrality. Distance-based influence.}
+\item{expected}{Expected centrality. Sum of neighbor degrees.}
+\item{gilschmidt}{Gil-Schmidt power index. Sum of 1/d normalized by n-1.}
+\item{salsa}{SALSA authority scores (directed graphs only).}
+\item{leaderrank}{LeaderRank. PageRank with ground node
+(directed graphs only).}
+\item{participation}{Participation coefficient. Diversity of inter-community
+connections (requires \code{membership}).}
+\item{within_module_z}{Within-module degree z-score. Intra-community
+connectivity (requires \code{membership}).}
+\item{gateway}{Gateway coefficient. Inter-community brokerage weighted by
+centrality (requires \code{membership}).}
 }
 }
 \examples{

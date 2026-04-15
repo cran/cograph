@@ -41,6 +41,40 @@ tna_color_palette <- function(n_states) {
   )
 }
 
+#' Psych Network Visual Style Defaults
+#'
+#' Returns the standard psych network visual defaults. Used by
+#' \code{splot(psych_styling = TRUE)} for undirected association networks.
+#'
+#' @param n_nodes Number of nodes (for palette selection).
+#' @return A named list of default parameters.
+#' @keywords internal
+.psych_style_defaults <- function(n_nodes = NULL) {
+  defaults <- list(
+    layout                  = "spring",
+    directed                = FALSE,
+    show_arrows             = FALSE,
+    edge_style              = 1,
+    edge_label_style        = "estimate",
+    edge_label_leading_zero = FALSE,
+    edge_label_size         = 0.6,
+    edge_label_position     = 0.5,
+    node_size               = 7,
+    minimum                 = 0.01,
+    donut_bg_color          = "white",
+    donut_border_width      = 0.5,
+    donut_inner_border_color = "white",
+    donut_inner_border_width = 0.5
+  )
+  if (!is.null(n_nodes)) {
+    # Skip the first color (black) in Okabe-Ito
+    oi <- grDevices::palette.colors(9, palette = "Okabe-Ito")[-1]
+    defaults$node_fill <- rep_len(oi, n_nodes)
+  }
+  defaults
+}
+
+
 #' TNA Visual Style Defaults
 #'
 #' Returns the standard TNA visual defaults as a named list. Used by
@@ -151,7 +185,7 @@ tna_color_palette <- function(n_states) {
 #'
 #' @export
 from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
-                     weight_digits = 2, show_zero_edges = FALSE, ...) {
+                     weight_digits = NULL, show_zero_edges = FALSE, ...) {
   engine <- match.arg(engine)
 
   if (!inherits(tna_object, "tna")) {
@@ -162,6 +196,12 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
 
   # --- Weights matrix ---
   x <- tna_object$weights
+
+  # Drop ".00" tails on count-valued matrices (ftna, ctna, raw frequencies).
+  if (is.null(weight_digits)) {
+    nz <- x[x != 0]
+    weight_digits <- if (length(nz) > 0 && all(nz == floor(nz))) 0L else 2L
+  }
 
   # --- Determine directedness ---
   # Read from tna object's $directed field if present, otherwise auto-detect
@@ -182,6 +222,7 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
     labels     = tna_object$labels,
     directed   = is_directed,
     weight_digits     = weight_digits,
+    edge_label_digits = weight_digits,
     donut_fill = as.numeric(tna_object$inits),
     donut_inner_ratio = 0.8,
     donut_empty       = FALSE

@@ -48,7 +48,6 @@ utils::globalVariables(c(
 
   if (is_dir) {
     keep <- which(mean_mat != 0, arr.ind = TRUE)
-    keep <- keep[keep[, 1] != keep[, 2], , drop = FALSE]
     sep  <- " \u2192 "
   } else {
     keep <- which(upper.tri(mean_mat) & mean_mat != 0, arr.ind = TRUE)
@@ -93,7 +92,6 @@ utils::globalVariables(c(
          as.character(seq_len(nrow(mean_mat)))
 
   keep <- which(mean_mat != 0, arr.ind = TRUE)
-  keep <- keep[keep[, 1] != keep[, 2], , drop = FALSE]
   sep  <- " \u2192 "
 
   if (nrow(keep) == 0) {
@@ -839,6 +837,15 @@ utils::globalVariables(c(
 #' @param ... Currently unused.
 #'
 #' @return A \code{ggplot} object.
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
+#' # Bootstrap a TNA built from sequence data (required by tna::bootstrap)
+#' d    <- tna::prepare_data(
+#'   tna::group_regulation_long,
+#'   actor = "Actor", time = "Time", action = "Action"
+#' )
+#' Mod  <- tna::tna(d)
+#' boot <- tna::bootstrap(Mod, iter = 50)
+#' plot_bootstrap_forest(boot, n_top = 8)
 #' @export
 plot_bootstrap_forest <- function(x, ...) UseMethod("plot_bootstrap_forest")
 

@@ -5,13 +5,39 @@
 #'
 #' @param x Network input (matrix, igraph, network, cograph_network, tna object)
 #' @param measures Which measures to calculate. Default "all" calculates all
-#'   available measures. Can be a character vector of measure names:
-#'   "degree", "strength", "betweenness", "closeness", "eigenvector",
-#'   "pagerank", "authority", "hub", "eccentricity", "coreness",
-#'   "constraint", "transitivity", "harmonic", "diffusion", "leverage",
-#'   "kreach", "alpha", "power", "subgraph", "laplacian",
-#'   "load", "current_flow_closeness", "current_flow_betweenness", "voterank",
+#'   available measures (87 total). Can be a character vector of measure names.
+#'   **Core** (igraph-backed): "degree", "strength", "betweenness", "closeness",
+#'   "eigenvector", "pagerank", "authority", "hub", "eccentricity", "coreness",
+#'   "constraint", "transitivity", "harmonic", "alpha", "power", "subgraph".
+#'   **Native**: "diffusion", "leverage", "kreach", "laplacian", "load",
+#'   "current_flow_closeness", "current_flow_betweenness", "voterank",
 #'   "percolation".
+#'   **Distance-based**: "radiality", "lin", "decay", "residual_closeness",
+#'   "dangalchev", "generalized_closeness", "harary", "average_distance",
+#'   "barycenter", "wiener", "closeness_vitality".
+#'   **Spectral/walk**: "communicability", "communicability_betweenness",
+#'   "random_walk".
+#'   **Path-based**: "stress", "flow_betweenness".
+#'   **Local/neighborhood**: "lobby", "entropy", "semilocal", "clusterrank",
+#'   "bottleneck", "centroid", "mnc", "dmnc", "lac", "topological_coefficient",
+#'   "bridging", "local_bridging", "effective_size", "diversity",
+#'   "cross_clique", "markov".
+#'   **Influence**: "integration", "expected", "gilschmidt".
+#'   **Directed-only**: "salsa", "leaderrank", "trophic_level", "pairwisedis",
+#'   "prestige_domain", "prestige_domain_proximity".
+#'   **Community-aware** (require \code{membership}): "participation",
+#'   "within_module_z", "gateway", "brokerage_coordinator",
+#'   "brokerage_itinerant", "brokerage_representative",
+#'   "brokerage_gatekeeper", "brokerage_liaison" (the last 5 also require
+#'   a directed graph; see \code{\link{centrality_brokerage_coordinator}}).
+#'   **Zoo (batch 2)**: "gravity", "collective_influence", "local_hindex",
+#'   "hindex_strength", "onion", "second_order", "infection", "nonbacktracking",
+#'   "spanning_tree".
+#'   **Classical (batch 3, reference-validated)**: "katz" (Katz 1953),
+#'   "hubbell" (Hubbell 1965), "information" (Stephenson-Zelen 1989),
+#'   "reaching_local" (Mones et al. 2012). See \code{\link{centrality_katz}},
+#'   \code{\link{centrality_hubbell}}, \code{\link{centrality_information}},
+#'   \code{\link{centrality_pairwisedis}}, \code{\link{centrality_reaching_local}}.
 #' @param mode For directed networks: "all", "in", or "out". Affects degree,
 #'   strength, closeness, eccentricity, coreness, and harmonic centrality.
 #' @param normalized Logical. Normalize values to 0-1 range by dividing by max.
@@ -52,6 +78,20 @@
 #' @param states Named numeric vector of percolation states (0-1) for percolation
 #'   centrality. Each value represents how "activated" or "infected" a node is.
 #'   Default NULL (all nodes get state 1, equivalent to betweenness).
+#' @param decay_parameter Numeric. Decay parameter for decay and generalized
+#'   closeness centrality. Default 0.5. Must be between 0 and 1.
+#' @param dmnc_epsilon Numeric. Epsilon exponent for DMNC (Density of Maximum
+#'   Neighborhood Component). Default 1.7 as recommended by Lin et al. (2008).
+#'   centiserve uses 1.67 (four-community assumption). Must be between 1 and 2.
+#' @param membership Integer vector of community assignments (one per node) for
+#'   community-aware measures: participation, within_module_z, gateway.
+#'   Default NULL. Required when requesting these measures.
+#' @param katz_alpha Attenuation factor for Katz centrality. Must satisfy
+#'   \eqn{\alpha < 1 / \rho(A)}. Default 0.1 (matches centiserve and NetworkX
+#'   conventions). Only used when \code{"katz"} is in \code{measures}.
+#' @param hubbell_weight Weight factor \eqn{w} for Hubbell centrality. Must
+#'   satisfy \eqn{w \cdot \rho(W) \le 1} for solvability. Default 0.5. Only
+#'   used when \code{"hubbell"} is in \code{measures}.
 #' @param ... Additional arguments (currently unused)
 #'
 #' @return A data frame with columns:
@@ -103,6 +143,63 @@
 #'   \item{percolation}{Percolation centrality - importance for spreading processes.
 #'     Uses node states (0-1) to weight paths. When all states equal, equivalent
 #'     to betweenness. Useful for epidemic/information spreading analysis.}
+#'   \item{radiality}{Radiality centrality (centiserve). Sum of (diam + 1 - d)
+#'     normalized by n-1.}
+#'   \item{lin}{Lin's centrality. Reachable nodes squared divided by sum of
+#'     distances.}
+#'   \item{decay}{Decay centrality. Sum of delta^d for parameter delta.}
+#'   \item{residual_closeness}{Residual closeness. Sum of 1/2^d.}
+#'   \item{dangalchev}{Dangalchev closeness (alias for residual closeness).}
+#'   \item{generalized_closeness}{Generalized closeness. Sum of alpha^d.}
+#'   \item{harary}{Harary centrality. Sum of 1/d^2 for all reachable pairs.}
+#'   \item{average_distance}{Average distance (centiserve). Sum of distances /
+#'     (n+1).}
+#'   \item{barycenter}{Barycenter centrality. 1 / sum of distances.}
+#'   \item{wiener}{Wiener index. Total sum of shortest path distances from node.}
+#'   \item{closeness_vitality}{Closeness vitality. Drop in Wiener index when
+#'     node removed.}
+#'   \item{communicability}{Total communicability. Row sums of matrix exponential.}
+#'   \item{communicability_betweenness}{Communicability betweenness. Fraction of
+#'     communicability through each node.}
+#'   \item{random_walk}{Random walk centrality. Inverse sum of random walk
+#'     distances (requires connected graph).}
+#'   \item{stress}{Stress centrality. Number of shortest paths through node.}
+#'   \item{flow_betweenness}{Flow betweenness. Max-flow based betweenness.}
+#'   \item{lobby}{Lobby index (h-index of neighborhood).}
+#'   \item{entropy}{Graph entropy centrality. Entropy change on node removal.}
+#'   \item{semilocal}{Semi-local centrality. Triple-nested neighborhood sum.}
+#'   \item{clusterrank}{ClusterRank. Clustering coefficient times neighbor
+#'     degree sum.}
+#'   \item{bottleneck}{Bottleneck centrality. Count of shortest path trees where
+#'     node is critical.}
+#'   \item{centroid}{Centroid value. Minimum f(v,i) across all nodes.}
+#'   \item{mnc}{Maximum Neighborhood Component size.}
+#'   \item{dmnc}{Density of Maximum Neighborhood Component.}
+#'   \item{topological_coefficient}{Topological coefficient. Shared neighbor
+#'     ratio.}
+#'   \item{bridging}{Bridging centrality. Betweenness times bridging
+#'     coefficient.}
+#'   \item{local_bridging}{Local bridging. (1/degree) times bridging
+#'     coefficient.}
+#'   \item{effective_size}{Burt's effective size. Degree minus redundancy.}
+#'   \item{diversity}{Diversity centrality. Shannon entropy of edge weight
+#'     distribution.}
+#'   \item{cross_clique}{Cross-clique connectivity. Count of cliques containing
+#'     node.}
+#'   \item{markov}{Markov centrality. Inverse mean first passage time
+#'     (requires connected graph).}
+#'   \item{integration}{Integration centrality. Distance-based influence.}
+#'   \item{expected}{Expected centrality. Sum of neighbor degrees.}
+#'   \item{gilschmidt}{Gil-Schmidt power index. Sum of 1/d normalized by n-1.}
+#'   \item{salsa}{SALSA authority scores (directed graphs only).}
+#'   \item{leaderrank}{LeaderRank. PageRank with ground node
+#'     (directed graphs only).}
+#'   \item{participation}{Participation coefficient. Diversity of inter-community
+#'     connections (requires \code{membership}).}
+#'   \item{within_module_z}{Within-module degree z-score. Intra-community
+#'     connectivity (requires \code{membership}).}
+#'   \item{gateway}{Gateway coefficient. Inter-community brokerage weighted by
+#'     centrality (requires \code{membership}).}
 #' }
 #'
 #' @export
@@ -137,6 +234,9 @@ centrality <- function(x, measures = "all", mode = "all",
                        damping = 0.85, personalized = NULL,
                        transitivity_type = "local", isolates = "nan",
                        lambda = 1, k = 3, states = NULL,
+                       decay_parameter = 0.5, dmnc_epsilon = 1.7,
+                       membership = NULL,
+                       katz_alpha = 0.1, hubbell_weight = 0.5,
                        ...) {
 
   # Auto-detect invert_weights based on input type
@@ -180,12 +280,47 @@ centrality <- function(x, measures = "all", mode = "all",
   # Define which measures support mode parameter
   mode_measures <- c("degree", "strength", "closeness", "eccentricity",
                      "coreness", "harmonic", "diffusion", "leverage", "kreach",
-                     "alpha", "power")
+                     "alpha", "power",
+                     # Extended mode measures
+                     "radiality", "lin", "decay", "residual_closeness",
+                     "dangalchev", "generalized_closeness", "harary",
+                     "average_distance", "barycenter", "wiener",
+                     "lobby", "entropy", "semilocal", "clusterrank",
+                     "bottleneck", "centroid", "mnc", "dmnc", "lac",
+                     "closeness_vitality",
+                     "integration", "expected", "gilschmidt",
+                     # Community-aware mode measures
+                     "participation", "within_module_z", "gateway",
+                     # Zoo batch 2 — mode measures
+                     "gravity", "collective_influence", "local_hindex",
+                     "hindex_strength", "onion",
+                     # Batch 3 — mode measures
+                     "reaching_local")
   no_mode_measures <- c("betweenness", "eigenvector", "pagerank",
                         "authority", "hub", "constraint", "transitivity",
                         "subgraph", "laplacian", "load",
                         "current_flow_closeness", "current_flow_betweenness",
-                        "voterank", "percolation")
+                        "voterank", "percolation",
+                        # Extended no-mode measures
+                        "stress", "flow_betweenness",
+                        "communicability", "communicability_betweenness",
+                        "random_walk",
+                        "topological_coefficient", "bridging",
+                        "local_bridging", "effective_size",
+                        "diversity", "cross_clique", "markov",
+                        # Directed-only measures
+                        "salsa", "leaderrank", "trophic_level",
+                        # Zoo batch 2 — no-mode measures
+                        "second_order", "infection", "nonbacktracking",
+                        "spanning_tree",
+                        # Batch 3 — classical measures with reference validation
+                        "katz", "hubbell", "information", "pairwisedis",
+                        # Batch 4 — directed prestige family (Wasserman-Faust / sna)
+                        "prestige_domain", "prestige_domain_proximity",
+                        # Batch 5 — Gould-Fernandez brokerage (5 roles)
+                        "brokerage_coordinator", "brokerage_itinerant",
+                        "brokerage_representative", "brokerage_gatekeeper",
+                        "brokerage_liaison")
   all_measures <- c(mode_measures, no_mode_measures)
 
   # Resolve measures
@@ -217,7 +352,13 @@ centrality <- function(x, measures = "all", mode = "all",
   # Path-based measures need inverted weights (higher weight = shorter path)
   # Following qgraph's approach: distance = 1 / weight^alpha
   path_based_measures <- c("betweenness", "closeness", "harmonic",
-                           "eccentricity", "kreach", "load")
+                           "eccentricity", "kreach", "load",
+                           "radiality", "lin", "decay", "residual_closeness",
+                           "dangalchev", "generalized_closeness", "harary",
+                           "average_distance", "barycenter", "wiener",
+                           "closeness_vitality", "centroid", "stress",
+                           "flow_betweenness", "integration", "gilschmidt",
+                           "markov")
   needs_path_weights <- any(measures %in% path_based_measures)
 
   weights_for_paths <- weights
@@ -246,7 +387,10 @@ centrality <- function(x, measures = "all", mode = "all",
       g, m, mode, measure_weights, normalized,
       cutoff = cutoff, damping = damping, personalized = personalized,
       transitivity_type = transitivity_type, isolates = isolates,
-      hits_result = hits_result, lambda = lambda, k = k, states = states
+      hits_result = hits_result, lambda = lambda, k = k, states = states,
+      decay_parameter = decay_parameter, dmnc_epsilon = dmnc_epsilon,
+      membership = membership,
+      katz_alpha = katz_alpha, hubbell_weight = hubbell_weight
     )
 
     # Normalize if requested (except for closeness which is handled by igraph)
@@ -887,7 +1031,10 @@ calculate_measure <- function(g, measure, mode, weights, normalized,
                               cutoff, damping, personalized,
                               transitivity_type, isolates,
                               hits_result = NULL, lambda = 1, k = 3,
-                              states = NULL) {
+                              states = NULL, decay_parameter = 0.5,
+                              dmnc_epsilon = 1.7,
+                              membership = NULL,
+                              katz_alpha = 0.1, hubbell_weight = 0.5) {
   directed <- igraph::is_directed(g)
 
   value <- switch(measure,
@@ -937,6 +1084,103 @@ calculate_measure <- function(g, measure, mode, weights, normalized,
     "transitivity" = igraph::transitivity(
       g, type = transitivity_type, isolates = isolates
     ),
+
+    # Extended measures — distance-based closeness variants
+    "radiality" = calculate_radiality(g, mode = mode, weights = weights),
+    "lin" = calculate_lin(g, mode = mode, weights = weights),
+    "decay" = calculate_decay(g, mode = mode, weights = weights,
+                              decay_parameter = decay_parameter),
+    "residual_closeness" = calculate_residual_closeness(g, mode = mode,
+                                                        weights = weights),
+    "dangalchev" = calculate_dangalchev(g, mode = mode, weights = weights),
+    "generalized_closeness" = calculate_generalized_closeness(
+      g, mode = mode, weights = weights, alpha = decay_parameter
+    ),
+    "harary" = calculate_harary(g, mode = mode, weights = weights),
+    "average_distance" = calculate_average_distance(g, mode = mode,
+                                                    weights = weights),
+    "barycenter" = calculate_barycenter(g, mode = mode, weights = weights),
+    "wiener" = calculate_wiener(g, mode = mode, weights = weights),
+    "closeness_vitality" = calculate_closeness_vitality(g, mode = mode,
+                                                        weights = weights),
+
+    # Extended measures — spectral/walk-based
+    "communicability" = calculate_communicability(g),
+    "communicability_betweenness" = calculate_communicability_betweenness(g),
+    "random_walk" = calculate_random_walk(g),
+
+    # Extended measures — path-based
+    "stress" = calculate_stress(g, weights = weights, directed = directed),
+    "flow_betweenness" = calculate_flow_betweenness(g, weights = weights,
+                                                    directed = directed),
+
+    # Extended measures — local/neighborhood
+    "lobby" = calculate_lobby(g, mode = mode),
+    "entropy" = calculate_entropy(g, mode = mode),
+    "semilocal" = calculate_semilocal(g, mode = mode),
+    "clusterrank" = calculate_clusterrank(g, mode = mode),
+    "bottleneck" = calculate_bottleneck(g, mode = mode),
+    "centroid" = calculate_centroid(g, mode = mode, weights = weights),
+    "mnc" = calculate_mnc(g, mode = mode),
+    "dmnc" = calculate_dmnc(g, mode = mode, epsilon = dmnc_epsilon),
+    "lac" = calculate_lac(g, mode = mode),
+    "topological_coefficient" = calculate_topological_coefficient(g),
+    "bridging" = calculate_bridging(g, weights = weights, directed = directed),
+    "local_bridging" = calculate_local_bridging(g),
+    "effective_size" = calculate_effective_size(g),
+    "diversity" = calculate_diversity(g, weights = weights),
+    "cross_clique" = calculate_cross_clique(g),
+    "markov" = calculate_markov(g),
+
+    # Extended measures — with mode support
+    "integration" = calculate_integration(g, mode = mode),
+    "expected" = calculate_expected(g, mode = mode),
+    "gilschmidt" = calculate_gilschmidt(g, mode = mode),
+
+    # Zoo batch 2 — mode measures
+    "gravity" = calculate_gravity(g, mode = mode),
+    "collective_influence" = calculate_collective_influence(g, mode = mode),
+    "local_hindex" = as.numeric(calculate_local_hindex(g, mode = mode)),
+    "hindex_strength" = as.numeric(calculate_hindex_strength(g, mode = mode)),
+    "onion" = as.numeric(calculate_onion(g)),
+
+    # Zoo batch 2 — no-mode measures
+    "second_order" = calculate_second_order(g),
+    "infection" = calculate_infection(g),
+    "nonbacktracking" = calculate_nonbacktracking(g),
+    "spanning_tree" = calculate_spanning_tree(g),
+
+    # Directed-only measures
+    "salsa" = calculate_salsa(g),
+    "leaderrank" = calculate_leaderrank(g),
+    "trophic_level" = calculate_trophic_level(g),
+
+    # Community-aware measures (require membership parameter)
+    "participation" = calculate_participation(g, membership = membership,
+                                              mode = mode),
+    "within_module_z" = calculate_within_module_z(g, membership = membership,
+                                                   mode = mode),
+    "gateway" = calculate_gateway(g, membership = membership, mode = mode),
+
+    # Batch 3 — classical measures with reference-package validation
+    "katz" = calculate_katz(g, weights = weights, alpha = katz_alpha),
+    "hubbell" = calculate_hubbell(g, weights = weights,
+                                  weightfactor = hubbell_weight),
+    "information" = calculate_information(g, weights = weights),
+    "pairwisedis" = calculate_pairwisedis(g),
+    "reaching_local" = calculate_reaching_local(g, mode = mode,
+                                                weights = weights),
+
+    # Batch 4 — directed prestige family (Wasserman-Faust / sna)
+    "prestige_domain" = calculate_prestige_domain(g),
+    "prestige_domain_proximity" = calculate_prestige_domain_proximity(g),
+
+    # Batch 5 — Gould-Fernandez brokerage (5 roles)
+    "brokerage_coordinator"    = calculate_brokerage(g, membership, "coordinator"),
+    "brokerage_itinerant"      = calculate_brokerage(g, membership, "itinerant"),
+    "brokerage_representative" = calculate_brokerage(g, membership, "representative"),
+    "brokerage_gatekeeper"     = calculate_brokerage(g, membership, "gatekeeper"),
+    "brokerage_liaison"        = calculate_brokerage(g, membership, "liaison"),
 
     stop("Unknown measure: ", measure, call. = FALSE)
   )
@@ -1623,6 +1867,1408 @@ centrality_percolation <- function(x, states = NULL, ...) {
   stats::setNames(df$percolation, df$node)
 }
 
+# =============================================================================
+# Extended centrality convenience wrappers
+# =============================================================================
+
+#' Radiality Centrality
+#'
+#' Centrality based on sum of (diameter + 1 - distance) normalized by n-1.
+#' Nodes closer to others (on average) have higher radiality.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of radiality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_closeness}} for a related measure.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_radiality(adj)
+centrality_radiality <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "radiality", mode = mode, ...)
+  col <- paste0("radiality_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Lin Centrality
+#'
+#' Reachable nodes squared divided by sum of distances. Well-defined for
+#' disconnected graphs.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of Lin centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_closeness}} for a related measure.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_lin(adj)
+centrality_lin <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "lin", mode = mode, ...)
+  col <- paste0("lin_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Decay Centrality
+#'
+#' Sum of delta^d over all nodes, where d is the shortest path distance.
+#' Nodes near many others get higher scores. The \code{decay_parameter}
+#' controls the distance penalty.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param decay_parameter Numeric between 0 and 1. Default 0.5.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of decay centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_decay(adj, decay_parameter = 0.5)
+centrality_decay <- function(x, mode = "all", decay_parameter = 0.5, ...) {
+  df <- centrality(x, measures = "decay", mode = mode,
+                   decay_parameter = decay_parameter, ...)
+  col <- paste0("decay_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Residual Closeness Centrality
+#'
+#' Sum of 1/2^d for all nodes, including self. Robust to disconnected graphs.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of residual closeness values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_dangalchev}} (alias).
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_residual_closeness(adj)
+centrality_residual_closeness <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "residual_closeness", mode = mode, ...)
+  col <- paste0("residual_closeness_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Dangalchev Closeness Centrality
+#'
+#' Alias for residual closeness centrality: sum of 1/2^d.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of Dangalchev closeness values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_residual_closeness}} (equivalent).
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_dangalchev(adj)
+centrality_dangalchev <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "dangalchev", mode = mode, ...)
+  col <- paste0("dangalchev_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Generalized Closeness Centrality
+#'
+#' Sum of alpha^d over all nodes. Generalization of decay centrality
+#' matching tidygraph's implementation.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param decay_parameter Numeric between 0 and 1 (the alpha parameter).
+#'   Default 0.5.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of generalized closeness values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_decay}} (equivalent formulation).
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_generalized_closeness(adj)
+centrality_generalized_closeness <- function(x, mode = "all",
+                                             decay_parameter = 0.5, ...) {
+  df <- centrality(x, measures = "generalized_closeness", mode = mode,
+                   decay_parameter = decay_parameter, ...)
+  col <- paste0("generalized_closeness_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Harary Centrality
+#'
+#' Sum of 1/d^2 over all reachable node pairs. Robust to disconnected graphs.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of Harary centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_harary(adj)
+centrality_harary <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "harary", mode = mode, ...)
+  col <- paste0("harary_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Average Distance Centrality
+#'
+#' Sum of shortest path distances divided by (n + 1). Lower values indicate
+#' more central nodes.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of average distance values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_average_distance(adj)
+centrality_average_distance <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "average_distance", mode = mode, ...)
+  col <- paste0("average_distance_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Barycenter Centrality
+#'
+#' Inverse of the total distance to all reachable nodes.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of barycenter centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_barycenter(adj)
+centrality_barycenter <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "barycenter", mode = mode, ...)
+  col <- paste0("barycenter_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Wiener Index Centrality
+#'
+#' Total sum of shortest path distances from a node to all others.
+#' Higher values indicate less central (more peripheral) nodes.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of Wiener index values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_wiener(adj)
+centrality_wiener <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "wiener", mode = mode, ...)
+  col <- paste0("wiener_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Closeness Vitality
+#'
+#' Drop in the Wiener index when a node is removed. Higher values indicate
+#' more critical nodes for overall connectivity.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of closeness vitality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_closeness_vitality(adj)
+centrality_closeness_vitality <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "closeness_vitality", mode = mode, ...)
+  col <- paste0("closeness_vitality_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Lobby Index (H-Index of Neighborhood)
+#'
+#' Largest k such that the node's closed neighborhood contains at least k
+#' nodes with degree >= k. Network analogue of the h-index.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named integer vector of lobby index values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_lobby(adj)
+centrality_lobby <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "lobby", mode = mode, ...)
+  col <- paste0("lobby_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Entropy Centrality
+#'
+#' Graph-theoretic entropy based on shortest path distribution in the residual
+#' graph after removing the node.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of entropy centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_entropy(adj)
+centrality_entropy <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "entropy", mode = mode, ...)
+  col <- paste0("entropy_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Semi-Local Centrality
+#'
+#' Triple-nested neighborhood computation measuring 4-hop local influence.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of semi-local centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_semilocal(adj)
+centrality_semilocal <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "semilocal", mode = mode, ...)
+  col <- paste0("semilocal_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' ClusterRank Centrality
+#'
+#' Product of clustering coefficient and sum of (neighbor degree + 1).
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of ClusterRank values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_clusterrank(adj)
+centrality_clusterrank <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "clusterrank", mode = mode, ...)
+  col <- paste0("clusterrank_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Bottleneck Centrality
+#'
+#' Number of shortest path trees where the node appears in more than n/4 paths.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named integer vector of bottleneck centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0), 4, 4)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_bottleneck(adj)
+centrality_bottleneck <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "bottleneck", mode = mode, ...)
+  col <- paste0("bottleneck_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Centroid Value
+#'
+#' Minimum difference between own and competitor's closer-node count.
+#' Measures how much a node is at the center of the graph.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of centroid values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0), 4, 4)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_centroid(adj)
+centrality_centroid <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "centroid", mode = mode, ...)
+  col <- paste0("centroid_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Maximum Neighborhood Component (MNC)
+#'
+#' Size of the largest connected component in the node's neighborhood subgraph.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named integer vector of MNC values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_dmnc}} for the density variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_mnc(adj)
+centrality_mnc <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "mnc", mode = mode, ...)
+  col <- paste0("mnc_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Density of Maximum Neighborhood Component (DMNC)
+#'
+#' Edge count divided by max component size^1.5 in the neighborhood subgraph.
+#'
+#' @inheritParams centrality_degree
+#' @param dmnc_epsilon Numeric. Epsilon exponent for DMNC. Default 1.7 as
+#'   recommended by Lin et al. (2008). centiserve uses 1.67 (four-community
+#'   assumption). Must be between 1 and 2.
+#'
+#' @return Named numeric vector of DMNC values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_mnc}} for the size-only variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_dmnc(adj)
+centrality_dmnc <- function(x, mode = "all", dmnc_epsilon = 1.7, ...) {
+  df <- centrality(x, measures = "dmnc", mode = mode,
+                   dmnc_epsilon = dmnc_epsilon, ...)
+  col <- paste0("dmnc_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Local Average Connectivity (LAC)
+#'
+#' Average degree of neighbors within the neighborhood subgraph. Measures
+#' how interconnected a node's neighbors are. Proposed by Li et al. (2011)
+#' for identifying essential proteins in PPI networks.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of LAC values.
+#'
+#' @references
+#' Li, M., Wang, J., Chen, X., Wang, H., & Pan, Y. (2011). A local average
+#' connectivity-based method for identifying essential proteins from the network
+#' level. \emph{Computational Biology and Chemistry}, 35(3), 143-150.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_dmnc}} for another neighborhood density measure.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_lac(adj)
+centrality_lac <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "lac", mode = mode, ...)
+  col <- paste0("lac_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Communicability Centrality
+#'
+#' Total communicability: row sums of the matrix exponential of the adjacency
+#' matrix. Measures a node's ability to broadcast information through all paths.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of communicability values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_subgraph}} for the diagonal-only variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_communicability(adj)
+centrality_communicability <- function(x, ...) {
+  df <- centrality(x, measures = "communicability", ...)
+  stats::setNames(df$communicability, df$node)
+}
+
+#' Communicability Betweenness Centrality
+#'
+#' Fraction of total communicability that passes through each node.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of communicability betweenness values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_communicability_betweenness(adj)
+centrality_communicability_betweenness <- function(x, ...) {
+  df <- centrality(x, measures = "communicability_betweenness", ...)
+  stats::setNames(df$communicability_betweenness, df$node)
+}
+
+#' Random Walk Centrality
+#'
+#' Inverse sum of random walk distances. Requires a connected graph.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of random walk centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_random_walk(adj)
+centrality_random_walk <- function(x, ...) {
+  df <- centrality(x, measures = "random_walk", ...)
+  stats::setNames(df$random_walk, df$node)
+}
+
+#' Stress Centrality
+#'
+#' Number of shortest paths passing through each node. Unlike betweenness,
+#' does not normalize by the total number of shortest paths.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of stress centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_betweenness}} for the normalized variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0), 4, 4)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_stress(adj)
+centrality_stress <- function(x, ...) {
+  df <- centrality(x, measures = "stress", ...)
+  stats::setNames(df$stress, df$node)
+}
+
+#' Flow Betweenness Centrality
+#'
+#' Max-flow based betweenness centrality.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of flow betweenness values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_betweenness}} for shortest-path variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_flow_betweenness(adj)
+centrality_flow_betweenness <- function(x, ...) {
+  df <- centrality(x, measures = "flow_betweenness", ...)
+  stats::setNames(df$flow_betweenness, df$node)
+}
+
+#' Topological Coefficient
+#'
+#' Fraction of shared second-order neighbors, measuring topological overlap
+#' between a node and its neighbors.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of topological coefficient values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_topological_coefficient(adj)
+centrality_topological_coefficient <- function(x, ...) {
+  df <- centrality(x, measures = "topological_coefficient", ...)
+  stats::setNames(df$topological_coefficient, df$node)
+}
+
+#' Bridging Centrality
+#'
+#' Product of betweenness and bridging coefficient. Identifies nodes that
+#' bridge communities.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of bridging centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_local_bridging}} for the local variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_bridging(adj)
+centrality_bridging <- function(x, ...) {
+  df <- centrality(x, measures = "bridging", ...)
+  stats::setNames(df$bridging, df$node)
+}
+
+#' Local Bridging Centrality
+#'
+#' (1/degree) times bridging coefficient. Local measure of inter-community
+#' connectivity.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of local bridging values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_bridging}} for the betweenness-weighted variant.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_local_bridging(adj)
+centrality_local_bridging <- function(x, ...) {
+  df <- centrality(x, measures = "local_bridging", ...)
+  stats::setNames(df$local_bridging, df$node)
+}
+
+#' Effective Size (Burt's)
+#'
+#' Network effective size: degree minus redundancy. Measures non-redundant
+#' contacts in ego network.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of effective size values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_constraint}} for a related structural holes measure.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_effective_size(adj)
+centrality_effective_size <- function(x, ...) {
+  df <- centrality(x, measures = "effective_size", ...)
+  stats::setNames(df$effective_size, df$node)
+}
+
+#' Diversity Centrality
+#'
+#' Shannon entropy of the edge weight distribution per node. Measures
+#' how evenly a node distributes its connections.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of diversity centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' mat <- matrix(c(0, .5, .3, .5, 0, .8, .3, .8, 0), 3, 3)
+#' rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+#' centrality_diversity(mat)
+centrality_diversity <- function(x, ...) {
+  df <- centrality(x, measures = "diversity", ...)
+  stats::setNames(df$diversity, df$node)
+}
+
+#' Cross-Clique Connectivity
+#'
+#' Count of all cliques (not just maximal) containing each node. Measures
+#' embeddedness in dense substructures.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named integer vector of cross-clique counts.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_cross_clique(adj)
+centrality_cross_clique <- function(x, ...) {
+  df <- centrality(x, measures = "cross_clique", ...)
+  stats::setNames(df$cross_clique, df$node)
+}
+
+#' Markov Centrality
+#'
+#' Inverse of column means of the mean first passage time matrix.
+#' Requires a connected graph.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of Markov centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_markov(adj)
+centrality_markov <- function(x, ...) {
+  df <- centrality(x, measures = "markov", ...)
+  stats::setNames(df$markov, df$node)
+}
+
+#' Integration Centrality
+#'
+#' Distance-based influence: sum of 1 - (d-1)/max(d) over all nodes.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of integration centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_integration(adj)
+centrality_integration <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "integration", mode = mode, ...)
+  col <- paste0("integration_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Expected Centrality
+#'
+#' Sum of neighbor degrees. Simple but effective influence proxy.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of expected centrality values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_expected(adj)
+centrality_expected <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "expected", mode = mode, ...)
+  col <- paste0("expected_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Gil-Schmidt Power Index
+#'
+#' Sum of 1/d(v,w) normalized by (n-1). Variant of closeness using harmonic
+#' mean of distances.
+#'
+#' @inheritParams centrality_degree
+#'
+#' @return Named numeric vector of Gil-Schmidt power index values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_harmonic}} for a related measure.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0), 4, 4)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_gilschmidt(adj)
+centrality_gilschmidt <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "gilschmidt", mode = mode, ...)
+  col <- paste0("gilschmidt_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' SALSA Authority Centrality
+#'
+#' Stochastic Approach for Link-Structure Analysis. Returns authority scores.
+#' Requires a directed graph.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#'   Must be directed.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of SALSA authority scores.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_authority}} for HITS authority.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' adj <- matrix(c(0, 1, 0, 0, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_salsa(adj)
+#' }
+centrality_salsa <- function(x, ...) {
+  df <- centrality(x, measures = "salsa", ...)
+  stats::setNames(df$salsa, df$node)
+}
+
+#' LeaderRank Centrality
+#'
+#' PageRank variant with a ground node connected to all nodes.
+#' Requires a directed graph.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#'   Must be directed.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of LeaderRank values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_pagerank}} for standard PageRank.
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#' adj <- matrix(c(0, 1, 0, 0, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_leaderrank(adj)
+#' }
+centrality_leaderrank <- function(x, ...) {
+  df <- centrality(x, measures = "leaderrank", ...)
+  stats::setNames(df$leaderrank, df$node)
+}
+
+#' Participation Coefficient
+#'
+#' Measures diversity of inter-community connections. Nodes connecting to
+#' many communities have high participation. Requires community membership.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param membership Integer vector of community assignments (one per node).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of participation coefficient values (0-1).
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_within_module_z}} for within-community connectivity.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0,0, 1,0,1,0,0, 1,1,0,1,0, 0,0,1,0,1, 0,0,0,1,0), 5, 5)
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:5]
+#' centrality_participation(adj, membership = c(1, 1, 1, 2, 2))
+centrality_participation <- function(x, membership = NULL, mode = "all", ...) {
+  df <- centrality(x, measures = "participation", mode = mode,
+                   membership = membership, ...)
+  col <- paste0("participation_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Within-Module Degree Z-Score
+#'
+#' Z-score of intra-community connectivity. High values indicate hubs
+#' within their own community. Requires community membership.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param membership Integer vector of community assignments (one per node).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of within-module z-score values.
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_participation}} for between-community diversity.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0,0, 1,0,1,0,0, 1,1,0,1,0, 0,0,1,0,1, 0,0,0,1,0), 5, 5)
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:5]
+#' centrality_within_module_z(adj, membership = c(1, 1, 1, 2, 2))
+centrality_within_module_z <- function(x, membership = NULL, mode = "all", ...) {
+  df <- centrality(x, measures = "within_module_z", mode = mode,
+                   membership = membership, ...)
+  col <- paste0("within_module_z_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+#' Gateway Coefficient
+#'
+#' Inter-community brokerage weighted by centrality. Combines participation
+#' with degree information. Requires community membership.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param membership Integer vector of community assignments (one per node).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of gateway coefficient values (0-1).
+#'
+#' @seealso \code{\link{centrality}} for computing multiple measures at once,
+#'   \code{\link{centrality_participation}} for the simpler participation
+#'   coefficient.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0,0, 1,0,1,0,0, 1,1,0,1,0, 0,0,1,0,1, 0,0,0,1,0), 5, 5)
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:5]
+#' centrality_gateway(adj, membership = c(1, 1, 1, 2, 2))
+centrality_gateway <- function(x, membership = NULL, mode = "all", ...) {
+  df <- centrality(x, measures = "gateway", mode = mode,
+                   membership = membership, ...)
+  col <- paste0("gateway_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+
+# ---------------------------------------------------------------------------
+# Batch 3 wrappers: classical measures validated against centiserve / sna /
+# igraph / NetworkX reference implementations.
+# ---------------------------------------------------------------------------
+
+#' Katz Centrality
+#'
+#' Katz (1953) status index: \eqn{C = (I - \alpha A^T)^{-1} \mathbf{1}}.
+#' Each node's score sums attenuated walks of every length back to it, with
+#' attenuation \eqn{\alpha} applied per step. Rankings are identical to
+#' Bonacich's alpha centrality with a uniform exogenous vector.
+#'
+#' Equivalence is verified bit-exact against \code{centiserve::katzcent}
+#' (cograph mirrors centiserve's exact LAPACK call sequence) and at machine
+#' epsilon against \code{igraph::alpha_centrality(exo = 1)} and
+#' \code{networkx.katz_centrality_numpy}.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param katz_alpha Attenuation factor. Must satisfy
+#'   \eqn{\alpha < 1 / \rho(A)} where \eqn{\rho(A)} is the spectral radius.
+#'   Default 0.1 matches centiserve and NetworkX conventions.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of Katz centrality values.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_eigenvector}},
+#'   \code{\link{centrality_pagerank}}.
+#' @references
+#' Katz, L. (1953). A new status index derived from sociometric analysis.
+#' \emph{Psychometrika}, 18(1), 39-43.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_katz(adj)
+centrality_katz <- function(x, katz_alpha = 0.1, ...) {
+  df <- centrality(x, measures = "katz", katz_alpha = katz_alpha, ...)
+  stats::setNames(df$katz, df$node)
+}
+
+
+#' Hubbell Centrality
+#'
+#' Hubbell (1965) input-output centrality:
+#' \eqn{C = (I - w W)^{-1} \mathbf{1}}, where \eqn{W} is the (weighted)
+#' adjacency matrix and \eqn{w} is a weight factor that must satisfy
+#' \eqn{w \cdot \rho(W) < 1} for the system to be solvable.
+#'
+#' Bit-exact match against \code{centiserve::hubbell} when edge weights are
+#' passed explicitly (cograph mirrors centiserve's full-inverse LAPACK call
+#' path).
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param hubbell_weight Attenuation factor \eqn{w}. Default 0.5. If
+#'   \eqn{w \cdot \rho(W) \ge 1}, the function returns \code{NA} with a warning.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of Hubbell centrality values (or \code{NA} if
+#'   the system is not solvable).
+#'
+#' @section Note on centiserve equivalence:
+#' \code{centiserve::hubbell(g, weights = NULL)} silently resets all edge
+#' weights to 1, ignoring the graph's weight attribute. To reproduce cograph's
+#' values with centiserve on a weighted graph, pass
+#' \code{weights = igraph::E(g)$weight} explicitly.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_katz}}.
+#' @references
+#' Hubbell, C. H. (1965). An input-output approach to clique identification.
+#' \emph{Sociometry}, 28(4), 377-399.
+#'
+#' @export
+#' @examples
+#' # Small weighted path graph; spectral radius permits weightfactor = 0.5
+#' adj <- matrix(0, 4, 4)
+#' adj[1,2] <- adj[2,1] <- adj[2,3] <- adj[3,2] <- adj[3,4] <- adj[4,3] <- 0.3
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:4]
+#' centrality_hubbell(adj, hubbell_weight = 0.5)
+centrality_hubbell <- function(x, hubbell_weight = 0.5, ...) {
+  df <- centrality(x, measures = "hubbell", hubbell_weight = hubbell_weight, ...)
+  stats::setNames(df$hubbell, df$node)
+}
+
+
+#' Information Centrality (Stephenson-Zelen)
+#'
+#' Information centrality (Stephenson & Zelen 1989) measures a node's
+#' importance in terms of the "information" contained in all paths (not only
+#' shortest) passing through it. Defined via the inverse of a Laplacian-like
+#' matrix, yielding per-node
+#' \eqn{IC_i = 1 / (C_{ii} + (\mathrm{tr}(C) - 2 R_i) / n)} where
+#' \eqn{C = A^{-1}} and \eqn{R_i} is the row sum of \eqn{C}.
+#'
+#' Bit-exact match against \code{sna::infocent} on connected undirected
+#' graphs (cograph mirrors sna's exact construction and call sequence).
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of information centrality values.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_current_flow_closeness}}.
+#' @references
+#' Stephenson, K., & Zelen, M. (1989). Rethinking centrality: Methods and
+#' examples. \emph{Social Networks}, 11(1), 1-37.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 1,0,1,1, 1,1,0,1, 0,1,1,0), 4, 4)
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:4]
+#' centrality_information(adj)
+centrality_information <- function(x, ...) {
+  df <- centrality(x, measures = "information", ...)
+  stats::setNames(df$information, df$node)
+}
+
+
+#' Pairwise Disconnectivity (Potapov et al. 2008)
+#'
+#' For a directed network, \code{pairwisedis(v)} is the fraction of ordered
+#' reachable pairs \eqn{(s, t)} that become unreachable when node \eqn{v} is
+#' removed:
+#' \deqn{PD(v) = (|P(G)| - |P(G - v)|) / |P(G)|}
+#' where \eqn{|P(G)|} is the number of ordered pairs \eqn{(s, t), s \ne t}
+#' with a directed path from \eqn{s} to \eqn{t}.
+#'
+#' Bit-exact match against \code{centiserve::pairwisedis} on directed
+#' graphs. Requires the input to be directed; returns \code{NA} with a
+#' warning on undirected inputs.
+#'
+#' @param x Directed network input (matrix, igraph, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of pairwise disconnectivity values in \eqn{[0, 1]}.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{robustness}}.
+#' @references
+#' Potapov, A. P., Voss, N., Sasse, N., & Wingender, E. (2008). Topology of
+#' mammalian transcription networks. \emph{Genome Informatics}, 18, 193-204.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,0, 0,0,1, 1,0,0), 3, 3, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_pairwisedis(adj)
+centrality_pairwisedis <- function(x, ...) {
+  df <- centrality(x, measures = "pairwisedis", ...)
+  stats::setNames(df$pairwisedis, df$node)
+}
+
+
+#' Local Reaching Centrality (Mones, Vicsek & Vicsek 2012)
+#'
+#' Local reaching centrality measures how much of the network is reachable
+#' from a node.
+#'
+#' \itemize{
+#'   \item Directed unweighted: \eqn{LRC(v) = |\{u : u \ne v, v \to u\}| / (N - 1)}.
+#'   \item Undirected unweighted: average of \eqn{1/d(v, u)} over all
+#'     \eqn{u \ne v}, divided by \eqn{N - 1}. Numerically equal to
+#'     \code{igraph::harmonic_centrality(normalized = TRUE)}.
+#'   \item Weighted: NetworkX convention, where edge weights are interpreted
+#'     as strengths and path length is \eqn{\sum_e (\mathrm{total\_weight} / w_e)}.
+#'     Per-path score is the mean of original edge weights along the shortest
+#'     path.
+#' }
+#'
+#' Bit-exact match against \code{networkx.local_reaching_centrality} across
+#' all three branches. Bit-exact match against
+#' \code{igraph::harmonic_centrality(normalized = TRUE)} for the undirected
+#' unweighted branch. See \code{\link{reaching_global}} for the graph-level
+#' hierarchy measure derived from per-node LRC.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of local reaching centrality values.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_harmonic}},
+#'   \code{\link{reaching_global}}.
+#' @references
+#' Mones, E., Vicsek, L., & Vicsek, T. (2012). Hierarchy measure for complex
+#' networks. \emph{PLoS ONE}, 7(3), e33799.
+#'
+#' @export
+#' @examples
+#' # Directed path A -> B -> C
+#' adj <- matrix(c(0,1,0, 0,0,1, 0,0,0), 3, 3, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_reaching_local(adj, mode = "out")
+centrality_reaching_local <- function(x, mode = "all", ...) {
+  df <- centrality(x, measures = "reaching_local", mode = mode, ...)
+  col <- paste0("reaching_local_", mode)
+  stats::setNames(df[[col]], df$node)
+}
+
+
+#' Global Reaching Centrality (Mones, Vicsek & Vicsek 2012)
+#'
+#' A graph-level hierarchy measure computed from per-node local reaching
+#' centralities:
+#' \deqn{GRC(G) = \frac{1}{N - 1} \sum_v \left( \max_u LRC(u) - LRC(v) \right)}
+#'
+#' Values close to 0 indicate a flat network (all nodes reach equal
+#' proportions of the graph); values close to 1 indicate strong hierarchical
+#' structure. Matches \code{networkx.global_reaching_centrality} exactly.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param mode For directed networks: \code{"all"} (default), \code{"in"}, or
+#'   \code{"out"}.
+#' @param ... Additional arguments passed to \code{\link{centrality_reaching_local}}.
+#'
+#' @return A single numeric value in \eqn{[0, 1]}.
+#'
+#' @seealso \code{\link{centrality_reaching_local}}, \code{\link{summarize_network}}.
+#' @references
+#' Mones, E., Vicsek, L., & Vicsek, T. (2012). Hierarchy measure for complex
+#' networks. \emph{PLoS ONE}, 7(3), e33799.
+#'
+#' @export
+#' @examples
+#' # Star graph: highly hierarchical (directed out from center)
+#' adj <- matrix(0, 5, 5)
+#' adj[1, 2:5] <- 1
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:5]
+#' reaching_global(adj, mode = "out")
+reaching_global <- function(x, mode = "all", ...) {
+  lrc <- centrality_reaching_local(x, mode = mode, ...)
+  n <- length(lrc)
+  if (n <= 1) return(0)
+  max_lrc <- max(lrc, na.rm = TRUE)
+  sum(max_lrc - lrc, na.rm = TRUE) / (n - 1)
+}
+
+
+# ---------------------------------------------------------------------------
+# Batch 4 wrappers: directed prestige family (Wasserman-Faust / sna lineage).
+# ---------------------------------------------------------------------------
+
+#' Domain Prestige
+#'
+#' Directed-graph prestige measure: for each node \eqn{v}, the number of
+#' other nodes that can reach \eqn{v} via a directed path.
+#' \deqn{\mathrm{domain}(v) = |\{u \ne v : u \to^* v\}|}
+#'
+#' Bit-exact match against \code{sna::prestige(cmode = "domain")}.
+#' Directed-only; returns \code{NA} with a warning on undirected input.
+#'
+#' @param x Directed network input (matrix, igraph, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of domain prestige values in
+#'   \eqn{\{0, 1, \ldots, N - 1\}}.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_reaching_local}}
+#'   for the dual "out-reachability" measure, \code{\link{centrality_pairwisedis}}
+#'   for a related reachability-based directed measure.
+#' @references
+#' Wasserman, S., & Faust, K. (1994). \emph{Social Network Analysis: Methods
+#' and Applications}. Cambridge University Press.
+#'
+#' @export
+#' @examples
+#' # Directed 3-cycle: every node reaches every other node
+#' adj <- matrix(c(0,1,0, 0,0,1, 1,0,0), 3, 3, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_prestige_domain(adj)
+centrality_prestige_domain <- function(x, ...) {
+  df <- centrality(x, measures = "prestige_domain", ...)
+  stats::setNames(df$prestige_domain, df$node)
+}
+
+
+#' Domain Proximity Prestige
+#'
+#' Distance-weighted variant of domain prestige. For each directed node
+#' \eqn{v}:
+#' \deqn{PD(v) = R_v^2 / (D_v \cdot (n - 1))}
+#' where \eqn{R_v} is the number of other nodes that reach \eqn{v}, and
+#' \eqn{D_v} is the sum of geodesic distances from those reachers to
+#' \eqn{v}. A node that is reachable quickly from many others scores high;
+#' unreachable nodes score 0.
+#'
+#' Bit-exact match against \code{sna::prestige(cmode = "domain.proximity")}
+#' on strongly connected directed graphs. Directed-only; returns \code{NA}
+#' with a warning on undirected input.
+#'
+#' @section Divergence from sna on disconnected graphs:
+#' sna's formula computes \code{(counts > 0) * gdist} element-wise and then
+#' sums to get the denominator. For any pair where \code{gdist = Inf}
+#' (unreachable), R evaluates \code{FALSE * Inf = NaN}, so the entire
+#' denominator becomes \code{NaN} and sna zeros every node via
+#' \code{p[is.nan(p)] <- 0}. cograph masks with \code{is.finite()} before
+#' summing, producing mathematically correct values on any directed graph,
+#' including those with disconnected components.
+#'
+#' @param x Directed network input (matrix, igraph, cograph_network, tna object).
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named numeric vector of domain proximity prestige values in
+#'   \eqn{[0, 1]}.
+#'
+#' @seealso \code{\link{centrality}}, \code{\link{centrality_prestige_domain}}
+#'   for the unweighted count, \code{\link{centrality_reaching_local}}
+#'   for the dual out-reachability measure.
+#' @references
+#' Wasserman, S., & Faust, K. (1994). \emph{Social Network Analysis: Methods
+#' and Applications}. Cambridge University Press.
+#'
+#' @export
+#' @examples
+#' # Directed 3-cycle: each node is reached by both others at distance 1 and 2
+#' adj <- matrix(c(0,1,0, 0,0,1, 1,0,0), 3, 3, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' centrality_prestige_domain_proximity(adj)
+centrality_prestige_domain_proximity <- function(x, ...) {
+  df <- centrality(x, measures = "prestige_domain_proximity", ...)
+  stats::setNames(df$prestige_domain_proximity, df$node)
+}
+
+
+# ---------------------------------------------------------------------------
+# Batch 5 wrappers: Gould-Fernandez brokerage (5 roles).
+# ---------------------------------------------------------------------------
+
+#' Gould-Fernandez Brokerage — Coordinator Role
+#'
+#' Coordinator brokerage (w_I): count of open directed 2-paths
+#' \eqn{A \to V \to A} passing through node \eqn{V}, where all three nodes
+#' belong to \eqn{V}'s group. The broker mediates contact between two
+#' in-group members.
+#'
+#' Bit-exact match against \code{sna::brokerage$raw.nli[, "w_I"]}. Counts
+#' OPEN 2-paths only — those where no direct edge from \code{a} to \code{c}
+#' exists. Directed-only; returns \code{NA} with a warning on undirected input.
+#'
+#' @param x Directed network input (matrix, igraph, cograph_network, tna object).
+#' @param membership Integer or character vector of group assignments, length
+#'   equal to the number of nodes. Required.
+#' @param ... Additional arguments passed to \code{\link{centrality}}.
+#'
+#' @return Named integer vector of coordinator role counts.
+#'
+#' @seealso \code{\link{centrality}},
+#'   \code{\link{centrality_brokerage_itinerant}},
+#'   \code{\link{centrality_brokerage_representative}},
+#'   \code{\link{centrality_brokerage_gatekeeper}},
+#'   \code{\link{centrality_brokerage_liaison}}.
+#' @references
+#' Gould, R. V., & Fernandez, R. M. (1989). Structures of mediation: A
+#' formal approach to brokerage in transaction networks.
+#' \emph{Sociological Methodology}, 19, 89-126.
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 0,0,1,1, 0,0,0,1, 1,0,0,0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_brokerage_coordinator(adj, membership = c(1, 1, 2, 2))
+centrality_brokerage_coordinator <- function(x, membership = NULL, ...) {
+  df <- centrality(x, measures = "brokerage_coordinator",
+                   membership = membership, ...)
+  stats::setNames(df$brokerage_coordinator, df$node)
+}
+
+#' Gould-Fernandez Brokerage — Itinerant (Consultant) Role
+#'
+#' Itinerant brokerage (w_O): count of open directed 2-paths
+#' \eqn{A \to V \to A} where the two endpoints are in the same group but
+#' the broker \eqn{V} is in a different group. The broker mediates within
+#' another group as an outsider.
+#'
+#' Bit-exact match against \code{sna::brokerage$raw.nli[, "w_O"]}.
+#' Directed-only.
+#'
+#' @inheritParams centrality_brokerage_coordinator
+#' @return Named integer vector of itinerant role counts.
+#' @seealso \code{\link{centrality_brokerage_coordinator}}.
+#' @references Gould & Fernandez (1989).
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 0,0,1,1, 0,0,0,1, 1,0,0,0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_brokerage_itinerant(adj, membership = c(1, 1, 2, 2))
+centrality_brokerage_itinerant <- function(x, membership = NULL, ...) {
+  df <- centrality(x, measures = "brokerage_itinerant",
+                   membership = membership, ...)
+  stats::setNames(df$brokerage_itinerant, df$node)
+}
+
+#' Gould-Fernandez Brokerage — Representative Role
+#'
+#' Representative brokerage (b_IO): count of open directed 2-paths
+#' \eqn{A \to V \to B} where \eqn{A} and \eqn{V} are in the same group
+#' and \eqn{B} is in a different group. The broker represents their group
+#' outward.
+#'
+#' Bit-exact match against \code{sna::brokerage$raw.nli[, "b_IO"]}.
+#' Directed-only.
+#'
+#' @inheritParams centrality_brokerage_coordinator
+#' @return Named integer vector of representative role counts.
+#' @seealso \code{\link{centrality_brokerage_coordinator}}.
+#' @references Gould & Fernandez (1989).
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 0,0,1,1, 0,0,0,1, 1,0,0,0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_brokerage_representative(adj, membership = c(1, 1, 2, 2))
+centrality_brokerage_representative <- function(x, membership = NULL, ...) {
+  df <- centrality(x, measures = "brokerage_representative",
+                   membership = membership, ...)
+  stats::setNames(df$brokerage_representative, df$node)
+}
+
+#' Gould-Fernandez Brokerage — Gatekeeper Role
+#'
+#' Gatekeeper brokerage (b_OI): count of open directed 2-paths
+#' \eqn{A \to V \to B} where \eqn{V} and \eqn{B} are in the same group
+#' and \eqn{A} is in a different group. The broker acts as a gate letting
+#' in-group members receive contact from outside.
+#'
+#' Bit-exact match against \code{sna::brokerage$raw.nli[, "b_OI"]}.
+#' Directed-only.
+#'
+#' @inheritParams centrality_brokerage_coordinator
+#' @return Named integer vector of gatekeeper role counts.
+#' @seealso \code{\link{centrality_brokerage_coordinator}}.
+#' @references Gould & Fernandez (1989).
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 0,0,1,1, 0,0,0,1, 1,0,0,0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_brokerage_gatekeeper(adj, membership = c(1, 1, 2, 2))
+centrality_brokerage_gatekeeper <- function(x, membership = NULL, ...) {
+  df <- centrality(x, measures = "brokerage_gatekeeper",
+                   membership = membership, ...)
+  stats::setNames(df$brokerage_gatekeeper, df$node)
+}
+
+#' Gould-Fernandez Brokerage — Liaison Role
+#'
+#' Liaison brokerage (b_O): count of open directed 2-paths
+#' \eqn{A \to V \to B} where all three nodes belong to different groups.
+#' The broker mediates between two groups to neither of which they belong.
+#'
+#' Bit-exact match against \code{sna::brokerage$raw.nli[, "b_O"]}.
+#' Directed-only.
+#'
+#' @inheritParams centrality_brokerage_coordinator
+#' @return Named integer vector of liaison role counts.
+#' @seealso \code{\link{centrality_brokerage_coordinator}}.
+#' @references Gould & Fernandez (1989).
+#' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,0, 0,0,1,1, 0,0,0,1, 1,0,0,0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' centrality_brokerage_liaison(adj, membership = c(1, 1, 2, 2))
+centrality_brokerage_liaison <- function(x, membership = NULL, ...) {
+  df <- centrality(x, measures = "brokerage_liaison",
+                   membership = membership, ...)
+  stats::setNames(df$brokerage_liaison, df$node)
+}
+
 
 #' Calculate Edge Centrality Measures
 #'
@@ -1631,7 +3277,8 @@ centrality_percolation <- function(x, states = NULL, ...) {
 #'
 #' @param x Network input (matrix, igraph, network, cograph_network, tna object)
 #' @param measures Which measures to calculate. Default "all" calculates all
-#'   available edge measures. Options: "betweenness", "weight".
+#'   available edge measures. Options: "betweenness", "weight", "overlap",
+#'   "simmelian", "reciprocity".
 #' @param weighted Logical. Use edge weights if available. Default TRUE.
 #' @param directed Logical or NULL. If NULL (default), auto-detect from matrix
 #'   symmetry. Set TRUE to force directed, FALSE to force undirected.
@@ -1643,21 +3290,19 @@ centrality_percolation <- function(x, states = NULL, ...) {
 #' @param sort_by Character or NULL. Column to sort by (descending). Default NULL.
 #' @param ... Additional arguments passed to \code{\link{to_igraph}}
 #'
-#' @return A data frame with columns:
-#'   \itemize{
-#'     \item \code{from}: Source node label
-#'     \item \code{to}: Target node label
-#'     \item \code{weight}: Edge weight (if weighted)
-#'     \item \code{betweenness}: Edge betweenness centrality
-#'   }
+#' @return A data frame with columns \code{from}, \code{to}, and one column
+#'   per requested measure.
 #'
 #' @details
-#' Edge centrality measures available:
+#' Edge measures available:
 #' \describe{
-#'   \item{betweenness}{Number of shortest paths passing through the edge.
-#'     Edges with high betweenness are bridges connecting different parts
-#'     of the network.}
-#'   \item{weight}{Original edge weight (included for reference)}
+#'   \item{betweenness}{Number of shortest paths passing through the edge.}
+#'   \item{weight}{Original edge weight.}
+#'   \item{overlap}{Jaccard neighborhood overlap of edge endpoints.}
+#'   \item{simmelian}{Number of triangles the edge participates in.}
+#'   \item{reciprocity}{Whether the reverse edge exists (directed only).
+#'     Adds columns: \code{reciprocated}, \code{reverse_weight},
+#'     \code{weight_ratio}.}
 #' }
 #'
 #' @export
@@ -1693,13 +3338,6 @@ edge_centrality <- function(x, measures = "all",
   # Get edge list
   edges <- igraph::as_data_frame(g, what = "edges")
 
-  # Get node labels
-  labels <- if (!is.null(igraph::V(g)$name)) {
-    igraph::V(g)$name
-  } else {
-    as.character(seq_len(igraph::vcount(g)))
-  }
-
   # Build result data frame
   result <- data.frame(
     from = edges$from,
@@ -1708,11 +3346,14 @@ edge_centrality <- function(x, measures = "all",
   )
 
   # Available measures
-  all_measures <- c("betweenness", "weight")
+  all_measures <- c("betweenness", "weight", "overlap", "simmelian",
+                    "reciprocity")
 
   # Resolve measures
  if (identical(measures, "all")) {
-    measures <- all_measures
+    # reciprocity only for directed
+    measures <- if (directed) all_measures else
+      setdiff(all_measures, "reciprocity")
   } else {
     invalid <- setdiff(measures, all_measures)
     if (length(invalid) > 0) {
@@ -1748,6 +3389,49 @@ edge_centrality <- function(x, measures = "all",
     result$betweenness <- igraph::edge_betweenness(
       g, weights = bet_weights, directed = directed, cutoff = cutoff
     )
+  }
+
+  # Overlap and simmelian share neighbor computation — do it once
+  needs_neighbors <- any(c("overlap", "simmelian") %in% measures)
+  if (needs_neighbors) {
+    adj_list <- igraph::as_adj_list(g, mode = "all")
+    el_idx <- igraph::as_edgelist(g, names = FALSE)
+    ne <- nrow(el_idx)
+
+    # Compute shared + union neighbor counts per edge (single pass)
+    neighbor_stats <- vapply(seq_len(ne), function(ei) {
+      u <- el_idx[ei, 1]; v <- el_idx[ei, 2]
+      n_u <- setdiff(as.integer(adj_list[[u]]), c(u, v))
+      n_v <- setdiff(as.integer(adj_list[[v]]), c(u, v))
+      sh <- length(intersect(n_u, n_v))
+      un <- length(union(n_u, n_v))
+      c(sh, un)
+    }, numeric(2))
+
+    if ("overlap" %in% measures) {
+      result$overlap <- ifelse(neighbor_stats[2, ] == 0L, 0,
+                               neighbor_stats[1, ] / neighbor_stats[2, ])
+      result$shared_neighbors <- as.integer(neighbor_stats[1, ])
+    }
+    if ("simmelian" %in% measures) {
+      result$triangles <- as.integer(neighbor_stats[1, ])
+    }
+  }
+
+  # Edge reciprocity (directed only)
+  if ("reciprocity" %in% measures && !directed) {
+    warning("Reciprocity skipped: only meaningful for directed networks.",
+            call. = FALSE)
+  }
+  if ("reciprocity" %in% measures && directed) {
+    edge_keys <- paste(edges$from, edges$to, sep = "\t")
+    w_vec <- if (!is.null(weights)) weights else rep(1, nrow(result))
+    wt_map <- stats::setNames(w_vec, edge_keys)
+    rev_keys <- paste(edges$to, edges$from, sep = "\t")
+    rev_wts <- unname(wt_map[rev_keys])
+    result$reciprocated <- !is.na(rev_wts)
+    result$reverse_weight <- ifelse(result$reciprocated, rev_wts, NA_real_)
+    result$weight_ratio <- ifelse(result$reciprocated, rev_wts / w_vec, NA_real_)
   }
 
   # Round if requested

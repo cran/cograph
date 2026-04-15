@@ -6,7 +6,7 @@
 # The new print method uses getters: n_nodes(x) reads nrow(x$nodes),
 # n_edges(x) reads nrow(x$edges), is_directed(x) reads x$directed,
 # get_edges(x)$weight reads x$edges$weight, get_nodes(x) reads x$nodes.
-skip_on_cran()
+skip_coverage_tests()
 
 make_test_net <- function(n_nodes = 3, n_edges = 3, directed = FALSE,
                           weights = NULL, coords = TRUE,
@@ -158,16 +158,10 @@ test_that("print.cograph_network works with actual cograph() output", {
 test_that("print.cograph_communities shows basic info", {
   skip_if_not_installed("igraph")
 
-  # Create a proper igraph communities object
+  # Use actual community detection to get a proper tidy data frame object
   g <- igraph::make_ring(6)
   igraph::V(g)$name <- letters[1:6]
-
-  # Use actual community detection to get a proper object
-  communities <- igraph::cluster_louvain(g)
-  result <- communities
-  result$algorithm <- "louvain"
-  result$names <- letters[1:6]
-  class(result) <- c("cograph_communities", class(communities))
+  result <- community_louvain(g)
 
   output <- capture.output(print(result))
   expect_true(any(grepl("Community structure", output)) ||
@@ -178,13 +172,9 @@ test_that("print.cograph_communities without node names", {
   skip_if_not_installed("igraph")
 
   g <- igraph::make_ring(4)
-  communities <- igraph::cluster_louvain(g)
-  result <- communities
-  result$algorithm <- "fast_greedy"
-  result$names <- NULL
-  class(result) <- c("cograph_communities", class(communities))
+  result <- community_fast_greedy(g)
 
-  # Should not error when names is NULL
+  # Should not error
   output <- capture.output(print(result))
   expect_true(length(output) > 0)
 })

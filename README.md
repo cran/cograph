@@ -8,7 +8,7 @@ Active](https://www.repostatus.org/badges/latest/active.svg)](https://www.repost
 [![R-CMD-check](https://github.com/sonsoleslp/cograph/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/sonsoleslp/cograph/actions/workflows/R-CMD-check.yaml)
 [![CRAN
 status](https://www.r-pkg.org/badges/version/cograph)](https://CRAN.R-project.org/package=cograph)
-[![Codecov](https://app.codecov.io/gh/sonsoleslp/cograph/branch/main/graph/badge.svg)](https://app.codecov.io/gh/sonsoleslp/cograph)
+[![codecov](https://codecov.io/github/sonsoleslp/cograph/coverage.svg?branch=main)](https://app.codecov.io/github/sonsoleslp/cograph?branch=main)
 [![License:
 MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <!-- badges: end -->
@@ -28,6 +28,24 @@ install.packages("cograph")
 # Development version from GitHub
 devtools::install_github("sonsoleslp/cograph")
 ```
+
+## How to use it?
+
+- [Network Visualization with cograph: A Complete Plotting
+  Guide](https://sonsoles.me/cograph/articles/1_cograph-tutorial-plotting.html)
+- [Why cograph?](https://sonsoles.me/cograph/articles/2_why-cograph.html)
+- [Plotting TNA Models with
+  splot](https://sonsoles.me/cograph/articles/3_plotting-tna-models.html)
+- [Visualization of communities and hyper order
+  networks](https://sonsoles.me/cograph/articles/cograph-tutorial-communities.html)
+- [Network Estimation and Visualization with Nestimate +
+  cograph](https://sonsoles.me/cograph/articles/cograph-tutorial-nestimate.html)
+- [Advanced
+  examples](https://sonsoles.me/cograph/articles/mcml-examples.html)
+- [Bootstrap Forest
+  Plots](https://sonsoles.me/cograph/articles/bootstrap-forest.html)
+- [Migrating from qgraph to
+  splot](https://sonsoles.me/cograph/articles/qgraph-to-splot.html)
 
 ## Features
 
@@ -70,7 +88,7 @@ devtools::install_github("sonsoleslp/cograph")
 
 | Function | Description |
 |----|----|
-| `centrality()` | 23+ centrality measures with individual wrappers |
+| `centrality()` | 87 centrality measures, validated against centiserve/sna/igraph/NetworkX |
 | `motifs()` / `subgraphs()` | Motif/triad census with per-actor windowing |
 | `robustness()` | Network robustness analysis |
 | `disparity_filter()` | Backbone extraction (Serrano et al. 2009) |
@@ -101,7 +119,7 @@ library(tna)
 library(cograph)
 
 # Build a TNA model from sequence data
-fit <- tna(engagement)
+fit <- tna(group_regulation)
 
 # One-liner visualization
 splot(fit)

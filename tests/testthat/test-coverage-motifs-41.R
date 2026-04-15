@@ -6,7 +6,7 @@
 # =============================================================================
 
 # Create test matrices for motif analysis
-skip_on_cran()
+skip_coverage_tests()
 
 create_directed_matrix <- function(n = 5, seed = 42) {
   set.seed(seed)
@@ -151,12 +151,12 @@ test_that("motif_census undirected handles various methods", {
   # Configuration method
   result_config <- motif_census(mat, n_random = 5, method = "configuration", seed = 42)
   expect_s3_class(result_config, "cograph_motifs")
-  expect_false(result_config$directed)
+  expect_false(attr(result_config, "directed"))
 
   # GNM method
   result_gnm <- motif_census(mat, n_random = 5, method = "gnm", seed = 42)
   expect_s3_class(result_gnm, "cograph_motifs")
-  expect_equal(result_gnm$method, "gnm")
+  expect_equal(attr(result_gnm, "method"), "gnm")
 })
 
 # =============================================================================

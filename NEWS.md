@@ -1,3 +1,114 @@
+# cograph 2.1.1
+
+## Plotting
+
+- `splot.netobject` now routes on the Nestimate `$method` slot rather than
+  just direction. Undirected sequence-based networks from `build_cna()` and
+  `wtna(method = "cooccurrence")` get oval TNA-family styling (layout,
+  palette, donuts) with arrows and dotted edge starts automatically dropped
+  because the matrix is symmetric. Glasso / cor / pcor / ising networks
+  still get `psych_styling = TRUE` (spring layout, Okabe-Ito palette).
+- `from_tna()` auto-detects integer-valued weight matrices (ftna, ctna, raw
+  counts) and sets `weight_digits = edge_label_digits = 0` so edge labels
+  render as `2304` rather than `2304.00`. Fractional weights still format
+  to two decimals. Explicit user-supplied `weight_digits` still wins.
+- `psych_styling = TRUE` is now exported as a first-class styling preset
+  (undirected counterpart of `tna_styling`) — Okabe-Ito palette, spring
+  layout, no arrows — applied by default to `splot.netobject` on
+  correlation-family input and to the `$contemporaneous` / `$between`
+  constituents of `net_mlvar`.
+- Expanded `splot()` dispatch coverage across the tna and Nestimate class
+  hierarchies, ensuring `tna`, `ftna`, `ctna`, `group_tna`, `tna_bootstrap`,
+  `group_tna_bootstrap`, `tna_permutation`, `group_tna_permutation`,
+  `netobject`, `netobject_group`, `netobject_ml`, `net_mlvar`, `wtna_mixed`,
+  `net_bootstrap`, `net_permutation`, `boot_glasso`, `mcml`, `net_hon`,
+  `net_hypa`, and `simplicial_complex` all reach the correct renderer.
+- Self-loops are now preserved in every plot function.
+
+## Correctness fixes (audit-driven)
+
+- `detect_duplicate_edges()`, `aggregate_duplicate_edges()`,
+  `simplify.cograph_network()`, and the internal `check_duplicate_edges()`
+  helper now respect directed vs undirected semantics. Previously the
+  canonical (min/max) endpoint key collapsed `A -> B` and `B -> A` into one
+  edge even on directed graphs, matching `igraph::simplify()` ground truth.
+- `.compute_modularity()` replaces a nested for loop with cluster-wise
+  vectorization (`sum(A[idx, idx]) - sum(k_out[idx]) * sum(k_in[idx]) / m`),
+  per the project "no for loops" rule. Results verified bit-exact against
+  `igraph::modularity()`.
+- `is_directed()` now recognises `CographNetwork` R6 objects — previously
+  only the `cograph_network` list format dispatched correctly.
+- `compute_layout_for_cograph()` uses `layout$get_type()` instead of the
+  removed `$name` field on `CographLayout`.
+- `network_small_world()` returns `0` (valid: no triangles means
+  definitively not small-world) instead of `NA_real_` when the observed
+  clustering coefficient is zero but path length is finite.
+- `simplify.cograph_network()` threads the directed flag through to edge
+  aggregation so directed multigraphs collapse correctly.
+
+## Performance & documentation
+
+- `simplify()` performance refactor for large networks plus a cleaner
+  title-composition path.
+- `motifs()`, `extract_motifs()`, and `plot.cograph_motif_analysis`
+  examples reworked to use `n_perm = 10L` (or `significance = FALSE`) and
+  promoted from `\dontrun` to CRAN-runnable (optional tna branches stay in
+  `\donttest`). Retires 320 seconds of latent CRAN timing risk — every
+  example now runs in under 4 seconds.
+
+## New tests
+
+- `test-audit-fixes.R` — ground-truth regressions for the directed edge
+  semantics, modularity vectorization, and small-world behaviour changes.
+- `test-integer-weight-labels.R` — locks `from_tna()` integer-weight
+  auto-detect behaviour and precedence of explicit `weight_digits`.
+- `test-equiv-{assortativity, cluster-quality, communities, disparity,
+  edge-centrality, network-summary, robustness, standalone-measures}.R` —
+  numerical equivalence against igraph, sna, centiserve, brainGraph,
+  influenceR, tidygraph, and NetworkX. Gated by
+  `skip_coverage_tests() + skip_on_cran()`, so they do not run on the
+  CRAN pipeline.
+
+# cograph 2.1.0
+
+## New Features
+
+### Batch 6 — new-API graph-level / set-level / pair-level measures
+
+These measures don't fit the per-node `centrality()` data frame, so they live as standalone functions:
+
+- `estrada_index()` — graph-level spectral invariant: \eqn{EE(G) = \sum_i e^{\lambda_i}}, equal to the trace of the matrix exponential of the adjacency. Equivalently, the sum of `subgraph_centrality()` across all nodes. Matches `networkx.estrada_index` at machine epsilon (max relative diff ~5e-15 across random test graphs).
+- `trophic_incoherence()` — graph-level food-web stability measure (Johnson et al. 2014). Defined as the population standard deviation of per-edge trophic differences \eqn{s_v - s_u} where \eqn{s_i} is the trophic level of node \eqn{i}. Zero for perfectly coherent DAGs (e.g., a pure chain). Matches `networkx.trophic_incoherence_parameter` at machine epsilon. Directed-only; reuses the existing `trophic_level` calculator.
+- `group_centrality(x, nodes, measure = c("betweenness", "closeness", "degree"))` — Everett-Borgatti (1999) group centrality for a *set* of nodes. Returns a scalar. Supports `mode = "in"/"out"` for directed-degree variants. **Group closeness and group degree** match `networkx.group_*_centrality` bit-exact. **Group betweenness** implements the textbook Everett-Borgatti / Puzis 2008 definition (fraction of shortest paths passing through at least one node in the group), which diverges from `networkx.group_betweenness_centrality` on some graphs due to a known quirk in NetworkX's Puzis-Yahalom-Elovici iterative algorithm. Verified via an independent Python brute-force: cograph matches the textbook definition; NX produces larger values on graphs with many overlapping shortest paths. Documented in the roxygen "Divergence from NetworkX" section.
+- `dispersion(x, u = NULL, v = NULL, normalized = TRUE, alpha = 1, b = 0, c = 0)` — Backstrom-Kleinberg (2014 Facebook) pair-level measure of tie strength. Counts the number of "well-dispersed" mutual friends of `u` and `v` (pairs of common neighbors that are not directly connected and share no common neighbor inside `u`'s ego network other than `u` and `v`). Matches `networkx.dispersion` bit-exact across all 156 edges on the karate club graph. Returns a scalar, named vector, or data frame depending on which of `u`, `v` are specified.
+
+### Centrality Batch 5 — Gould-Fernandez brokerage (5 roles)
+
+Added the five Gould-Fernandez (1989) brokerage role counts, a foundational measure in social network analysis (~1500 citations). Each role is a separate per-node measure requiring a `membership` argument (following the same pattern as `participation`, `within_module_z`, `gateway`), and counts open directed 2-paths `a -> v -> c` through broker `v`:
+
+- `centrality_brokerage_coordinator()` — all three in broker's group (w_I)
+- `centrality_brokerage_itinerant()` — endpoints same group, broker different (w_O, "consultant")
+- `centrality_brokerage_representative()` — broker + source same, target different (b_IO)
+- `centrality_brokerage_gatekeeper()` — broker + target same, source different (b_OI)
+- `centrality_brokerage_liaison()` — all three in different groups (b_O)
+
+Bit-exact match against `sna::brokerage$raw.nli` for all five roles across 20 random directed graphs. Implemented natively (no runtime dependency on sna). Key implementation detail: the Gould-Fernandez counting rule requires **open 2-paths only** — triads where a direct edge `a -> c` already exists are excluded. This matches sna's C implementation exactly and was derived empirically (sna's `.C("brokerage_R", ...)` has no R-level source).
+
+Directed-only; warns and returns `NA` on undirected input.
+
+### Centrality Batch 4 — directed prestige family (Wasserman-Faust / sna)
+
+- `centrality_prestige_domain()` — directed-graph prestige measure: for each node \eqn{v}, the number of other nodes that can reach \eqn{v} via a directed path. Classical Wasserman-Faust (1994) measure from `sna::prestige(cmode = "domain")`. Bit-exact match against sna, implemented natively via `igraph::distances(mode = "out")` + `colSums(is.finite(D)) - 1` (no runtime dependency on sna). Directed-only; returns NA with a warning on undirected input.
+- `centrality_prestige_domain_proximity()` — distance-weighted variant: `R_v^2 / (D_v * (n - 1))` where `R_v` is the number of reachers and `D_v` is the sum of their geodesic distances to `v`. Bit-exact match against `sna::prestige(cmode = "domain.proximity")` on strongly connected directed graphs. On graphs with any unreachable pair, sna has a known bug (`FALSE * Inf = NaN` collapses the denominator, producing all-zero output); cograph's `is.finite()`-masked formula produces mathematically correct values on any directed graph. Directed-only.
+
+### Centrality Batch 3 — classical measures with reference-package validation
+
+- `centrality_katz()` — Katz (1953) status index. Bit-exact match against `centiserve::katzcent` (cograph mirrors centiserve's exact LAPACK call sequence). Also matches `igraph::alpha_centrality(exo = 1)` and `networkx.katz_centrality_numpy` at machine epsilon. New `katz_alpha` parameter (default 0.1).
+- `centrality_hubbell()` — Hubbell (1965) input-output centrality. Bit-exact match against `centiserve::hubbell` (cograph mirrors centiserve's full-inverse LAPACK call path). Note: centiserve's default (`weights = NULL`) silently ignores `E(g)$weight`; to reproduce cograph's behavior with centiserve on weighted graphs, pass `weights = igraph::E(g)$weight` explicitly. New `hubbell_weight` parameter (default 0.5).
+- `centrality_information()` — Stephenson-Zelen (1989) information centrality. Bit-exact match against `sna::infocent` on connected undirected graphs (cograph mirrors sna's exact construction and `solve()` call sequence).
+- `centrality_pairwisedis()` — Pairwise disconnectivity (Potapov et al. 2008). Directed-only; fraction of reachable ordered pairs that become unreachable when each node is removed. Bit-exact match against `centiserve::pairwisedis`. Warns and returns `NA` on undirected input, matching the convention used by `salsa`, `leaderrank`, and `trophic_level`.
+- `centrality_reaching_local()` / `reaching_global()` — Local and global reaching centrality (Mones, Vicsek & Vicsek 2012). Bit-exact match against `networkx.local_reaching_centrality` across the directed unweighted, undirected unweighted, and weighted branches. Undirected unweighted LRC coincides with `igraph::harmonic_centrality(normalized = TRUE)` (documented). `reaching_global()` is a graph-level hierarchy statistic in [0, 1].
+
 # cograph 1.8.2
 
 ## New Features

@@ -89,7 +89,7 @@
 #'
 #' # From igraph object
 #' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::erdos.renyi.game(20, 0.3)
+#'   g <- igraph::sample_gnp(20, 0.3)
 #'   network_summary(g)
 #' }
 network_summary <- function(x,
@@ -246,41 +246,73 @@ network_summary <- function(x,
 
 #' Degree Distribution Visualization
 #'
-#' Creates a histogram showing the degree distribution of a network.
-#' Useful for understanding the connectivity patterns and identifying
-#' whether a network follows particular degree distributions (e.g.,
-#' power-law, normal).
+#' Creates a histogram or cumulative distribution plot of node degrees. By
+#' default, bins are integer-aligned (one bar per degree value) so each bar
+#' maps to an exact degree.
 #'
-#' @param x Network input: matrix, igraph, network, cograph_network, or tna object
+#' @param x Network input: matrix, igraph, network, cograph_network, or tna
+#'   object.
 #' @param mode For directed networks: "all", "in", or "out". Default "all".
 #' @param directed Logical or NULL. If NULL (default), auto-detect from matrix
 #'   symmetry. Set TRUE to force directed, FALSE to force undirected.
-#' @param loops Logical. If TRUE (default), keep self-loops. Set FALSE to remove them.
+#' @param loops Logical. If TRUE (default), keep self-loops. Set FALSE to
+#'   remove them.
 #' @param simplify How to combine multiple edges between the same node pair.
 #'   Options: "sum" (default), "mean", "max", "min", or FALSE/"none" to keep
 #'   multiple edges.
-#' @param cumulative Logical. If TRUE, show cumulative distribution instead of
-#'   frequency distribution. Default FALSE.
+#' @param cumulative Logical. If TRUE, show CCDF (complementary cumulative
+#'   distribution: P(degree >= k)) instead of frequency. Default FALSE.
+#' @param breaks Bin specification passed to \code{\link[graphics]{hist}}. Can
+#'   be a numeric vector of breakpoints, a single number giving the number of
+#'   bins, or a character string naming an algorithm (e.g. "Sturges", "FD",
+#'   "scott"). Overrides \code{bins} and \code{bin_width}. Default NULL
+#'   (auto-detect).
+#' @param bins Integer. Approximate number of bins. Overrides \code{bin_width}.
+#'   Default NULL.
+#' @param bin_width Numeric. Width of each bin. Default NULL (auto: 1 when the
+#'   degree range is \eqn{\le 50}{<= 50}, otherwise Freedman-Diaconis).
+#' @param normalize Logical. If TRUE, the y-axis shows proportions (bars sum
+#'   to 1) instead of counts. Default FALSE.
+#' @param log Character. Axis log-scaling: "" (none, default), "x", "y", or
+#'   "xy". For cumulative plots, "xy" produces log-log CCDF (standard for
+#'   power-law inspection).
 #' @param main Character. Plot title. Default "Degree Distribution".
 #' @param xlab Character. X-axis label. Default "Degree".
-#' @param ylab Character. Y-axis label. Default "Frequency" (or "Cumulative
-#'   Frequency" if cumulative = TRUE).
-#' @param col Character. Bar fill color. Default "steelblue".
-#' @param ... Additional arguments passed to \code{\link[graphics]{hist}}.
+#' @param ylab Character. Y-axis label. Default auto-chosen based on
+#'   \code{normalize} and \code{cumulative}.
+#' @param col Character. Bar/line fill color. Default "steelblue".
+#' @param border Character. Bar border color. Default "white".
+#' @param ... Additional graphical arguments passed to
+#'   \code{\link[graphics]{barplot}} (histogram) or
+#'   \code{\link[graphics]{plot}} (cumulative).
 #'
-#' @return Invisibly returns the histogram object from \code{graphics::hist()}.
+#' @return Invisibly returns a list with components:
+#'   \describe{
+#'     \item{degree}{Named integer vector of per-node degrees.}
+#'     \item{table}{Table of degree frequencies.}
+#'     \item{breaks}{Breakpoints used for the histogram (non-cumulative only).}
+#'     \item{counts}{Bin counts (non-cumulative only).}
+#'     \item{proportions}{Bin proportions (non-cumulative only).}
+#'   }
 #'
 #' @export
 #' @examples
-#' # Basic usage
+#' # Basic usage — integer-aligned bins by default
 #' adj <- matrix(c(0, 1, 1, 0,
 #'                 1, 0, 1, 1,
 #'                 1, 1, 0, 1,
 #'                 0, 1, 1, 0), 4, 4, byrow = TRUE)
 #' cograph::degree_distribution(adj)
 #'
-#' # Cumulative distribution
+#' # Cumulative (CCDF)
 #' cograph::degree_distribution(adj, cumulative = TRUE)
+#'
+#' # Control bins
+#' \dontrun{
+#' cograph::degree_distribution(large_net, bins = 15)
+#' cograph::degree_distribution(large_net, bin_width = 5)
+#' cograph::degree_distribution(large_net, breaks = c(0, 5, 10, 20, 50, 100))
+#' }
 #'
 #' # For directed networks
 #' directed_adj <- matrix(c(0, 1, 0, 0,
@@ -292,7 +324,7 @@ network_summary <- function(x,
 #'
 #' # With igraph
 #' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::erdos.renyi.game(100, 0.1)
+#'   g <- igraph::sample_gnp(100, 0.1)
 #'   cograph::degree_distribution(g, col = "coral")
 #' }
 degree_distribution <- function(x,
@@ -301,14 +333,21 @@ degree_distribution <- function(x,
                                 loops = TRUE,
                                 simplify = "sum",
                                 cumulative = FALSE,
+                                breaks = NULL,
+                                bins = NULL,
+                                bin_width = NULL,
+                                normalize = FALSE,
+                                log = "",
                                 main = "Degree Distribution",
                                 xlab = "Degree",
-                                ylab = "Frequency",
+                                ylab = NULL,
                                 col = "steelblue",
+                                border = "white",
                                 ...) {
 
   # Validate mode
   mode <- match.arg(mode, c("all", "in", "out"))
+  stopifnot(is.character(log), length(log) == 1L, log %in% c("", "x", "y", "xy"))
 
   # Convert input to igraph
   g <- to_igraph(x, directed = directed)
@@ -327,43 +366,145 @@ degree_distribution <- function(x,
 
   # Get degree values
   deg <- igraph::degree(g, mode = mode)
+  deg_range <- range(deg)
 
-  # Adjust y-axis label for cumulative
+  # Compute breaks
+  computed_breaks <- .compute_degree_breaks(deg, deg_range, breaks, bins,
+                                            bin_width)
 
-  if (cumulative && ylab == "Frequency") {
-    ylab <- "Cumulative Frequency"
+  # Default y-axis label
+  if (is.null(ylab)) {
+    ylab <- if (cumulative) {
+      "P(Degree \u2265 k)"
+    } else if (normalize) {
+      "Proportion"
+    } else {
+      "Frequency"
+    }
   }
 
-  # Create histogram
   if (cumulative) {
-    # For cumulative, we need to compute the empirical CDF
-    deg_sorted <- sort(deg)
-    n <- length(deg_sorted)
-    cum_freq <- seq_len(n) / n
-
-    # Create histogram for return value, but plot CDF
-    h <- graphics::hist(deg, plot = FALSE, ...)
-
-    # Plot cumulative distribution as step function
-    graphics::plot(deg_sorted, cum_freq,
-                   type = "s",
-                   main = main,
-                   xlab = xlab,
-                   ylab = ylab,
-                   col = col,
-                   lwd = 2,
-                   ...)
+    .plot_cumulative_degree(deg, log, main, xlab, ylab, col, ...)
   } else {
-    # Standard histogram
-    h <- graphics::hist(deg,
-                        main = main,
-                        xlab = xlab,
-                        ylab = ylab,
-                        col = col,
-                        ...)
+    .plot_histogram_degree(deg, computed_breaks, normalize, log, main, xlab,
+                           ylab, col, border, ...)
   }
 
-  invisible(h)
+  # Return value
+  deg_table <- table(deg)
+  h <- graphics::hist(deg, breaks = computed_breaks, plot = FALSE)
+
+  invisible(list(
+    degree = deg,
+    table = deg_table,
+    breaks = h$breaks,
+    counts = h$counts,
+    proportions = h$counts / sum(h$counts)
+  ))
+}
+
+#' Compute histogram breaks for degree data
+#' @noRd
+.compute_degree_breaks <- function(deg, deg_range, breaks, bins, bin_width) {
+  if (!is.null(breaks)) return(breaks)
+
+  if (!is.null(bins)) {
+    return(seq(deg_range[1] - 0.5, deg_range[2] + 0.5,
+               length.out = bins + 1L))
+  }
+
+  if (!is.null(bin_width)) {
+    lo <- deg_range[1] - bin_width / 2
+    hi <- deg_range[2] + bin_width / 2
+    brks <- seq(lo, hi, by = bin_width)
+    # Ensure last break covers max value
+    if (brks[length(brks)] < deg_range[2]) {
+      brks <- c(brks, brks[length(brks)] + bin_width)
+    }
+    return(brks)
+  }
+
+  # Default: integer-aligned when range <= 50, Freedman-Diaconis otherwise
+  span <- deg_range[2] - deg_range[1]
+  if (span <= 50) {
+    seq(deg_range[1] - 0.5, deg_range[2] + 0.5, by = 1)
+  } else {
+    "FD"
+  }
+}
+
+#' Plot cumulative degree distribution (CCDF)
+#' @noRd
+.plot_cumulative_degree <- function(deg, log, main, xlab, ylab, col, ...) {
+  deg_tab <- table(deg)
+  k_vals <- as.integer(names(deg_tab))
+  n <- length(deg)
+  # CCDF: P(degree >= k)
+  ccdf <- vapply(k_vals, function(k) sum(deg >= k) / n, numeric(1))
+
+  use_log <- if (log == "xy") "xy" else if (log == "x") "x" else
+    if (log == "y") "y" else ""
+
+  # Filter zeros for log scale
+  keep <- if (nzchar(use_log)) ccdf > 0 else rep(TRUE, length(ccdf))
+
+  graphics::plot(k_vals[keep], ccdf[keep],
+                 type = "b",
+                 pch = 16,
+                 log = use_log,
+                 main = main,
+                 xlab = xlab,
+                 ylab = ylab,
+                 col = col,
+                 lwd = 2,
+                 ...)
+  graphics::grid(col = grDevices::adjustcolor("gray50", 0.3), lty = 1)
+}
+
+#' Plot histogram for degree distribution
+#' @noRd
+.plot_histogram_degree <- function(deg, breaks, normalize, log, main, xlab,
+                                   ylab, col, border, ...) {
+  h <- graphics::hist(deg, breaks = breaks, plot = FALSE)
+
+  heights <- if (normalize) h$counts / sum(h$counts) else h$counts
+  bar_names <- .degree_bar_labels(h$breaks)
+
+  use_log <- if (log %in% c("y", "xy")) "y" else ""
+  if (nzchar(use_log)) {
+    heights[heights == 0] <- NA
+  }
+
+  graphics::barplot(heights,
+                    names.arg = bar_names,
+                    main = main,
+                    xlab = xlab,
+                    ylab = ylab,
+                    col = col,
+                    border = border,
+                    log = use_log,
+                    space = 0,
+                    las = 1,
+                    ...)
+  graphics::grid(nx = NA, ny = NULL,
+                 col = grDevices::adjustcolor("gray50", 0.3), lty = 1)
+}
+
+#' Create bar labels from histogram breaks
+#' @noRd
+.degree_bar_labels <- function(brks) {
+  vapply(seq_len(length(brks) - 1L), function(i) {
+    lo <- ceiling(brks[i])
+    hi <- floor(brks[i + 1L])
+    if (lo > hi) {
+      # Sub-integer bin width: use decimal range
+      sprintf("%.1f", (brks[i] + brks[i + 1L]) / 2)
+    } else if (lo == hi) {
+      as.character(lo)
+    } else {
+      sprintf("%d-%d", lo, hi)
+    }
+  }, character(1))
 }
 
 
@@ -686,11 +827,6 @@ network_local_efficiency <- function(x, weights = NULL, invert_weights = NULL, a
     g <- to_igraph(x, ...)
   }
 
-  # Make undirected for local efficiency calculation
-  if (igraph::is_directed(g)) {
-    g <- igraph::as_undirected(g, mode = "collapse")
-  }
-
   n <- igraph::vcount(g)
   if (n <= 1) return(NA_real_)
 
@@ -704,34 +840,13 @@ network_local_efficiency <- function(x, weights = NULL, invert_weights = NULL, a
     inv_weights <- 1 / (weights ^ alpha)
     inv_weights[!is.finite(inv_weights)] <- .Machine$double.xmax
     igraph::E(g)$weight <- inv_weights
+    weights <- inv_weights
   }
 
-  local_eff <- numeric(n)
-
-  for (v in seq_len(n)) {
-    # Get neighbors
-    neighbors <- igraph::neighbors(g, v, mode = "all")
-    k <- length(neighbors)
-
-    if (k <= 1) {
-      local_eff[v] <- 0
-      next
-    }
-
-    # Induce subgraph on neighbors
-    subg <- igraph::induced_subgraph(g, neighbors)
-
-    # Compute efficiency of subgraph (weights already inverted on g)
-    sp <- igraph::distances(subg, mode = "all",
-                            weights = if (!is.null(weights)) igraph::E(subg)$weight else NULL)
-    diag(sp) <- NA
-    inv_sp <- 1 / sp
-    inv_sp[is.infinite(sp)] <- 0
-
-    local_eff[v] <- sum(inv_sp, na.rm = TRUE) / (k * (k - 1))
-  }
-
-  mean(local_eff, na.rm = TRUE)
+  # Use igraph's Latora-Marchiori (2001) implementation directly
+  igraph::average_local_efficiency(g, weights = weights,
+                                    directed = igraph::is_directed(g),
+                                    mode = "all")
 }
 
 
@@ -782,9 +897,10 @@ network_small_world <- function(x, n_random = 10, ...) {
   if (is.na(C_obs) || is.na(L_obs) || is.nan(C_obs) || is.nan(L_obs)) {
     return(NA_real_)
   }
-  if (C_obs == 0 || L_obs == 0 || is.infinite(L_obs)) {
+  if (L_obs == 0 || is.infinite(L_obs)) {
     return(NA_real_)
   }
+  # C_obs == 0 is valid (no triangles → sigma = 0, definitively not small-world)
 
   # Generate random graphs and compute averages
   C_rand_vals <- numeric(n_random)
@@ -792,7 +908,7 @@ network_small_world <- function(x, n_random = 10, ...) {
 
   for (i in seq_len(n_random)) {
     # Erdos-Renyi random graph with same n and m
-    g_rand <- igraph::erdos.renyi.game(n, m, type = "gnm")
+    g_rand <- igraph::sample_gnm(n, m)
     C_rand_vals[i] <- igraph::transitivity(g_rand, type = "global")
     L_rand_vals[i] <- igraph::mean_distance(g_rand, directed = FALSE)
   }
@@ -882,7 +998,7 @@ network_rich_club <- function(x, k = NULL, normalized = FALSE, n_random = 10, ..
       igraph::sample_degseq(deg, method = "fast.heur.simple")
     }, error = function(e) {
       # Fall back to Erdos-Renyi if degree sequence fails
-      igraph::erdos.renyi.game(igraph::vcount(g), igraph::ecount(g), type = "gnm") # nocov
+      igraph::sample_gnm(igraph::vcount(g), igraph::ecount(g)) # nocov
     })
 
     deg_rand <- igraph::degree(g_rand)
@@ -907,4 +1023,452 @@ network_rich_club <- function(x, k = NULL, normalized = FALSE, n_random = 10, ..
   } # nocov end
 
   phi_k / phi_rand
+}
+
+
+# ---------------------------------------------------------------------------
+# Graph-level spectral summaries (Batch 6 — new-API measures)
+# ---------------------------------------------------------------------------
+
+#' Estrada Index
+#'
+#' A graph-level spectral invariant derived from subgraph centrality:
+#' \deqn{EE(G) = \sum_{i=1}^{n} e^{\lambda_i}}
+#' where \eqn{\lambda_i} are the eigenvalues of the adjacency matrix. The
+#' Estrada index equals the total number of closed walks in the graph,
+#' weighted by walk length: \eqn{EE(G) = \sum_k M_k / k!} where \eqn{M_k} is
+#' the number of closed walks of length \eqn{k}. It is the sum of subgraph
+#' centralities across all nodes.
+#'
+#' Matches \code{networkx.estrada_index} at machine epsilon (max relative
+#' difference ~5e-15 across random test graphs).
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#'
+#' @return A single numeric value — the Estrada index of the graph.
+#'
+#' @seealso \code{\link{centrality_subgraph}} for the per-node equivalent
+#'   (sum of \code{subgraph_centrality(x)} equals \code{estrada_index(x)}).
+#' @references
+#' Estrada, E. (2000). Characterization of 3D molecular structure.
+#' \emph{Chemical Physics Letters}, 319(5-6), 713-718.
+#'
+#' @export
+#' @examples
+#' # Karate club
+#' g <- igraph::make_graph("Zachary")
+#' estrada_index(g)
+estrada_index <- function(x) {
+  g <- to_igraph(x)
+  n <- igraph::vcount(g)
+  if (n == 0) return(0)
+  A <- as.matrix(igraph::as_adjacency_matrix(g, sparse = FALSE))
+  ev <- eigen(A, only.values = TRUE, symmetric = isSymmetric(A))$values
+  sum(exp(Re(ev)))
+}
+
+
+#' Trophic Incoherence Parameter
+#'
+#' The trophic incoherence parameter \eqn{q} is a measure of how "vertically
+#' ordered" a directed network is (Johnson et al. 2014). For each edge
+#' \eqn{(u, v)}, the trophic difference is \eqn{x_{uv} = s_v - s_u} where
+#' \eqn{s_i} is the trophic level of node \eqn{i}. The trophic incoherence
+#' parameter is the (population) standard deviation of these differences:
+#' \deqn{q = \sqrt{\frac{1}{|E|} \sum_{(u,v) \in E} (x_{uv} - \bar{x})^2}}
+#'
+#' Low values (\eqn{q \approx 0}) indicate a perfectly coherent network
+#' (e.g., a pure food web where every edge goes up one level). High values
+#' indicate an incoherent network with many level-skipping or downward
+#' edges. Johnson et al. 2014 showed that low-\eqn{q} food webs are
+#' dynamically more stable.
+#'
+#' Matches \code{networkx.trophic_incoherence_parameter} at machine epsilon.
+#' Directed-only; requires at least one basal node (node with no incoming
+#' edges) for trophic levels to be well-defined.
+#'
+#' @param x Directed network input.
+#' @param cannibalism Logical. If \code{FALSE}, self-loops are removed before
+#'   computing trophic differences. Default \code{TRUE}.
+#'
+#' @return A single numeric value (\code{NA_real_} for empty edge sets or
+#'   undirected input).
+#'
+#' @seealso \code{\link{centrality}} (the \code{trophic_level} measure) for
+#'   the per-node levels used in the incoherence calculation.
+#' @references
+#' Johnson, S., Dominguez-Garcia, V., Donetti, L., & Munoz, M. A. (2014).
+#' Trophic coherence determines food-web stability. \emph{PNAS}, 111(50),
+#' 17923-17928.
+#'
+#' @export
+#' @examples
+#' # Small directed 3-node chain: 1 -> 2 -> 3 (perfectly coherent, q = 0)
+#' adj <- matrix(c(0,1,0, 0,0,1, 0,0,0), 3, 3, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
+#' trophic_incoherence(adj)
+trophic_incoherence <- function(x, cannibalism = TRUE) {
+  g <- to_igraph(x)
+  if (!igraph::is_directed(g)) {
+    warning("trophic_incoherence requires a directed graph; returning NA",
+            call. = FALSE)
+    return(NA_real_)
+  }
+  if (!isTRUE(cannibalism)) {
+    # Remove self-loops (matching NetworkX's convention when cannibalism=FALSE)
+    g <- igraph::simplify(g, remove.multiple = FALSE, remove.loops = TRUE)
+  }
+  if (igraph::ecount(g) == 0) return(NA_real_)
+
+  # Compute trophic levels via the existing native calculator
+  levels <- calculate_trophic_level(g)
+  if (all(is.na(levels))) return(NA_real_)
+
+  el <- igraph::as_edgelist(g, names = FALSE)
+  diffs <- levels[el[, 2]] - levels[el[, 1]]
+
+  # NetworkX uses numpy.std with default ddof=0 (population std); R's sd()
+  # uses ddof=1 (sample std) and would diverge.
+  sqrt(mean((diffs - mean(diffs))^2))
+}
+
+
+# ---------------------------------------------------------------------------
+# Group centrality family (Everett & Borgatti 1999)
+# ---------------------------------------------------------------------------
+
+#' Group Centrality (Everett-Borgatti 1999)
+#'
+#' Group centrality measures the importance of a \emph{set} of nodes
+#' \eqn{C \subseteq V} rather than a single node. Three variants are
+#' supported:
+#'
+#' \describe{
+#'   \item{betweenness}{\eqn{GBC(C) = \sum_{s,t \in V \setminus C, s \ne t}
+#'     \sigma(s, t \mid C) / \sigma(s, t)}, where \eqn{\sigma(s, t)} is the
+#'     number of shortest \eqn{s}-\eqn{t} paths and \eqn{\sigma(s, t \mid C)}
+#'     is the number of those paths passing through at least one node in
+#'     \eqn{C}. Normalized by \eqn{1 / ((|V| - |C|)(|V| - |C| - 1))}.}
+#'   \item{closeness}{\eqn{GCC(C) = (|V| - |C|) / \sum_{v \in V \setminus C}
+#'     d(v, C)}, where \eqn{d(v, C) = \min_{c \in C} d(v, c)} is the shortest
+#'     distance from \eqn{v} to any group member. Unreachable nodes
+#'     contribute 0 to the denominator sum (matching NetworkX convention).
+#'     For directed graphs, cograph uses \eqn{d(v, c)} in the original
+#'     direction, equivalent to NetworkX's "reverse then multi-source".}
+#'   \item{degree}{\eqn{GDC(C) = |N(C) \setminus C| / (|V| - |C|)}, the
+#'     fraction of non-group nodes adjacent to at least one group member.
+#'     \code{mode = "in"} / \code{"out"} pick the corresponding directed
+#'     neighborhood.}
+#' }
+#'
+#' @section Divergence from NetworkX on betweenness:
+#' \code{networkx.group_betweenness_centrality} uses the Puzis-Yahalom-Elovici
+#' iterative algorithm, which produces results that diverge from the textbook
+#' Everett-Borgatti / Puzis 2008 "at least one node in C" definition on some
+#' graph topologies (verified via an independent Python brute-force). cograph
+#' implements the textbook formula directly; group_closeness and group_degree
+#' match NetworkX exactly.
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param nodes Integer vector of node indices (1-based) or character vector
+#'   of node names identifying the group \eqn{C}.
+#' @param measure One of \code{"betweenness"}, \code{"closeness"},
+#'   \code{"degree"}.
+#' @param mode For directed graphs with \code{measure = "degree"}: \code{"all"}
+#'   (both directions), \code{"out"} (outgoing), or \code{"in"} (incoming).
+#'   Ignored for undirected graphs and other measures.
+#' @param normalized Logical, for \code{"betweenness"} only. If \code{TRUE}
+#'   (default), divide by \eqn{(|V| - |C|)(|V| - |C| - 1)}.
+#'
+#' @return A single numeric scalar — the group centrality of the set
+#'   \code{nodes}.
+#'
+#' @seealso \code{\link{centrality}} for per-node measures.
+#' @references
+#' Everett, M. G., & Borgatti, S. P. (1999). The centrality of groups and
+#' classes. \emph{Journal of Mathematical Sociology}, 23(3), 181-201.
+#'
+#' Puzis, R., Yahalom, R., & Elovici, Y. (2008). Augmentative data collection
+#' for betweenness centrality. In \emph{Advances in Social Networks Analysis
+#' and Mining} (pp. 196-200). IEEE.
+#'
+#' @export
+#' @examples
+#' g <- igraph::make_graph("Zachary")
+#' group_centrality(g, nodes = c(1, 2, 3), measure = "betweenness")
+#' group_centrality(g, nodes = c(1, 2, 3), measure = "closeness")
+#' group_centrality(g, nodes = c(1, 2, 3), measure = "degree")
+group_centrality <- function(x, nodes,
+                             measure = c("betweenness", "closeness", "degree"),
+                             mode = c("all", "out", "in"),
+                             normalized = TRUE) {
+  measure <- match.arg(measure)
+  mode <- match.arg(mode)
+
+  g <- to_igraph(x)
+  n <- igraph::vcount(g)
+
+  # Resolve node names to integer indices
+  if (is.character(nodes)) {
+    vnames <- igraph::V(g)$name
+    if (is.null(vnames)) {
+      stop("group_centrality: node names not available on graph", call. = FALSE)
+    }
+    C <- match(nodes, vnames)
+    if (anyNA(C)) {
+      stop("group_centrality: unknown nodes: ",
+           paste(nodes[is.na(C)], collapse = ", "), call. = FALSE)
+    }
+  } else {
+    C <- as.integer(nodes)
+  }
+  if (any(C < 1L | C > n)) {
+    stop("group_centrality: node indices out of range [1, ", n, "]",
+         call. = FALSE)
+  }
+  C <- unique(C)
+
+  switch(measure,
+    "betweenness" = .group_betweenness(g, C, normalized = normalized),
+    "closeness"   = .group_closeness(g, C),
+    "degree"      = .group_degree(g, C, mode = mode)
+  )
+}
+
+
+#' Group betweenness: textbook Everett-Borgatti formula
+#' @keywords internal
+#' @noRd
+.group_betweenness <- function(g, C, normalized = TRUE) {
+  n <- igraph::vcount(g)
+  V_minus_C <- setdiff(seq_len(n), C)
+  if (length(V_minus_C) < 2L) return(0)
+
+  total <- 0
+  for (s in V_minus_C) {
+    for (t in V_minus_C) {
+      if (s == t) next
+      asp <- igraph::all_shortest_paths(g, from = s, to = t, weights = NA)
+      paths <- asp$res
+      if (length(paths) == 0L) next
+      through <- sum(vapply(paths, function(p) {
+        pv <- as.integer(p)
+        if (length(pv) <= 2L) return(FALSE)
+        inner <- pv[-c(1L, length(pv))]
+        any(inner %in% C)
+      }, logical(1)))
+      total <- total + through / length(paths)
+    }
+  }
+
+  if (normalized) {
+    k <- length(V_minus_C)
+    total <- total / (k * (k - 1L))
+  }
+  total
+}
+
+
+#' Group closeness: |V - C| / sum of min-distance-to-C over V - C
+#' @keywords internal
+#' @noRd
+.group_closeness <- function(g, C) {
+  n <- igraph::vcount(g)
+  V_minus_C <- setdiff(seq_len(n), C)
+  if (length(V_minus_C) == 0L) return(0)
+
+  # distances(g, v = V-C, to = C): matrix where D[i, j] = dist from V-C[i] to C[j]
+  # min per row = distance from each v in V-C to the closest group member.
+  D <- igraph::distances(g, v = V_minus_C, to = C, mode = "out", weights = NA)
+  d_vec <- apply(D, 1, min)
+  closeness_sum <- sum(d_vec[is.finite(d_vec)])
+  if (closeness_sum == 0) return(0)
+  length(V_minus_C) / closeness_sum
+}
+
+
+#' Group degree: |N(C) - C| / (N - |C|)
+#' @keywords internal
+#' @noRd
+.group_degree <- function(g, C, mode = "all") {
+  n <- igraph::vcount(g)
+  if (!igraph::is_directed(g)) mode <- "all"
+
+  nbrs <- integer(0)
+  for (c in C) {
+    nbrs <- c(nbrs, as.integer(igraph::neighbors(g, c, mode = mode)))
+  }
+  nbrs_unique <- unique(nbrs)
+  nbrs_outside <- setdiff(nbrs_unique, C)
+  k <- n - length(C)
+  if (k == 0L) return(0)
+  length(nbrs_outside) / k
+}
+
+
+# ---------------------------------------------------------------------------
+# Dispersion (Backstrom-Kleinberg 2014)
+# ---------------------------------------------------------------------------
+
+#' Dispersion (Backstrom-Kleinberg 2014)
+#'
+#' Per-pair measure of tie strength from the Facebook relationship-inference
+#' paper. For each pair \eqn{(u, v)} where \eqn{v} is a neighbor of \eqn{u}:
+#'
+#' \enumerate{
+#'   \item Let \eqn{S_T = N(u) \cap N(v)} be their mutual friends (embeddedness).
+#'   \item Count pairs \eqn{(s, t) \subset S_T} such that:
+#'     \itemize{
+#'       \item \eqn{s} and \eqn{t} are not directly connected, AND
+#'       \item \eqn{s} and \eqn{t} share no common neighbor inside \eqn{N(u)}
+#'         other than \eqn{u} and \eqn{v}.
+#'     }
+#'   \item The raw dispersion is this count. When \code{normalized = TRUE},
+#'     the result is \eqn{(\mathrm{dispersion} + b)^{\alpha} /
+#'     (\mathrm{embeddedness} + c)} (normalization is skipped when
+#'     \code{embeddedness + c == 0}).
+#' }
+#'
+#' Matches \code{networkx.dispersion} bit-exact for all three call modes
+#' (single pair, single source, full matrix).
+#'
+#' @param x Network input (matrix, igraph, network, cograph_network, tna object).
+#' @param u Optional source node (1-based index or node name). If \code{NULL}
+#'   (default), compute for all sources.
+#' @param v Optional target node. If \code{NULL}, compute for all neighbors
+#'   of \code{u}.
+#' @param normalized Logical. If \code{TRUE} (default), return the normalized
+#'   form; otherwise the raw count.
+#' @param alpha Numeric normalization exponent. Default 1.
+#' @param b Numeric bias added to dispersion before exponentiation. Default 0.
+#' @param c Numeric bias added to embeddedness in the denominator. Default 0.
+#'
+#' @return
+#' \itemize{
+#'   \item Scalar if both \code{u} and \code{v} are specified.
+#'   \item Named numeric vector if exactly one of \code{u}, \code{v} is given
+#'     (names are the other endpoints).
+#'   \item A data frame with columns \code{from}, \code{to}, \code{dispersion}
+#'     when neither \code{u} nor \code{v} is given (one row per ordered edge).
+#' }
+#'
+#' @references
+#' Backstrom, L., & Kleinberg, J. (2014). Romantic partnerships and the
+#' dispersion of social ties: A network analysis of relationship status on
+#' Facebook. In \emph{Proceedings of CSCW} (pp. 831-841). ACM.
+#' \url{https://arxiv.org/pdf/1310.6753v1.pdf}
+#'
+#' @export
+#' @examples
+#' g <- igraph::make_graph("Zachary")
+#' # Node 0 (R index 1) to node 33 (R index 34)
+#' dispersion(g, u = 1, v = 34)
+#' # All pairs from node 1
+#' head(dispersion(g, u = 1))
+dispersion <- function(x, u = NULL, v = NULL,
+                       normalized = TRUE,
+                       alpha = 1, b = 0, c = 0) {
+  g <- to_igraph(x)
+  n <- igraph::vcount(g)
+  if (n == 0) return(numeric(0))
+
+  # Resolve node labels to 1-based indices
+  resolve_node <- function(node) {
+    if (is.null(node)) return(NULL)
+    if (is.character(node)) {
+      vnames <- igraph::V(g)$name
+      if (is.null(vnames)) {
+        stop("dispersion: node names not available on graph", call. = FALSE)
+      }
+      idx <- match(node, vnames)
+      if (anyNA(idx)) {
+        stop("dispersion: unknown node(s): ",
+             paste(node[is.na(idx)], collapse = ", "), call. = FALSE)
+      }
+      return(as.integer(idx))
+    }
+    as.integer(node)
+  }
+  u <- resolve_node(u)
+  v <- resolve_node(v)
+
+  # Adjacency list (undirected treatment — dispersion is defined on the
+  # undirected ego network in Backstrom-Kleinberg). For a directed graph,
+  # NetworkX treats G[u] as OUT-neighbors, which we match.
+  nbrs_of <- function(node) {
+    as.integer(igraph::neighbors(g, node, mode = "out"))
+  }
+
+  # Single-pair inner computation
+  disp_pair <- function(u_i, v_i) {
+    u_nbrs <- nbrs_of(u_i)
+    v_nbrs <- nbrs_of(v_i)
+    ST <- intersect(v_nbrs, u_nbrs)
+    set_uv <- c(u_i, v_i)
+    total <- 0L
+    if (length(ST) >= 2L) {
+      # All unordered pairs from ST
+      k <- length(ST)
+      for (i in seq_len(k - 1L)) {
+        for (j in seq(i + 1L, k)) {
+          s <- ST[i]
+          t <- ST[j]
+          # nbrs_s = u's neighbors intersected with s's neighbors, minus {u, v}
+          s_nbrs <- nbrs_of(s)
+          nbrs_s <- setdiff(intersect(u_nbrs, s_nbrs), set_uv)
+          # s and t not directly connected?
+          if (!(t %in% nbrs_s)) {
+            t_nbrs <- nbrs_of(t)
+            # s and t don't share a common neighbor in u's ego net
+            if (length(intersect(nbrs_s, t_nbrs)) == 0L) {
+              total <- total + 1L
+            }
+          }
+        }
+      }
+    }
+    embeddedness <- length(ST)
+    if (normalized) {
+      val <- (total + b)^alpha
+      if (embeddedness + c != 0) val <- val / (embeddedness + c)
+      val
+    } else {
+      as.numeric(total)
+    }
+  }
+
+  # Dispatch on u / v modes
+  if (!is.null(u) && !is.null(v)) {
+    return(disp_pair(u, v))
+  }
+  if (!is.null(u) && is.null(v)) {
+    u_nbrs <- nbrs_of(u)
+    out <- vapply(u_nbrs, function(v_i) disp_pair(u, v_i), numeric(1))
+    names(out) <- as.character(u_nbrs)
+    return(out)
+  }
+  if (is.null(u) && !is.null(v)) {
+    v_nbrs <- nbrs_of(v)
+    out <- vapply(v_nbrs, function(u_i) disp_pair(v, u_i), numeric(1))
+    names(out) <- as.character(v_nbrs)
+    return(out)
+  }
+
+  # Both NULL: compute for every (u, v) where v is a neighbor of u
+  rows <- list()
+  for (uu in seq_len(n)) {
+    u_nbrs <- nbrs_of(uu)
+    for (vv in u_nbrs) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        from = uu, to = vv,
+        dispersion = disp_pair(uu, vv),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (length(rows) == 0L) {
+    return(data.frame(from = integer(0), to = integer(0),
+                      dispersion = numeric(0)))
+  }
+  do.call(rbind, rows)
 }

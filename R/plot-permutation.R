@@ -107,6 +107,13 @@ plot_permutation <- function(x,
 
   # Build args list
   args <- list(...)
+
+  # Translate qgraph-style vsize to node_size
+  if (!is.null(args$vsize) && is.null(args$node_size)) {
+    args$node_size <- args$vsize
+    args$vsize <- NULL
+  }
+
   n_nodes <- nrow(weights)
 
   # Apply same rounding as splot to match edge counts
@@ -302,14 +309,26 @@ plot_permutation <- function(x,
 #'
 #' @export
 plot_group_permutation <- function(x, i = NULL, ...) {
+  # Strip `title` from `...` so we can re-inject a per-panel title without
+  # R's argument matcher seeing `title` twice. If the user supplied one,
+  # compose it as `"user_title - pair_name"` so both pieces of information
+  # survive into each panel; otherwise the pair name alone becomes the title.
+  dots <- list(...)
+  user_title <- dots$title
+  dots$title <- NULL
+  compose_title <- function(pair) {
+    if (is.null(user_title)) pair else paste(user_title, "-", pair)
+  }
+
   if (!is.null(i)) {
     # Plot single comparison
     elem <- x[[i]]
     if (is.null(elem)) {
       stop("Invalid index i=", i, call. = FALSE)
     }
-    title <- if (is.character(i)) i else names(x)[i]
-    return(plot_permutation(elem, title = title, ...))
+    pair_title <- if (is.character(i)) i else names(x)[i]
+    return(do.call(plot_permutation,
+                   c(list(elem, title = compose_title(pair_title)), dots)))
   }
 
   # Plot all comparisons
@@ -329,8 +348,9 @@ plot_group_permutation <- function(x, i = NULL, ...) {
 
   pair_names <- names(x)
   for (k in seq_len(n_pairs)) {
-    title <- pair_names[k] %||% paste("Comparison", k)
-    plot_permutation(x[[k]], title = title, ...)
+    pair_title <- pair_names[k] %||% paste("Comparison", k)
+    do.call(plot_permutation,
+            c(list(x[[k]], title = compose_title(pair_title)), dots))
   }
 
   invisible(NULL)
@@ -355,7 +375,7 @@ plot_group_permutation <- function(x, i = NULL, ...) {
 #' @param ... Additional arguments passed to \code{splot()}.
 #'
 #' @return Invisibly returns the plot.
-#' @keywords internal
+#' @rdname splot
 #' @export
 splot.net_permutation <- function(x,
                                   show_nonsig         = FALSE,
@@ -378,6 +398,13 @@ splot.net_permutation <- function(x,
 
   weights_display <- if (show_nonsig) diffs_true else diffs_sig
   args            <- list(...)
+
+  # Translate qgraph-style vsize to node_size
+  if (!is.null(args$vsize) && is.null(args$node_size)) {
+    args$node_size <- args$vsize
+    args$vsize <- NULL
+  }
+
   n_nodes         <- nrow(weights_display)
 
   # Round to match splot's internal weight_digits (default 2), so edge_idx

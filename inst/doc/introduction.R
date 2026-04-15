@@ -2,181 +2,100 @@
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  fig.width = 6,
+  fig.width = 7,
   fig.height = 6,
-  fig.dpi = 50,
-  dpi = 50
+  fig.dpi = 72,
+  dpi = 72,
+  message = FALSE,
+  warning = FALSE
 )
 
 ## ----setup--------------------------------------------------------------------
 library(cograph)
 
-## ----matrix-input-------------------------------------------------------------
-# Create a simple adjacency matrix
-adj <- matrix(c(
-  0, 1, 1, 0, 0,
-  1, 0, 1, 1, 0,
-  1, 1, 0, 1, 1,
-  0, 1, 1, 0, 1,
-  0, 0, 1, 1, 0
-), nrow = 5, byrow = TRUE)
+## -----------------------------------------------------------------------------
+set.seed(42)
+n <- 10
+states <- c("Explore", "Plan", "Monitor", "Adapt", "Reflect",
+            "Discuss", "Synthesize", "Evaluate", "Create", "Share")
+mat <- matrix(0, n, n, dimnames = list(states, states))
+# Sparse: ~30% of edges populated
+edges <- sample(which(row(mat) != col(mat)), 30)
+mat[edges] <- round(runif(30, 0.05, 0.5), 2)
 
-# Add labels
-rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D", "E")
+## ----fig.height=6-------------------------------------------------------------
+splot(mat, tna_styling = TRUE, minimum = 0.1,
+  title = "Learning Regulation Network")
 
-# Create and render
-cograph(adj)
+## ----eval=FALSE---------------------------------------------------------------
+# splot(mat, layout = "spring")
+# splot(mat, minimum = 0.1, edge_labels = TRUE)
+# splot(mat, scale_nodes_by = "betweenness")
+# splot(mat, theme = "dark")
+# splot(mat, tna_styling = TRUE)
 
-## ----edgelist-input-----------------------------------------------------------
-edges <- data.frame(
-  from = c("Alice", "Alice", "Bob", "Carol"),
-  to = c("Bob", "Carol", "Carol", "Dave"),
-  weight = c(1, 2, 1, 3)
-)
+## ----fig.height=6, fig.width=10-----------------------------------------------
+plot_simplicial(mat,
+  c("Explore Plan -> Monitor",
+    "Monitor Adapt -> Reflect",
+    "Discuss Synthesize -> Evaluate",
+    "Create Share -> Explore"),
+  dismantled = TRUE, ncol = 2,
+  title = "Higher-Order Pathways")
 
-cograph(edges)
+## -----------------------------------------------------------------------------
+strong <- filter_edges(mat, weight > 0.3)
+get_edges(strong)
 
-## ----layout-circle------------------------------------------------------------
-cograph(adj, layout = "circle")
+## -----------------------------------------------------------------------------
+top3 <- select_nodes(mat, top = 3, by = "betweenness")
+get_labels(top3)
 
-## ----layout-spring------------------------------------------------------------
-cograph(adj, layout = "spring", seed = 42)
+## -----------------------------------------------------------------------------
+centrality(mat, measures = c("degree", "betweenness", "pagerank"))
 
-## ----layout-groups------------------------------------------------------------
-groups <- c(1, 1, 2, 2, 2)
-cograph(adj) |>
-  sn_layout("groups", groups = groups)
+## -----------------------------------------------------------------------------
+centrality_degree(mat)
+centrality_pagerank(mat)
 
-## ----node-customization-------------------------------------------------------
-cograph(adj) |>
-  sn_nodes(
-    size = 0.08,
-    shape = "circle",
-    fill = "steelblue",
-    border_color = "navy",
-    border_width = 2
-  )
+## -----------------------------------------------------------------------------
+network_summary(mat)
 
-## ----node-per-node------------------------------------------------------------
-cograph(adj) |>
-  sn_nodes(
-    size = c(0.05, 0.06, 0.08, 0.06, 0.05),
-    fill = c("red", "orange", "yellow", "green", "blue")
-  )
+## -----------------------------------------------------------------------------
+comms <- communities(mat, method = "walktrap")
+comms
+community_sizes(comms)
 
-## ----node-shapes--------------------------------------------------------------
-cograph(adj) |>
-  sn_nodes(
-    shape = c("circle", "square", "triangle", "diamond", "star")
-  )
+## -----------------------------------------------------------------------------
+mot <- motifs(mat, significance = FALSE)
+mot
 
-## ----edge-basic---------------------------------------------------------------
-cograph(adj) |>
-  sn_edges(
-    width = 2,
-    color = "gray40",
-    alpha = 0.7
-  )
+## ----eval=FALSE---------------------------------------------------------------
+# robustness(mat, type = "vertex", measure = "betweenness", n_iter = 100)
+# plot_robustness(x = mat, measures = c("betweenness", "degree", "random"))
 
-## ----edge-weighted------------------------------------------------------------
-# Create weighted adjacency matrix
-weighted <- matrix(c(
-  0, 0.8, -0.5, 0, 0,
-  0.8, 0, 0.3, -0.7, 0,
-  -0.5, 0.3, 0, 0.6, -0.4,
-  0, -0.7, 0.6, 0, 0.9,
-  0, 0, -0.4, 0.9, 0
-), nrow = 5, byrow = TRUE)
+## ----eval=FALSE---------------------------------------------------------------
+# disparity_filter(mat)
+# splot.tna_disparity(disparity_filter(mat))
 
-cograph(weighted) |>
-  sn_edges(
-    width = "weight",
-    color = "weight",
-    positive_color = "darkgreen",
-    negative_color = "darkred"
-  )
+## ----eval=FALSE---------------------------------------------------------------
+# clusters <- list(
+#   Cognitive  = c("Explore", "Plan", "Monitor", "Adapt", "Reflect"),
+#   Social     = c("Discuss", "Synthesize", "Share"),
+#   Evaluative = c("Evaluate", "Create")
+# )
+# plot_mcml(mat, clusters, mode = "tna")
+# plot_mtna(mat, clusters)
 
-## ----edge-directed------------------------------------------------------------
-# Create directed network
-dir_adj <- matrix(c(
-  0, 1, 1, 0, 0,
-  0, 0, 1, 1, 0,
-  0, 0, 0, 1, 1,
-  0, 0, 0, 0, 1,
-  0, 0, 0, 0, 0
-), nrow = 5, byrow = TRUE)
-
-cograph(dir_adj, directed = TRUE) |>
-  sn_edges(
-    curvature = 0.1,
-    arrow_size = 0.015
-  )
-
-## ----theme-classic------------------------------------------------------------
-cograph(adj) |> sn_theme("classic")
-
-## ----theme-dark---------------------------------------------------------------
-cograph(adj) |> sn_theme("dark")
-
-## ----theme-minimal------------------------------------------------------------
-cograph(adj) |> sn_theme("minimal")
-
-## ----theme-colorblind---------------------------------------------------------
-cograph(adj) |> sn_theme("colorblind")
-
-## ----ggplot-conversion--------------------------------------------------------
-library(ggplot2)
-
-p <- cograph(adj) |>
-  sn_nodes(fill = "coral") |>
-  sn_ggplot()
-
-p +
-  labs(
-    title = "My Network",
-    subtitle = "Created with cograph"
-  ) +
-  theme(plot.title = element_text(hjust = 0.5))
-
-## ----complete-example---------------------------------------------------------
-# Social network example
-social <- matrix(c(
-  0, 1, 1, 0, 0, 0,
-  1, 0, 1, 1, 0, 0,
-  1, 1, 0, 1, 1, 0,
-  0, 1, 1, 0, 1, 1,
-  0, 0, 1, 1, 0, 1,
-  0, 0, 0, 1, 1, 0
-), nrow = 6, byrow = TRUE)
-
-rownames(social) <- colnames(social) <-
-  c("Alice", "Bob", "Carol", "Dave", "Eve", "Frank")
-
-groups <- c("Team A", "Team A", "Team A", "Team B", "Team B", "Team B")
-
-social |>
-  cograph() |>
-  sn_layout("groups", groups = groups) |>
-  sn_nodes(
-    size = 0.06,
-    fill = ifelse(groups == "Team A", "#E69F00", "#56B4E9"),
-    border_width = 2
-  ) |>
-  sn_edges(width = 1.5, alpha = 0.6) |>
-  sn_theme("minimal") |>
-  sn_render(title = "Social Network")
-
-## ----saving, eval=FALSE-------------------------------------------------------
-# net <- cograph(adj) |>
-#   sn_nodes(fill = "steelblue") |>
-#   sn_theme("minimal")
+## ----eval=FALSE---------------------------------------------------------------
+# mat |>
+#   cograph() |>
+#   sn_layout("spring") |>
+#   sn_theme("minimal") |>
+#   sn_nodes(size = 8, fill = "steelblue") |>
+#   sn_edges(curvature = 0.2) |>
+#   sn_render(title = "My Network")
 # 
-# # Save as PDF
-# sn_save(net, "network.pdf", width = 8, height = 8)
-# 
-# # Save as PNG
-# sn_save(net, "network.png", width = 8, height = 8, dpi = 300)
-# 
-# # Save as SVG
-# sn_save(net, "network.svg", width = 8, height = 8)
+# mat |> cograph() |> sn_save("network.pdf")
+# p <- mat |> cograph() |> sn_ggplot()
 
