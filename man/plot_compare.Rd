@@ -18,15 +18,19 @@ plot_compare(
   show_inits = NULL,
   donut_inner_ratio = 0.8,
   force = FALSE,
+  combined = TRUE,
   ...
 )
 }
 \arguments{
-\item{x}{First network: matrix, CographNetwork, tna, igraph object,
-OR a group_tna object. For group_tna with 2 groups, compares them directly.
-For more groups, plots all pairwise comparisons (or specify i, j).}
+\item{x}{First network: matrix, \code{cograph_network},
+\code{CographNetwork}, \code{tna}, \code{igraph}, list-like object with
+\code{$weights}, plain list of networks, or \code{group_tna}. For
+\code{group_tna} with 2 groups, compares them directly. For more groups,
+plots all pairwise comparisons (or specify i, j).}
 
-\item{y}{Second network: same type as x. Ignored if x is group_tna.}
+\item{y}{Second network: same type as x. Ignored if x is a list or
+\code{group_tna}.}
 
 \item{i}{Index/name of first group when x is group_tna. NULL for all pairs.}
 
@@ -49,6 +53,12 @@ For more groups, plots all pairwise comparisons (or specify i, j).}
 \item{donut_inner_ratio}{Inner radius ratio for donut (0-1). Default 0.8.}
 
 \item{force}{Logical: force plotting when more than 4 groups (many comparisons). Default FALSE.}
+
+\item{combined}{Logical: when TRUE (default) and \code{x} is a multi-group
+input that triggers all-pairs plotting, lay panels out in an internal
+grid via \code{graphics::par(mfrow=...)}. Set to FALSE to draw into a
+layout the caller has already configured (e.g. via
+\code{\link{panel_layout}()}). Has no effect for the single-pair path.}
 
 \item{...}{Additional arguments passed to splot().}
 }
@@ -80,8 +90,6 @@ For lists of networks (e.g., group_tna), specify which elements to compare
 using i and j parameters.
 }
 \examples{
-\dontrun{
-# Compare two adjacency matrices
 set.seed(42)
 m1 <- matrix(runif(25), 5, 5)
 m2 <- matrix(runif(25), 5, 5)
@@ -90,9 +98,8 @@ rownames(m2) <- colnames(m2) <- LETTERS[1:5]
 plot_compare(m1, m2)
 
 # With node-level differences
-inits1 <- c(0.3, 0.2, 0.2, 0.15, 0.15)
-inits2 <- c(0.1, 0.4, 0.2, 0.2, 0.1)
-plot_compare(m1, m2, inits_x = inits1, inits_y = inits2)
-}
+plot_compare(m1, m2,
+             inits_x = c(.3, .2, .2, .15, .15),
+             inits_y = c(.1, .4, .2, .2, .1))
 
 }

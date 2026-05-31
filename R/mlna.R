@@ -21,9 +21,9 @@
 #' @param layout Node layout within layers: "horizontal" (default) spreads nodes
 #'   horizontally, "circle" arranges nodes in an ellipse, "spring" uses
 #'   force-directed placement based on within-layer connections.
-#' @param layer_spacing Vertical distance between layer centers. Default 2.5.
-#' @param layer_width Horizontal width of each layer shell. Default 5.
-#' @param layer_depth Depth of each layer (for 3D effect). Default 2.5.
+#' @param layer_spacing Vertical distance between layer centers. Default 4.
+#' @param layer_width Horizontal width of each layer shell. Default 8.
+#' @param layer_depth Depth of each layer (for 3D effect). Default 4.
 #' @param skew_angle Angle of perspective skew in degrees. Default 25.
 #' @param node_spacing Node placement ratio within layer (0-1). Default 0.7.
 #'   Higher values spread nodes closer to the layer edges.
@@ -41,7 +41,7 @@
 #' @param legend Logical. Whether to show legend. Default TRUE.
 #' @param legend_position Position for legend. Default "topright".
 #' @param curvature Edge curvature for within-layer edges. Default 0.15.
-#' @param node_size Size of nodes. Default 2.5.
+#' @param node_size Size of nodes. Default 3.
 #' @param minimum Minimum edge weight threshold. Edges below this are hidden.
 #'   Default 0.
 #' @param scale Scaling factor for spacing parameters. Use scale > 1 for
@@ -65,33 +65,14 @@
 #' @export
 #'
 #' @examples
-#' \dontrun{
-#' # Create multilevel network
 #' set.seed(42)
+#' m <- matrix(runif(225, 0, 0.3), 15, 15); diag(m) <- 0
 #' nodes <- paste0("N", 1:15)
-#' m <- matrix(runif(225, 0, 0.3), 15, 15)
-#' diag(m) <- 0
 #' colnames(m) <- rownames(m) <- nodes
-#'
-#' # Define 3 layers
-#' layers <- list(
-#'   Macro = paste0("N", 1:5),
-#'   Meso = paste0("N", 6:10),
-#'   Micro = paste0("N", 11:15)
-#' )
-#'
-#' # Basic usage
+#' layers <- list(Macro = nodes[1:5], Meso = nodes[6:10], Micro = nodes[11:15])
 #' plot_mlna(m, layers)
-#'
-#' # Customized
-#' plot_mlna(m, layers,
-#'      layer_spacing = 2.5,
-#'      layer_width = 5,
-#'      between_style = 2,  # dashed
-#'      minimum = 0.1)
-#'
-#' # Circle layout within layers
-#' plot_mlna(m, layers, layout = "circle")
+#' \donttest{
+#' plot_mlna(m, layers, layout = "circle", between_style = 2, minimum = 0.1)
 #' }
 plot_mlna <- function(
     model,
@@ -594,9 +575,9 @@ plot_mlna <- function(
       "pentagon" = 21, "hexagon" = 21, "star" = 8, "cross" = 3
     )
 
-    pch_values <- sapply(layer_shapes, function(s) {
-      if (s %in% names(shape_to_pch)) shape_to_pch[s] else 21
-    })
+    pch_values <- vapply(layer_shapes, function(s) {
+      if (s %in% names(shape_to_pch)) shape_to_pch[[s]] else 21
+    }, numeric(1))
 
     graphics::legend(
       legend_position,
@@ -618,12 +599,10 @@ plot_mlna <- function(
 #' @return See \code{\link{plot_mlna}}.
 #' @export
 #' @examples
-#' \dontrun{
+#' set.seed(1)
 #' nodes <- paste0("N", 1:9)
-#' m <- matrix(runif(81, 0, 0.3), 9, 9)
-#' diag(m) <- 0
+#' m <- matrix(runif(81, 0, 0.3), 9, 9); diag(m) <- 0
 #' colnames(m) <- rownames(m) <- nodes
 #' layers <- list(L1 = nodes[1:3], L2 = nodes[4:6], L3 = nodes[7:9])
 #' mlna(m, layers)
-#' }
 mlna <- plot_mlna

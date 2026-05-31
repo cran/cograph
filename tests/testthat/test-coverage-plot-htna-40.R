@@ -213,21 +213,21 @@ test_that("plot_htna auto-selects bipartite for 2 groups", {
   on.exit(unlink(tmp), add = TRUE)
 
   png(tmp, width = 400, height = 400)
-  # layout = "auto" should select bipartite for 2 groups
+  # layout = "auto" -> circular for any group count
   expect_no_error(
     plot_htna(mat, node_list = list(G1 = c("A", "B", "C"), G2 = c("D", "E", "F")), layout = "auto")
   )
   dev.off()
 })
 
-test_that("plot_htna auto-selects polygon for 3+ groups", {
+test_that("plot_htna auto-selects circular for 3+ groups", {
   mat <- create_test_htna_matrix(9, labels = LETTERS[1:9])
 
   tmp <- tempfile(fileext = ".png")
   on.exit(unlink(tmp), add = TRUE)
 
   png(tmp, width = 400, height = 400)
-  # layout = "auto" should select polygon for 3 groups
+  # layout = "auto" -> circular for any group count
   expect_no_error(
     plot_htna(mat,
               node_list = list(G1 = c("A", "B", "C"), G2 = c("D", "E", "F"), G3 = c("G", "H", "I")),
@@ -767,6 +767,39 @@ test_that("plot_htna works with custom edge_colors", {
   dev.off()
 })
 
+test_that("plot_htna derives edge_colors from group_colors when not given", {
+  # Regression: passing group_colors used to leave edges on a hardcoded
+  # palette (#0288D1/#E09800), ignoring user intent. Edges should darken
+  # group_colors instead.
+  mat <- create_test_htna_matrix(6)
+  groups <- list(G1 = c("A", "B", "C"), G2 = c("D", "E", "F"))
+
+  captured <- NULL
+  unlockBinding("tplot", asNamespace("cograph"))
+  orig_tplot <- get("tplot", envir = asNamespace("cograph"))
+  assign("tplot",
+         function(...) { captured <<- list(...); invisible(NULL) },
+         envir = asNamespace("cograph"))
+  lockBinding("tplot", asNamespace("cograph"))
+  on.exit({
+    unlockBinding("tplot", asNamespace("cograph"))
+    assign("tplot", orig_tplot, envir = asNamespace("cograph"))
+    lockBinding("tplot", asNamespace("cograph"))
+  }, add = TRUE)
+
+  tmp <- tempfile(fileext = ".png")
+  on.exit(unlink(tmp), add = TRUE)
+  png(tmp, width = 400, height = 400)
+  plot_htna(mat, node_list = groups,
+            group_colors = c("red", "yellow"), legend = FALSE)
+  dev.off()
+
+  ec <- captured$edge.color
+  expect_true(is.matrix(ec))
+  expect_setequal(unique(stats::na.omit(as.vector(ec))),
+                  cograph:::.darken_colors(c("red", "yellow"), 0.25))
+})
+
 # ============================================
 # LEGEND
 # ============================================
@@ -1302,4 +1335,39 @@ test_that("plot_htna returns result invisibly", {
 
   # Result should be returned (from tplot)
   expect_false(is.null(result))
+})
+
+test_that("plot_htna respects legend_horiz override and legend_ncol", {
+  mat <- create_test_htna_matrix(6)
+  groups <- list(G1 = c("A", "B", "C"), G2 = c("D", "E", "F"))
+
+  tmp <- tempfile(fileext = ".png")
+  on.exit(unlink(tmp), add = TRUE)
+  png(tmp, width = 400, height = 400)
+
+  expect_no_error(plot_htna(mat, node_list = groups, legend_horiz = TRUE,
+                            legend_position = "topright"))
+  expect_no_error(plot_htna(mat, node_list = groups, legend_horiz = FALSE,
+                            legend_position = "bottom", legend_ncol = 2))
+
+  dev.off()
+})
+
+test_that("plot_htna circular default uses bumped angle_spacing only when not user-set", {
+  # The bump (0.15 -> 0.35) only fires when user doesn't pass angle_spacing.
+  # No direct way to inspect the resolved value, so just confirm both
+  # branches draw without error.
+  mat <- create_test_htna_matrix(9, labels = LETTERS[1:9])
+  groups <- list(G1 = LETTERS[1:3], G2 = LETTERS[4:6], G3 = LETTERS[7:9])
+
+  tmp <- tempfile(fileext = ".png")
+  on.exit(unlink(tmp), add = TRUE)
+  png(tmp, width = 400, height = 400)
+
+  # Implicit -> 0.35
+  expect_no_error(plot_htna(mat, node_list = groups))
+  # Explicit user value (0.05) is honored
+  expect_no_error(plot_htna(mat, node_list = groups, angle_spacing = 0.05))
+
+  dev.off()
 })

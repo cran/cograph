@@ -1,4 +1,194 @@
-# cograph 2.1.1
+# cograph 2.3.6
+
+## Bug fixes
+
+- Removed the `cluster_network()` alias for `summarize_network()`. It
+  collided with `Nestimate::cluster_network()` — a completely different
+  function (PAM clustering on sequence data, one network per cluster) —
+  and the two silently masked each other depending on package attach
+  order, producing confusing `unused arguments (k = ..., cluster_by =
+  ...)` errors. Use `summarize_network()` (or its remaining short form
+  `cnet()`) for matrix-to-cluster aggregation in cograph.
+
+# cograph 2.3.5
+
+## Documentation
+
+- Added Sonsoles López-Pernas as co-copyright holder in `LICENSE`.
+- README / docs wording fixes (e.g. "hyper order" → "higher-order").
+- Introduction vignette no longer asserts a fixed centrality-measure
+  count, which kept drifting as the measure set grew.
+
+# cograph 2.3.4
+
+## Bug fixes
+
+- `.smooth_blob()` (used by `plot_simplicial()` and
+  `overlay_communities()`) now guards `grDevices::chull()` against
+  non-finite anchor coordinates. Previously a node lacking layout
+  coordinates (NA/Inf) aborted the blob with "finite coordinates are
+  needed"; such anchors are now dropped before the convex-hull step.
+
+# cograph 2.3.3
+
+## Documentation
+
+- Aligned the `motifs()` / `subgraphs()` roxygen documentation with the
+  post-audit behavior shipped in 2.3.2 (census `type_summary` counts,
+  `min_count` handling, and corrected plot legend descriptions).
+
+# cograph 2.3.2
+
+## Bug fixes
+
+- Full audit pass over the motifs subsystem: `type_summary` now holds
+  real MAN-type counts in census mode, `min_count` is honored in census
+  mode, and the swapped source/target color description in
+  `plot.cograph_motif_result()` is corrected.
+- Unbroke `motifs()` and `plot_simplicial()` on Nestimate-backed
+  workflows (HON / HYPA sequence inputs).
+- `panel_layout()`: tightened dimension validation and made the
+  restoration claim honest — it now restores only the `par()` settings
+  it actually changed.
+
+# cograph 2.3.1
+
+## Multi-panel layout control
+
+- New `combined` argument (default `TRUE`) on every multi-panel plot
+  function: `splot()` group-cascade, `plot_netobject_group()`,
+  `plot_netobject_ml()`, `plot_net_bootstrap_group()`,
+  `plot_group_permutation()`, `plot_compare()`, `splot.net_mlvar()`,
+  `plot_network_evolution()`, `plot.cograph_motifs()`,
+  `plot.cograph_motif_result()`, `plot.cograph_motif_analysis()`, and
+  `plot.tna_disparity()`. With `combined = FALSE` these functions draw
+  panels into the active device without calling `graphics::par(mfrow=...)`,
+  so callers can drive their own layout (e.g. `graphics::layout()` or
+  the new `panel_layout()` helper). Default `TRUE` preserves prior
+  behavior — every existing call site renders identically.
+- New `panel_layout()` helper sets up a custom multi-panel device layout
+  for use with `combined = FALSE`. Accepts either a uniform-grid
+  `c(nrow, ncol)` or a `graphics::layout()` matrix for non-uniform
+  layouts (e.g. one wide panel + two narrow ones). Returns a `par()`
+  snapshot for restoration via `on.exit()`.
+
+## Test suite hygiene
+
+- `test-coverage-splot-{41,42}.R`: bumped `n_nodes` from 4 to 10 in
+  seven per-edge attribute tests so the seed=42 sampler does not
+  produce duplicate (1,2) pairs that trip cograph's
+  undirected-duplicate-edge detector.
+- `test-coverage-class-network-41.R`: aligned the
+  `set_layout_coords()` mismatched-row-count test with the strict
+  input validation already enforced by `R/class-network.R`.
+- `test-overlay-communities.R`: prefixed two `communities()` calls
+  with `cograph::` to avoid `tna` masking when both packages are
+  loaded in the suite (per CLAUDE.md "namespace masking" gotcha).
+
+# cograph 2.3.0
+
+## Documentation
+
+- Audited every R/*.R function file for roxygen/Rd accuracy. Corrected
+  stale defaults (`cr_color` `#D4820A` -> `#D4829A` in `plot-forest.R`;
+  `show_value` default `FALSE` -> `TRUE` in `splot-nodes.R`), corrected
+  dataset dimensions in `data-hai.R` (`302` -> `429 x 287`), corrected a
+  reference to the nonexistent `igraph::is_bipartite()` (now
+  `bipartite_mapping()`), expanded `centrality()` `@param` measure
+  lists for `mode`, `cutoff`, `invert_weights`, and `membership` to
+  match the implementation, dropped baked-in measure counts that rot
+  on each addition, and removed nonexistent themes from `sn_theme`
+  documentation. No runtime behavior changes from the documentation
+  pass itself.
+
+## Bug fixes
+
+- `plot_simplicial()` now warns when `anomaly` is set on an input that
+  has no anomaly concept (HON, association rules, link prediction,
+  character pathways, `method = "hon"` / `"rules"`). Previously the
+  argument was silently dropped, so calls like
+  `plot_simplicial(hon, anomaly = "over")` and
+  `plot_simplicial(hon, anomaly = "under")` produced byte-identical
+  plots. `anomaly` is honored only for `net_hypa` inputs and
+  `method = "hypa"` auto-builds.
+
+## Centrality
+
+- `centrality()` gains an umbrella argument `tna_network` (logical or
+  NULL). When `TRUE` (or auto-detected from a `tna`/`group_tna`/`ctna`/
+  `ftna`/`atna` input), all measures shared with `tna::centralities()`
+  match byte-for-byte: `loops = FALSE`, `invert_weights = TRUE`,
+  `diffusion_method = "power_series"`, `transitivity_type = "onnela"`.
+  Side-by-side audit confirms zero divergence on `OutStrength`,
+  `InStrength`, `ClosenessIn/Out/All`, `Betweenness`, `Diffusion`,
+  `Clustering` (`max|diff| = 0`). Any per-argument override the user
+  passes explicitly always wins over the umbrella.
+- `centrality()` (and `centrality_diffusion()`) gain a
+  `diffusion_method = c("kandhway_kuri", "power_series")` argument. The
+  default `NULL` auto-detects: `"power_series"` for tna inputs (matches
+  `tna::centralities(., measures = "Diffusion")` byte-for-byte when
+  `loops = FALSE`), `"kandhway_kuri"` (the existing 1-hop binary-degree
+  formula, Kandhway & Kuri 2014) for everything else. Previously
+  cograph's diffusion silently disagreed with tna's because cograph used
+  an unweighted neighborhood-degree sum while tna uses
+  `rowSums(P + P^2 + ... + P^n)` on the diagonal-zeroed weighted matrix
+  — the same name covered two different statistics. Set explicitly to
+  override the auto-detect.
+
+## Tests
+
+- Added a regression test in
+  `tests/testthat/test-validate-nestimate-bootstrap-permutation.R`
+  asserting that `centrality()` on a Nestimate `netobject` agrees with
+  `centrality()` on its `$weights` matrix when the diagonal is
+  non-zero. Locks in the upstream Nestimate fix to
+  `.extract_edges_from_matrix()` (Nestimate >= 2026-05-02) which now
+  preserves self-loops in `$edges`. Without that fix, loop-bearing
+  netobjects (e.g. `Nestimate::build_mcml() |> Nestimate::as_tna()`)
+  silently under-counted node degree by 2.
+
+## Plotting — edge-label cex coupling (Phase 2)
+
+- Default `edge_label_size` is now coupled to the node label cex at a
+  fixed 0.55 fraction (`edge_cex = 0.55 * mean(node_label_cex)`) so the
+  node-to-edge-label ratio stays a stable ~1.82x across canvases. This
+  replaces the previous `EDGE_LABEL_SCALE_CAP`-based compensation, which
+  let the ratio drift from 2.5x at reference to 3.6x at poster canvases
+  because edge labels were clamped to a tighter 1.6 ceiling while node
+  labels scaled freely to 2.3. The visible effect: edge weight
+  annotations are now readable at poster sizes instead of shrinking
+  relative to node labels. User-explicit `edge_label_size` still wins
+  and receives the same (capped) visual-scale compensation as before;
+  only the default path changed.
+- Edge-label visual_scale resolution moved from `render_edges_splot()`
+  into `splot.R` so the final cex is produced in a single place.
+
+## Plotting — device-aware visual scaling
+
+- `splot()` now applies device-dependent compensation to text, line, and
+  point sizes so visual ratios (label-to-node, legend-to-plot, edge
+  thickness) stay consistent when the output device changes. This fixes the
+  long-standing "labels too big at high DPI" and "legend desynchronised from
+  the plot" issues when saving PNGs at `res = 300` or `res = 600` with
+  pixel-default `width`/`height`, and when resizing the RStudio plot pane.
+  Implementation: a single `compute_visual_scale()` reads the active
+  device's canvas size (`dev.size("in")`) and returns multipliers keyed off
+  a 5.9-inch reference (matching the default RStudio 7×5" pane so
+  backward-compatible behaviour at the default canvas is preserved).
+  Multipliers are clamped to `[0.55, 1.9]` to keep thumbnails and posters
+  legible. See the new `R/visual-scale.R`.
+- New `scaling = "fixed"` mode on `splot()` — and corresponding global
+  option `options(cograph.visual_scaling = FALSE)` — disables device
+  compensation for reproducibility-sensitive workflows that calibrated
+  against the previous behaviour.
+- `splot()` return value now carries two attributes for downstream tooling:
+  `cograph.visual_scale` (the multiplier list) and `cograph.node_diam_in`
+  (the representative node diameter in inches at the rendered device).
+- The splot-internal `render_legend_splot()` plus the new shared
+  `.render_legend_base()` (`R/render-legend-shared.R`) replace the ad-hoc
+  legend cex/pt.cex handling with a single compensated path. `plot_htna`,
+  `plot_mtna`, `plot_mlna`, `plot_mcml` still use their historical scale
+  multiplier arguments; Phase 2 will migrate them to the shared helper.
 
 ## Plotting
 

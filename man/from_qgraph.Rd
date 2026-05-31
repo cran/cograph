@@ -10,6 +10,7 @@ from_qgraph(
   plot = TRUE,
   weight_digits = 2,
   show_zero_edges = FALSE,
+  preserve_node_size = FALSE,
   ...
 )
 }
@@ -26,6 +27,9 @@ Edges that round to zero are removed unless \code{show_zero_edges = TRUE}.}
 
 \item{show_zero_edges}{Logical. If TRUE, keep edges even if their weight rounds to
 zero. Default: FALSE.}
+
+\item{preserve_node_size}{Logical. If TRUE, use the node sizes extracted
+from the qgraph object. Default FALSE uses cograph's standard sizing.}
 
 \item{...}{Override any extracted parameter. Use qgraph-style names (e.g.,
 \code{minimum}) or cograph names (e.g., \code{threshold}).}
@@ -49,7 +53,8 @@ cograph equivalents:
 \itemize{
 \item \code{labels}/\code{names} \code{->} \code{labels}
 \item \code{color} \code{->} \code{node_fill}
-\item \code{width} \code{->} \code{node_size} (scaled by 1.3x)
+\item \code{width} \code{->} \code{node_size} (scaled by 1.3x) when
+\code{preserve_node_size = TRUE}
 \item \code{shape} \code{->} \code{node_shape} (mapped to cograph equivalents)
 \item \code{border.color} \code{->} \code{node_border_color}
 \item \code{border.width} \code{->} \code{node_border_width}

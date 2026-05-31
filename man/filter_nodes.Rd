@@ -42,8 +42,8 @@ Examples: \code{degree >= 3}, \code{label \%in\% c("A", "B")},
 \item{\code{"none"}}{Remove all edges}
 }}
 
-\item{keep_format}{Logical. If TRUE, return the same format as input
-(matrix returns matrix, igraph returns igraph, etc.). Default FALSE
+\item{keep_format}{Logical. If TRUE, matrix, igraph, and statnet network
+inputs are returned in that format. Default FALSE
 returns cograph_network (universal format).}
 
 \item{directed}{Logical or NULL. If NULL (default), auto-detect from matrix
@@ -52,44 +52,24 @@ Only used for non-cograph_network inputs.}
 }
 \value{
 A cograph_network object with filtered nodes. If \code{keep_format = TRUE},
-returns the same type as input (matrix, igraph, network, etc.).
+matrix, igraph, and statnet network inputs are converted back to that type.
 }
 \description{
 Filter nodes using dplyr-style expressions on any node column or centrality
 measure. Returns a cograph_network object by default (universal format), or
-optionally the same format as input when \code{keep_format = TRUE}.
+optionally a matrix, igraph, or statnet network object when
+\code{keep_format = TRUE} and the input used one of those formats.
 }
 \examples{
-adj <- matrix(c(0, .5, .8, 0,
-                .5, 0, .3, .6,
-                .8, .3, 0, .4,
-                 0, .6, .4, 0), 4, 4, byrow = TRUE)
+adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+                .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 
-# Keep only high-degree nodes (returns cograph_network)
+# Keep only high-degree nodes
 filter_nodes(adj, degree >= 3)
 
-# Keep format: matrix in, matrix out
-filter_nodes(adj, degree >= 3, keep_format = TRUE)
-
-# Filter by node label
-splot(filter_nodes(adj, label \%in\% c("A", "C")))
-
-# Combine centrality and metadata filters
-splot(filter_nodes(adj, degree >= 2 & label != "D"))
-
-# With cograph_network (pipe-friendly)
-net <- as_cograph(adj)
-net |>
-  filter_edges(weight > 0.3) |>
-  filter_nodes(degree >= 2) |>
-  splot()
-
-# With igraph (keep_format = TRUE returns igraph)
-if (requireNamespace("igraph", quietly = TRUE)) {
-  g <- igraph::make_ring(5)
-  filter_nodes(g, degree >= 2, keep_format = TRUE)  # Returns igraph
-}
+# Filter by label, combined with degree
+filter_nodes(adj, degree >= 2 & label != "D")
 }
 \seealso{
 \code{\link{filter_edges}}, \code{\link{splot}}, \code{\link{subset_nodes}}

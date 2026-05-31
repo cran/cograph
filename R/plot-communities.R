@@ -7,7 +7,7 @@
 #'   matrix, \code{igraph}, or \code{cograph_network}.
 #' @param communities Community assignments in any format:
 #'   a method name (e.g., \code{"walktrap"}, \code{"louvain"}),
-#'   a numeric membership vector (e.g., \code{c(1, 1, 2, 2, 3)}),
+#'   a numeric or factor membership vector (e.g., \code{c(1, 1, 2, 2, 3)}),
 #'   a named list of character vectors,
 #'   a \code{cograph_communities} object, or
 #'   a \code{tna_communities} object.
@@ -21,27 +21,16 @@
 #' @return The \code{splot} result (invisibly).
 #'
 #' @examples
-#' \dontrun{
+#' set.seed(1)
 #' mat <- matrix(runif(25), 5, 5,
 #'               dimnames = list(LETTERS[1:5], LETTERS[1:5]))
 #' diag(mat) <- 0
-#' overlay_communities(mat, list(g1 = c("A", "B"), g2 = c("C", "D", "E")))
-#' }
+#' overlay_communities(mat, list(g1 = c("A","B"), g2 = c("C","D","E")))
 #'
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   model <- tna::tna(tna::group_regulation)
-#'
-#'   # With a named list
-#'   overlay_communities(model, list(
-#'     Regulatory = c("plan", "monitor", "adapt"),
-#'     Social     = c("cohesion", "emotion", "consensus"),
-#'     Task       = c("discuss", "synthesis", "coregulate")
-#'   ))
-#'
-#'   # With a cograph_communities object (infomap supports directed graphs)
-#'   comm <- cograph::communities(model$weights, method = "infomap")
-#'   overlay_communities(model, comm)
-#' }
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
+#' model <- tna::tna(tna::group_regulation)
+#' comm <- cograph::communities(model$weights, method = "infomap")
+#' overlay_communities(model, comm)
 #'
 #' @export
 overlay_communities <- function(x,
@@ -115,10 +104,20 @@ overlay_communities <- function(x,
   # Render network
   result <- splot(x, ...)
 
-  # Node positions: splot returns 0-1, plot coords are (v - 0.5) * 1.8
+  # Prefer splot()'s exported plot-space coords (plot_x / plot_y), which
+  # track rescale + layout_scale accurately. Fall back to the legacy
+  # hard-coded transform if plot_x isn't present (older code paths or
+  # non-splot renderers returning a compatible $nodes structure).
   nodes <- result$nodes
-  px <- setNames((nodes$x - 0.5) * 1.8, nodes$label)
-  py <- setNames((nodes$y - 0.5) * 1.8, nodes$label)
+  if (!is.null(nodes$plot_x) && !is.null(nodes$plot_y)) {
+    px <- setNames(nodes$plot_x, nodes$label)
+    py <- setNames(nodes$plot_y, nodes$label)
+  } else {
+    # nocov start
+    px <- setNames((nodes$x - 0.5) * 1.8, nodes$label)
+    py <- setNames((nodes$y - 0.5) * 1.8, nodes$label)
+    # nocov end
+  }
 
   # Blob styling
   n_comm <- length(communities)

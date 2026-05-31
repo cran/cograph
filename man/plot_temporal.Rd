@@ -50,8 +50,9 @@ NULL uses unique time values.}
 
 \item{labels}{Character vector of layer labels. Default auto.}
 
-\item{layout}{Character or matrix. Shared node layout. Default
-\code{"spring"}.}
+\item{layout}{Character or matrix. Character values currently use a shared
+Fruchterman-Reingold/spring layout; a matrix supplies shared coordinates.
+Default \code{"spring"}.}
 
 \item{node_size}{Numeric. Node size. Default 2.5.}
 
@@ -117,16 +118,12 @@ Displays a network at different time points as vertical planes inside a
 plane extends into the depth of the box.
 }
 \examples{
-\dontrun{
-edges$week <- sample(1:3, nrow(edges), replace = TRUE)
+set.seed(1)
+edges <- data.frame(
+  from = sample(LETTERS[1:5], 30, replace = TRUE),
+  to   = sample(LETTERS[1:5], 30, replace = TRUE),
+  week = sample(1:3, 30, replace = TRUE))
 cograph::plot_temporal(edges, time = "week")
-
-# Customized
-cograph::plot_temporal(edges, time = "week",
-  node_color = "coral", edge_color = "gray30",
-  node_size = 3, edge_width = 2, plane_lty = 3,
-  angle = c(1.2, 0.8), title = "Classroom Evolution")
-}
 }
 \seealso{
 \code{\link{plot_network_evolution}}, \code{\link{plot_mlna}}

@@ -11,10 +11,13 @@ NULL
 #' Optionally displays node-level differences (e.g., initial probabilities)
 #' as donut charts.
 #'
-#' @param x First network: matrix, CographNetwork, tna, igraph object,
-#'   OR a group_tna object. For group_tna with 2 groups, compares them directly.
-#'   For more groups, plots all pairwise comparisons (or specify i, j).
-#' @param y Second network: same type as x. Ignored if x is group_tna.
+#' @param x First network: matrix, \code{cograph_network},
+#'   \code{CographNetwork}, \code{tna}, \code{igraph}, list-like object with
+#'   \code{$weights}, plain list of networks, or \code{group_tna}. For
+#'   \code{group_tna} with 2 groups, compares them directly. For more groups,
+#'   plots all pairwise comparisons (or specify i, j).
+#' @param y Second network: same type as x. Ignored if x is a list or
+#'   \code{group_tna}.
 #' @param i Index/name of first group when x is group_tna. NULL for all pairs.
 #' @param j Index/name of second group when x is group_tna. NULL for all pairs.
 #' @param pos_color Color for positive differences (x > y). Default "#009900" (green).
@@ -26,6 +29,11 @@ NULL
 #' @param show_inits Logical: show node differences as donuts? Default TRUE if inits available.
 #' @param donut_inner_ratio Inner radius ratio for donut (0-1). Default 0.8.
 #' @param force Logical: force plotting when more than 4 groups (many comparisons). Default FALSE.
+#' @param combined Logical: when TRUE (default) and \code{x} is a multi-group
+#'   input that triggers all-pairs plotting, lay panels out in an internal
+#'   grid via \code{graphics::par(mfrow=...)}. Set to FALSE to draw into a
+#'   layout the caller has already configured (e.g. via
+#'   \code{\link{panel_layout}()}). Has no effect for the single-pair path.
 #' @param ... Additional arguments passed to splot().
 #'
 #' @return Invisibly returns a list with difference matrix and inits difference.
@@ -45,8 +53,6 @@ NULL
 #' using i and j parameters.
 #'
 #' @examples
-#' \dontrun{
-#' # Compare two adjacency matrices
 #' set.seed(42)
 #' m1 <- matrix(runif(25), 5, 5)
 #' m2 <- matrix(runif(25), 5, 5)
@@ -55,10 +61,9 @@ NULL
 #' plot_compare(m1, m2)
 #'
 #' # With node-level differences
-#' inits1 <- c(0.3, 0.2, 0.2, 0.15, 0.15)
-#' inits2 <- c(0.1, 0.4, 0.2, 0.2, 0.1)
-#' plot_compare(m1, m2, inits_x = inits1, inits_y = inits2)
-#' }
+#' plot_compare(m1, m2,
+#'              inits_x = c(.3, .2, .2, .15, .15),
+#'              inits_y = c(.1, .4, .2, .2, .1))
 #'
 #' @export
 plot_compare <- function(x, y = NULL,
@@ -73,6 +78,7 @@ plot_compare <- function(x, y = NULL,
                          show_inits = NULL,
                          donut_inner_ratio = 0.8,
                          force = FALSE,
+                         combined = TRUE,
                          ...) {
 
   # Handle group_tna object (tna package integration)
@@ -100,7 +106,8 @@ plot_compare <- function(x, y = NULL,
 
         # Plot all pairs
         return(.plot_compare_all_pairs(x, pos_color, neg_color, labels,
-                                       show_inits, donut_inner_ratio, ...))
+                                       show_inits, donut_inner_ratio,
+                                       combined = combined, ...))
       }
     }
 
@@ -307,7 +314,9 @@ plot_compare <- function(x, y = NULL,
 #'
 #' Creates a heatmap visualization comparing two networks.
 #'
-#' @param x First network: matrix, CographNetwork, tna, or igraph object.
+#' @param x First network: matrix, \code{cograph_network},
+#'   \code{CographNetwork}, \code{tna}, \code{igraph}, or list-like object
+#'   with \code{$weights}.
 #' @param y Second network: same type as x. NULL to plot just x.
 #' @param type What to display: "difference" (x - y), "x", or "y".
 #' @param name_x Label for first network in title. Default "x".
@@ -326,19 +335,13 @@ plot_compare <- function(x, y = NULL,
 #' @return A ggplot2 object.
 #'
 #' @examples
-#' \dontrun{
 #' set.seed(42)
 #' m1 <- matrix(runif(25), 5, 5)
 #' m2 <- matrix(runif(25), 5, 5)
 #' rownames(m1) <- colnames(m1) <- LETTERS[1:5]
 #' rownames(m2) <- colnames(m2) <- LETTERS[1:5]
-#'
-#' # Difference heatmap
 #' plot_comparison_heatmap(m1, m2)
-#'
-#' # Show just one network
 #' plot_comparison_heatmap(m1, type = "x")
-#' }
 #'
 #' @export
 plot_comparison_heatmap <- function(x, y = NULL,
@@ -531,7 +534,8 @@ plot_comparison_heatmap <- function(x, y = NULL,
 #' @return Invisibly returns list of comparison results.
 #' @keywords internal
 .plot_compare_all_pairs <- function(x, pos_color, neg_color, labels,
-                                    show_inits, donut_inner_ratio, ...) {
+                                    show_inits, donut_inner_ratio,
+                                    combined = TRUE, ...) {
   n_groups <- length(x)
   nm <- names(x)
   if (is.null(nm)) nm <- seq_len(n_groups)
@@ -540,13 +544,15 @@ plot_comparison_heatmap <- function(x, y = NULL,
   pairs <- utils::combn(n_groups, 2)
   n_pairs <- ncol(pairs)
 
-  # Calculate grid layout
-  ncol <- ceiling(sqrt(n_pairs))
-  nrow <- ceiling(n_pairs / ncol)
+  if (combined) {
+    # Calculate grid layout
+    ncol <- ceiling(sqrt(n_pairs))
+    nrow <- ceiling(n_pairs / ncol)
 
-  # Set up multi-panel plot
-  old_par <- graphics::par(mfrow = c(nrow, ncol), mar = c(2, 2, 3, 1))
-  on.exit(graphics::par(old_par), add = TRUE)
+    # Set up multi-panel plot
+    old_par <- graphics::par(mfrow = c(nrow, ncol), mar = c(2, 2, 3, 1))
+    on.exit(graphics::par(old_par), add = TRUE)
+  }
 
   results <- list()
 

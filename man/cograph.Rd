@@ -25,9 +25,11 @@ cograph(
 \item A tna object
 }}
 
-\item{layout}{Layout algorithm: "circle", "spring", "groups", "grid",
-"random", "star", "bipartite", or "custom". Default NULL (no layout computed).
-Set to a layout name to compute immediately, or use sn_layout() later.}
+\item{layout}{Layout algorithm name such as "circle", "oval", "spring",
+"groups", "grid", "random", "star", "bipartite", "gephi", or "custom";
+a coordinate matrix/data frame; a CographLayout; or an igraph layout
+function/name. Default NULL (no layout computed). Set to a layout to
+compute immediately, or use sn_layout() later.}
 
 \item{directed}{Logical. Force directed interpretation. NULL for auto-detect.}
 
@@ -51,38 +53,19 @@ igraph, statnet network, qgraph, or tna objects and creates a visualization-read
 network object.
 }
 \examples{
-# From adjacency matrix (no layout computed yet - fast!)
+# From adjacency matrix (layout computed lazily on first plot)
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-net <- cograph(adj)
-
-# Layout computed automatically when plotting
-splot(net)  # Uses spring layout by default
+cograph(adj) |> splot()
 
 # From edge list
 edges <- data.frame(from = c(1, 1, 2), to = c(2, 3, 3))
-cograph(edges)
+cograph(edges) |> splot(layout = "circle")
 
-# Compute layout immediately if needed
-cograph(adj, layout = "circle") |> splot()
-
-# With customization (pipe-friendly workflow)
-adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+# Pipe-friendly customization
 cograph(adj) |>
   sn_nodes(fill = "steelblue") |>
   sn_edges(color = "gray50") |>
   splot(layout = "circle")
-
-# Weighted network with automatic styling
-w_adj <- matrix(c(0, 0.5, -0.3, 0.5, 0, 0.4, -0.3, 0.4, 0), nrow = 3)
-cograph(w_adj) |>
-  sn_edges(color = "weight", width = "weight") |>
-  splot()
-
-# With igraph (if installed)
-if (requireNamespace("igraph", quietly = TRUE)) {
-  g <- igraph::make_ring(10)
-  cograph(g) |> splot()
-}
 }
 \seealso{
 \code{\link{splot}} for base R graphics rendering,

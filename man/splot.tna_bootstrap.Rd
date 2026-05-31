@@ -37,9 +37,11 @@ splot.tna_bootstrap(
 
 \item{edge_style_nonsig}{Line style for non-significant edges (2=dashed). Default 2.}
 
-\item{color_nonsig}{Color for non-significant edges. Default "#888888" (grey).}
+\item{color_nonsig}{Accepted for compatibility; styled mode currently uses a
+fixed pink color for non-significant edges.}
 
-\item{show_ci}{Logical: overlay CI bands on edges? Default FALSE.}
+\item{show_ci}{Logical: include CI bounds in edge labels? Default FALSE.
+Use \code{display = "ci"} for CI underlays on edges.}
 
 \item{show_stars}{Logical: show significance stars (*, **, ***) on edges? Default TRUE.}
 
@@ -73,23 +75,15 @@ Edge styling in "styled" mode:
 }
 }
 \examples{
-\dontrun{
-# Create a mock tna_bootstrap object with synthetic data
-set.seed(42)
-w <- matrix(c(0, 0.3, 0.1, 0.2, 0, 0.4, 0.3, 0.1, 0), 3, 3)
+# Mock a tna_bootstrap object with synthetic data
+w <- matrix(c(0, .3, .1, .2, 0, .4, .3, .1, 0), 3, 3)
 rownames(w) <- colnames(w) <- c("A", "B", "C")
-p <- matrix(c(1, 0.01, 0.5, 0.03, 1, 0.001, 0.2, 0.8, 1), 3, 3)
-boot <- list(
-  weights = w,
-  p_values = p,
-  ci_lower = w - 0.05,
-  ci_upper = w + 0.05,
-  level = 0.05,
-  model = list(weights = w, labels = c("A", "B", "C"))
-)
+p <- matrix(c(1, .01, .5, .03, 1, .001, .2, .8, 1), 3, 3)
+boot <- list(weights = w, p_values = p,
+             ci_lower = w - 0.05, ci_upper = w + 0.05, level = 0.05,
+             model = list(weights = w, labels = c("A", "B", "C")))
 class(boot) <- c("tna_bootstrap", "list")
 splot(boot)
 splot(boot, display = "significant")
-}
 
 }

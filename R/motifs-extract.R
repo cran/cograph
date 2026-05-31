@@ -68,7 +68,6 @@
 #'       (if significance=TRUE) expected, z-score, p-value}
 #'     \item{type_summary}{Summary counts by motif type}
 #'     \item{params}{List of parameters used}
-#'     \item{level}{Analysis level used}
 #'   }
 #'
 #' @section MAN Notation:
@@ -95,23 +94,19 @@
 #' }
 #'
 #' @examples
-#' # Small aggregate example — no significance test for speed
+#' # Small aggregate example -- no significance test for speed
 #' mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
 #' m <- extract_motifs(mat, significance = FALSE)
 #' print(m)
 #'
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
 #' \dontrun{
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   Mod <- tna::tna(tna::group_regulation)
-#'
-#'   # Individual-level from tna — keep n_perm tiny for example speed
-#'   m <- extract_motifs(Mod, top = 10, significance = TRUE,
-#'                       n_perm = 10L, seed = 1)
-#'
-#'   # Filter to feed-forward loops only
-#'   m <- extract_motifs(Mod, include_types = "030T", significance = FALSE)
-#' }
+#' Mod <- tna::tna(tna::group_regulation)
+#' # Individual-level from tna -- keep n_perm tiny for example speed
+#' extract_motifs(Mod, top = 10, significance = TRUE, n_perm = 10L, seed = 1)
+#' # Filter to feed-forward loops only
+#' extract_motifs(Mod, include_types = "030T", significance = FALSE)
 #' }
 #'
 #' @seealso [motifs()], [subgraphs()], [extract_triads()], [motif_census()]
@@ -498,9 +493,15 @@ print.cograph_motif_analysis <- function(x, n = 20, ...) {
 #'       structure of each triad type without specific node labels.}
 #'   }
 #' @param n Number of triads/patterns to show. Default 20.
-#' @param colors Two-element color vector for the types/significance plots:
-#'   first color for over-represented, second for under-represented.
-#'   Default \code{c("#2166AC", "#B2182B")} (blue/red).
+#' @param colors Two-element color vector mapped to a three-tone significance
+#'   scale (used by \code{type = "significance"} and by \code{type = "patterns"}
+#'   node fills): \code{colors[1]} fills items that are significantly
+#'   under-represented (\code{p < .05} and \code{z < 0}); \code{colors[2]}
+#'   fills items that are significantly over-represented (\code{p < .05} and
+#'   \code{z > 0}); everything else is filled neutral grey (\code{"#9E9E9E"}).
+#'   When significance was not run, patterns nodes use \code{colors[1]} as a
+#'   single fill. Default \code{c("#2166AC", "#B2182B")} (blue for under, red
+#'   for over).
 #' @param res Resolution for scaling (kept for backwards compatibility). Default 72.
 #' @param node_size Size of nodes in triad diagrams (1-10 scale). Default 5.
 #' @param label_size Font size for node labels (3-letter abbreviations). Default 7.
@@ -511,19 +512,21 @@ print.cograph_motif_analysis <- function(x, n = 20, ...) {
 #' @param color Color for nodes, edges, and labels in triad diagrams.
 #'   Default \code{"#800020"} (maroon).
 #' @param spacing Spacing multiplier between grid cells (0.5-2). Default 1.
+#' @param combined Logical: when TRUE (default) and \code{type = "patterns"},
+#'   arrange the per-motif panels in an internal grid via
+#'   \code{graphics::par(mfrow=...)}. Set to FALSE to draw into a layout the
+#'   caller has already configured (e.g. via \code{\link{panel_layout}()}).
 #' @param ... Additional arguments (unused).
 #'
-#' @return Invisibly returns NULL for triad plots, or a ggplot2 object for
-#'   types/significance/patterns plots.
+#' @return Invisibly returns NULL for triad and pattern plots, or a ggplot2
+#'   object for types and significance plots.
 #'
 #' @examples
 #' mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
 #' m <- extract_motifs(mat, significance = FALSE)
 #' plot(m)
-#' \dontrun{
-#'   plot(m, type = "types")
-#' }
+#' plot(m, type = "types")
 #'
 #' @seealso [extract_motifs()] for the analysis that produces this object,
 #'   [motif_census()] for statistical motif analysis
@@ -535,7 +538,7 @@ plot.cograph_motif_analysis <- function(x, type = c("triads", "types", "signific
                                          res = 72, node_size = 5, label_size = 7,
                                          title_size = 7, stats_size = 5, ncol = 5,
                                          legend = TRUE, color = "#800020",
-                                         spacing = 1, ...) {
+                                         spacing = 1, combined = TRUE, ...) {
 
   type <- match.arg(type)
 
@@ -605,7 +608,7 @@ plot.cograph_motif_analysis <- function(x, type = c("triads", "types", "signific
       )
 
   } else if (type == "patterns") {
-    .plot_motif_patterns(x, n, colors, ...)
+    .plot_motif_patterns(x, n, colors, combined = combined, ...)
     return(invisible(NULL))
 
   } else {

@@ -37,6 +37,7 @@ plot_mcml(
   summary_label_color = "gray20",
   summary_arrows = TRUE,
   summary_arrow_size = 0.1,
+  summary_pie = c("inits", "self"),
   between_arrows = FALSE,
   edge_width_range = c(0.3, 1.3),
   between_edge_width_range = c(0.5, 2),
@@ -172,10 +173,9 @@ values: \code{"circle"}, \code{"square"}, \code{"diamond"},
 character vector of length equal to the number of nodes (one shape
 per node). Default \code{"circle"}.}
 
-\item{cluster_shape}{Shape for summary nodes in the top layer. Same
-supported values as \code{node_shape}. Can be a single value or a
-vector of length equal to the number of clusters. Default
-\code{"circle"}.}
+\item{cluster_shape}{Accepted for backward compatibility. Summary nodes
+are currently drawn as pie charts, so this parameter does not change
+their shape.}
 
 \item{title}{Main plot title displayed above the figure. Default
 \code{NULL} (no title).}
@@ -213,6 +213,19 @@ edges. Set to \code{FALSE} for undirected networks. Default \code{TRUE}.}
 
 \item{summary_arrow_size}{Size of arrowheads on summary edges. Default
 0.10.}
+
+\item{summary_pie}{Character scalar controlling what the colored slice
+of the top-layer pie chart represents. One of:
+\describe{
+\item{\code{"inits"}}{(default) The cluster's share of the initial
+state distribution (\code{cs$macro$inits[i]}). Answers "how often
+do sequences start in this cluster?" Summed across clusters the
+colored slices equal 1.}
+\item{\code{"self"}}{The cluster's self-retention share of
+out-strength (\code{bw[i, i] / rowSums(bw)[i]}). Answers "how
+sticky is this cluster — how much of its outgoing flow loops
+back to itself?" Each pie is normalized independently.}
+}}
 
 \item{between_arrows}{Logical. Draw arrowheads on between-cluster edges
 in the bottom layer. Default \code{FALSE}.}
@@ -296,8 +309,8 @@ Default 2.}
 \item{label_color}{Text color for detail node labels. Default
 \code{"gray20"}.}
 
-\item{label_position}{Position of detail node labels: 1 = below,
-2 = left, 3 = above, 4 = right. Default 3.}
+\item{label_position}{Accepted for backward compatibility. Detail labels
+are currently positioned automatically to the left or right of each node.}
 
 \item{...}{Additional arguments (currently unused).}
 }
@@ -312,10 +325,12 @@ Produces a two-layer hierarchical visualization of a clustered network.
 The \strong{bottom layer} shows every node arranged inside elliptical cluster
 shells with full within-cluster and between-cluster edges drawn at the
 individual-node level. The \strong{top layer} collapses each cluster into a
-single summary pie-chart node whose colored slice represents the proportion
-of within-cluster flow, with edges carrying the aggregated between-cluster
-weights. Dashed inter-layer lines connect each detail node to its
-corresponding summary node, making the hierarchical mapping explicit.
+single summary pie-chart node whose colored slice represents, by default,
+the cluster's share of the initial state distribution (see
+\code{summary_pie} for the alternative self-retention interpretation),
+with edges carrying the aggregated between-cluster weights. Dashed
+inter-layer lines connect each detail node to its corresponding summary
+node, making the hierarchical mapping explicit.
 }
 \details{
 Use \code{plot_mcml} when you need a simultaneous micro/macro view of
@@ -401,7 +416,7 @@ Cluster spacing / perspective  \tab \code{spacing}, \code{skew_angle} \cr
 Cluster shell appearance       \tab \code{shape_size}, \code{shell_alpha}, \code{shell_border_width}, \code{colors} \cr
 Detail nodes                   \tab \code{node_size}, \code{node_shape}, \code{node_border_color} \cr
 Detail labels                  \tab \code{show_labels}, \code{label_size}, \code{label_abbrev}, \code{label_color}, \code{label_position} \cr
-Summary nodes                  \tab \code{summary_size}, \code{cluster_shape}, \code{summary_border_color}, \code{summary_border_width} \cr
+Summary nodes                  \tab \code{summary_size}, \code{summary_border_color}, \code{summary_border_width} \cr
 Summary labels                 \tab \code{summary_labels}, \code{summary_label_size}, \code{summary_label_color}, \code{summary_label_position} \cr
 Within-cluster edges           \tab \code{edge_width_range}, \code{edge_alpha}, \code{edge_labels} \cr
 Between-cluster edges          \tab \code{between_edge_width_range}, \code{between_edge_alpha} \cr
@@ -413,82 +428,13 @@ Title / legend                 \tab \code{title}, \code{subtitle}, \code{legend}
 }
 
 \examples{
-# --- Setup: create a test matrix ---
-mat <- matrix(runif(36), 6, 6)
-diag(mat) <- 0
+mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
 colnames(mat) <- rownames(mat) <- LETTERS[1:6]
-
-clusters <- list(
-  Cluster1 = c("A", "B"),
-  Cluster2 = c("C", "D"),
-  Cluster3 = c("E", "F")
-)
-
-# 1. Basic usage — pass matrix + clusters directly
+clusters <- list(C1 = c("A","B"), C2 = c("C","D"), C3 = c("E","F"))
 plot_mcml(mat, clusters)
-
-# 2. Pre-compute with cluster_summary for reuse
+\donttest{
 cs <- cluster_summary(mat, clusters)
-plot_mcml(cs)
-
-\dontrun{
-# 3. TNA mode — transition probabilities with edge labels
-plot_mcml(mat, clusters, mode = "tna")
-
-# 4. Custom shapes — different shape per cluster
-plot_mcml(mat, clusters,
-  node_shape = "diamond",
-  cluster_shape = c("circle", "square", "triangle")
-)
-
-# 5. Styling — custom colors, transparency, edge widths
-plot_mcml(mat, clusters,
-  colors = c("#1b9e77", "#d95f02", "#7570b3"),
-  edge_alpha = 0.5,
-  between_edge_alpha = 0.8,
-  shell_alpha = 0.25,
-  edge_width_range = c(0.5, 2.0)
-)
-
-# 6. Edge labels on both layers
-plot_mcml(mat, clusters,
-  edge_labels = TRUE,
-  summary_edge_labels = TRUE,
-  edge_label_digits = 1
-)
-
-# 7. Layout tuning — adjust spacing, perspective, and layer gap
-plot_mcml(mat, clusters,
-  spacing = 4,
-  skew_angle = 45,
-  top_layer_scale = c(1.0, 0.3),
-  inter_layer_gap = 0.8
-)
-
-# 8. With mean aggregation for size-normalized comparison
-plot_mcml(mat, clusters,
-  aggregation = "mean",
-  title = "Mean-aggregated cluster network"
-)
-
-# 9. Label abbreviation for dense networks
-big_mat <- matrix(runif(400), 20, 20)
-diag(big_mat) <- 0
-colnames(big_mat) <- rownames(big_mat) <- paste0("Node_", 1:20)
-big_clusters <- list(
-  Alpha = paste0("Node_", 1:7),
-  Beta  = paste0("Node_", 8:14),
-  Gamma = paste0("Node_", 15:20)
-)
-plot_mcml(big_mat, big_clusters, label_abbrev = "auto")
-
-# 10. Minimal clean plot — no legend, no labels, no arrows
-plot_mcml(mat, clusters,
-  legend = FALSE,
-  show_labels = FALSE,
-  summary_labels = FALSE,
-  summary_arrows = FALSE
-)
+plot_mcml(cs, mode = "tna", edge_labels = TRUE)
 }
 }
 \seealso{

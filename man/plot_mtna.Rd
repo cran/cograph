@@ -68,19 +68,19 @@ mtna(
 )
 }
 \arguments{
-\item{x}{A tna object, weight matrix, cograph_network, or cluster_summary object.}
+\item{x}{A tna object, weight matrix, or cograph_network.}
 
 \item{cluster_list}{Clusters can be specified as:
 \itemize{
 \item A list of character vectors (node names per cluster)
 \item A string column name from nodes data (e.g., "groups")
 \item NULL with \code{community} specified for auto-detection
+\item NULL with a cograph_network that has a common cluster/group column
 }}
 
 \item{community}{Community detection method to use for auto-clustering.
 If specified, overrides \code{cluster_list}. See \code{\link{detect_communities}}
-for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
-"infomap", "leiden".}
+for available methods.}
 
 \item{layout}{How to arrange the clusters: "circle" (default),
 "grid", "horizontal", "vertical".}
@@ -94,8 +94,10 @@ to shape_size). Default 0.5.}
 
 \item{colors}{Vector of colors for each cluster. Default auto-generated.}
 
-\item{shapes}{Vector of shapes for each cluster: "circle", "square",
-"diamond", "triangle". Default cycles through these.}
+\item{shapes}{Vector of shapes for each cluster. Defaults cycle through
+"circle", "square", "diamond", "triangle", "pentagon", "hexagon",
+"star", and "cross"; summary shells draw non-shell shapes with the
+circular fallback.}
 
 \item{edge_colors}{Vector of edge colors by source cluster. Default auto-generated.}
 
@@ -126,10 +128,9 @@ edges within each cluster. Default TRUE.}
 
 \item{layout_margin}{Margin around the layout as fraction of range. Default 0.15.}
 
-\item{scale}{Scaling factor for spacing parameters. Use scale > 1 for
-high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
-spacing and shape_size to maintain proper proportions at higher resolutions.
-Default 1.}
+\item{scale}{Scaling factor for high-resolution output. Values greater than
+1 reduce node, edge, label, and legend sizes by \code{sqrt(scale)} while
+leaving cluster spacing and shape_size unchanged. Default 1.}
 
 \item{show_labels}{Logical. Show node labels inside clusters. Default FALSE.}
 
@@ -146,8 +147,8 @@ Display priority: \code{labels} column > \code{label} column (identifiers).}
 \item{label_abbrev}{Label abbreviation: NULL (none), integer (max chars),
 or "auto" (adaptive based on node count).}
 
-\item{cluster_shape}{Shape for cluster summary nodes when using summary view.
-Can be single value or vector. Overrides \code{shapes}. Default NULL (use shapes).}
+\item{cluster_shape}{Accepted for compatibility; currently unused. Use
+\code{shapes} to control cluster shell shapes.}
 
 \item{...}{Additional parameters passed to plot_tna().}
 }
@@ -160,40 +161,22 @@ See \code{\link{plot_mtna}}.
 \description{
 Visualizes multiple network clusters with summary edges between clusters
 and individual edges within clusters. Each cluster is displayed as a
-shape (circle, square, diamond, triangle) containing its nodes.
+shell shape containing its nodes.
 }
 \examples{
-\dontrun{
-# Create network with 4 clusters
+set.seed(42)
 nodes <- paste0("N", 1:20)
-m <- matrix(runif(400, 0, 0.3), 20, 20)
-diag(m) <- 0
+m <- matrix(runif(400, 0, 0.3), 20, 20); diag(m) <- 0
 colnames(m) <- rownames(m) <- nodes
-
-clusters <- list(
-  North = paste0("N", 1:5),
-  East = paste0("N", 6:10),
-  South = paste0("N", 11:15),
-  West = paste0("N", 16:20)
-)
-
-# Summary edges between clusters + individual edges within
+clusters <- list(N = nodes[1:5], E = nodes[6:10],
+                 S = nodes[11:15], W = nodes[16:20])
 plot_mtna(m, clusters, summary_edges = TRUE)
-
-# With node labels
-plot_mtna(m, clusters, show_labels = TRUE, label_abbrev = 3)
-
-# Control spacing and sizes
-plot_mtna(m, clusters, spacing = 4, shape_size = 1.5, node_spacing = 0.6)
-}
-\dontrun{
+set.seed(1)
 nodes <- paste0("N", 1:12)
-m <- matrix(runif(144, 0, 0.3), 12, 12)
-diag(m) <- 0
+m <- matrix(runif(144, 0, 0.3), 12, 12); diag(m) <- 0
 colnames(m) <- rownames(m) <- nodes
 clusters <- list(C1 = nodes[1:4], C2 = nodes[5:8], C3 = nodes[9:12])
 mtna(m, clusters)
-}
 }
 \seealso{
 \code{\link{cluster_summary}}, \code{\link{plot_mcml}}

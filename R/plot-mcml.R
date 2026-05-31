@@ -4,10 +4,12 @@
 #' The **bottom layer** shows every node arranged inside elliptical cluster
 #' shells with full within-cluster and between-cluster edges drawn at the
 #' individual-node level. The **top layer** collapses each cluster into a
-#' single summary pie-chart node whose colored slice represents the proportion
-#' of within-cluster flow, with edges carrying the aggregated between-cluster
-#' weights. Dashed inter-layer lines connect each detail node to its
-#' corresponding summary node, making the hierarchical mapping explicit.
+#' single summary pie-chart node whose colored slice represents, by default,
+#' the cluster's share of the initial state distribution (see
+#' \code{summary_pie} for the alternative self-retention interpretation),
+#' with edges carrying the aggregated between-cluster weights. Dashed
+#' inter-layer lines connect each detail node to its corresponding summary
+#' node, making the hierarchical mapping explicit.
 #'
 #' Use \code{plot_mcml} when you need a simultaneous micro/macro view of
 #' cluster structure — the bottom layer reveals internal cluster dynamics while
@@ -88,7 +90,7 @@
 #'   Cluster shell appearance       \tab \code{shape_size}, \code{shell_alpha}, \code{shell_border_width}, \code{colors} \cr
 #'   Detail nodes                   \tab \code{node_size}, \code{node_shape}, \code{node_border_color} \cr
 #'   Detail labels                  \tab \code{show_labels}, \code{label_size}, \code{label_abbrev}, \code{label_color}, \code{label_position} \cr
-#'   Summary nodes                  \tab \code{summary_size}, \code{cluster_shape}, \code{summary_border_color}, \code{summary_border_width} \cr
+#'   Summary nodes                  \tab \code{summary_size}, \code{summary_border_color}, \code{summary_border_width} \cr
 #'   Summary labels                 \tab \code{summary_labels}, \code{summary_label_size}, \code{summary_label_color}, \code{summary_label_position} \cr
 #'   Within-cluster edges           \tab \code{edge_width_range}, \code{edge_alpha}, \code{edge_labels} \cr
 #'   Between-cluster edges          \tab \code{between_edge_width_range}, \code{between_edge_alpha} \cr
@@ -187,10 +189,9 @@
 #'   \code{"triangle"}. Can be a single value applied to all nodes or a
 #'   character vector of length equal to the number of nodes (one shape
 #'   per node). Default \code{"circle"}.
-#' @param cluster_shape Shape for summary nodes in the top layer. Same
-#'   supported values as \code{node_shape}. Can be a single value or a
-#'   vector of length equal to the number of clusters. Default
-#'   \code{"circle"}.
+#' @param cluster_shape Accepted for backward compatibility. Summary nodes
+#'   are currently drawn as pie charts, so this parameter does not change
+#'   their shape.
 #' @param title Main plot title displayed above the figure. Default
 #'   \code{NULL} (no title).
 #' @param subtitle Subtitle displayed below the title. Default \code{NULL}
@@ -215,6 +216,18 @@
 #'   edges. Set to \code{FALSE} for undirected networks. Default \code{TRUE}.
 #' @param summary_arrow_size Size of arrowheads on summary edges. Default
 #'   0.10.
+#' @param summary_pie Character scalar controlling what the colored slice
+#'   of the top-layer pie chart represents. One of:
+#'   \describe{
+#'     \item{\code{"inits"}}{(default) The cluster's share of the initial
+#'       state distribution (\code{cs$macro$inits[i]}). Answers "how often
+#'       do sequences start in this cluster?" Summed across clusters the
+#'       colored slices equal 1.}
+#'     \item{\code{"self"}}{The cluster's self-retention share of
+#'       out-strength (\code{bw[i, i] / rowSums(bw)[i]}). Answers "how
+#'       sticky is this cluster — how much of its outgoing flow loops
+#'       back to itself?" Each pie is normalized independently.}
+#'   }
 #' @param between_arrows Logical. Draw arrowheads on between-cluster edges
 #'   in the bottom layer. Default \code{FALSE}.
 #' @param edge_width_range Numeric vector \code{c(min, max)} controlling the
@@ -274,8 +287,8 @@
 #'   Default 2.
 #' @param label_color Text color for detail node labels. Default
 #'   \code{"gray20"}.
-#' @param label_position Position of detail node labels: 1 = below,
-#'   2 = left, 3 = above, 4 = right. Default 3.
+#' @param label_position Accepted for backward compatibility. Detail labels
+#'   are currently positioned automatically to the left or right of each node.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return Invisibly returns the \code{cluster_summary} object used for
@@ -296,82 +309,13 @@
 #' \code{\link{detect_communities}} for algorithmic cluster detection
 #'
 #' @examples
-#' # --- Setup: create a test matrix ---
-#' mat <- matrix(runif(36), 6, 6)
-#' diag(mat) <- 0
+#' mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
 #' colnames(mat) <- rownames(mat) <- LETTERS[1:6]
-#'
-#' clusters <- list(
-#'   Cluster1 = c("A", "B"),
-#'   Cluster2 = c("C", "D"),
-#'   Cluster3 = c("E", "F")
-#' )
-#'
-#' # 1. Basic usage — pass matrix + clusters directly
+#' clusters <- list(C1 = c("A","B"), C2 = c("C","D"), C3 = c("E","F"))
 #' plot_mcml(mat, clusters)
-#'
-#' # 2. Pre-compute with cluster_summary for reuse
+#' \donttest{
 #' cs <- cluster_summary(mat, clusters)
-#' plot_mcml(cs)
-#'
-#' \dontrun{
-#' # 3. TNA mode — transition probabilities with edge labels
-#' plot_mcml(mat, clusters, mode = "tna")
-#'
-#' # 4. Custom shapes — different shape per cluster
-#' plot_mcml(mat, clusters,
-#'   node_shape = "diamond",
-#'   cluster_shape = c("circle", "square", "triangle")
-#' )
-#'
-#' # 5. Styling — custom colors, transparency, edge widths
-#' plot_mcml(mat, clusters,
-#'   colors = c("#1b9e77", "#d95f02", "#7570b3"),
-#'   edge_alpha = 0.5,
-#'   between_edge_alpha = 0.8,
-#'   shell_alpha = 0.25,
-#'   edge_width_range = c(0.5, 2.0)
-#' )
-#'
-#' # 6. Edge labels on both layers
-#' plot_mcml(mat, clusters,
-#'   edge_labels = TRUE,
-#'   summary_edge_labels = TRUE,
-#'   edge_label_digits = 1
-#' )
-#'
-#' # 7. Layout tuning — adjust spacing, perspective, and layer gap
-#' plot_mcml(mat, clusters,
-#'   spacing = 4,
-#'   skew_angle = 45,
-#'   top_layer_scale = c(1.0, 0.3),
-#'   inter_layer_gap = 0.8
-#' )
-#'
-#' # 8. With mean aggregation for size-normalized comparison
-#' plot_mcml(mat, clusters,
-#'   aggregation = "mean",
-#'   title = "Mean-aggregated cluster network"
-#' )
-#'
-#' # 9. Label abbreviation for dense networks
-#' big_mat <- matrix(runif(400), 20, 20)
-#' diag(big_mat) <- 0
-#' colnames(big_mat) <- rownames(big_mat) <- paste0("Node_", 1:20)
-#' big_clusters <- list(
-#'   Alpha = paste0("Node_", 1:7),
-#'   Beta  = paste0("Node_", 8:14),
-#'   Gamma = paste0("Node_", 15:20)
-#' )
-#' plot_mcml(big_mat, big_clusters, label_abbrev = "auto")
-#'
-#' # 10. Minimal clean plot — no legend, no labels, no arrows
-#' plot_mcml(mat, clusters,
-#'   legend = FALSE,
-#'   show_labels = FALSE,
-#'   summary_labels = FALSE,
-#'   summary_arrows = FALSE
-#' )
+#' plot_mcml(cs, mode = "tna", edge_labels = TRUE)
 #' }
 plot_mcml <- function(
     x,
@@ -409,6 +353,8 @@ plot_mcml <- function(
     # Summary arrows
     summary_arrows = TRUE,
     summary_arrow_size = 0.10,
+    # Summary pie semantics
+    summary_pie = c("inits", "self"),
     # Edge control
     between_arrows = FALSE,
     edge_width_range = c(0.3, 1.3),
@@ -443,6 +389,7 @@ plot_mcml <- function(
 ) {
   aggregation <- match.arg(aggregation)
   mode <- match.arg(mode)
+  summary_pie <- match.arg(summary_pie)
 
   # For mode = "tna", show edge labels by default (like tplot/splot with tna)
   # Check if user explicitly set these parameters
@@ -626,7 +573,11 @@ plot_mcml <- function(
   xlim <- range(c(bx, tx)) + c(-shape_size - pad, shape_size + pad)
   ylim <- range(c(by, ty)) + c(-shape_size * compress - pad, shape_size + pad)
 
-  old_par <- graphics::par(mar = c(0.2, 0.2, 0.2, 0.2))
+  # Reserve top/bottom margin only when titles/subtitles are set — otherwise
+  # graphics::title() clips against the tight 0.2-line edge.
+  top_mar <- if (!is.null(title)) max(2.5, title_size * 2) else 0.2
+  bot_mar <- if (!is.null(subtitle)) max(1.8, subtitle_size * 2) else 0.2
+  old_par <- graphics::par(mar = c(bot_mar, 0.2, top_mar, 0.2))
   on.exit(graphics::par(old_par), add = TRUE)
 
   graphics::plot.new()
@@ -670,20 +621,28 @@ plot_mcml <- function(
   # ============================================================================
 
   summary_arrow_sz <- summary_arrow_size
-  pie_radius <- 0.35  # Pie chart radius in plot units
+  # Pie chart radius: summary_size default 4 -> radius 0.35 (backwards compat)
+  pie_radius <- summary_size * 0.0875
+
+  # Pre-compute pie proportions for each cluster based on summary_pie mode.
+  # "inits": colored slice = cluster's share of the initial distribution
+  #          (cs$macro$inits[i]), gray = 1 - that value. Sums to 1 across
+  #          clusters, so slice answers "how often do sequences start here?".
+  # "self":  colored slice = cluster's self-retention share of out-strength
+  #          (bw[i, i] / rowSums(bw)[i]), a per-cluster stickiness.
+  pie_props <- if (summary_pie == "inits") {
+    inits <- cs$macro$inits
+    if (is.null(inits)) rep(0, n_clusters) else as.numeric(inits)
+  } else {
+    row_tot <- rowSums(bw)
+    ifelse(row_tot > 0, diag(bw) / row_tot, 0)
+  }
 
   # 1. Draw summary nodes as PIE CHARTS first (so edges draw on top)
   for (i in seq_len(n_clusters)) {
-    # Self-loop proportion (within-cluster) vs between-cluster
-    self_val <- bw[i, i]
-    other_val <- sum(bw[i, -i])
-    total <- self_val + other_val
-
-    if (total > 0) {
-      self_prop <- self_val / total
-    } else {
-      self_prop <- 0
-    }
+    self_prop <- pie_props[i]
+    if (is.na(self_prop) || self_prop < 0) self_prop <- 0
+    if (self_prop > 1) self_prop <- 1
 
     # Draw "other" slice first (light gray background)
     if (self_prop < 1) {
@@ -967,52 +926,70 @@ plot_mcml <- function(
       }
     }
 
-    # Nodes as PIE CHARTS showing self-transition proportion
-    node_pie_r <- node_size * 0.035  # Pie radius in plot units
+    # Detail node rendering. When node_shape is "circle" (default), draw a
+    # pie chart encoding self-transition proportion. For any other shape,
+    # draw a solid shape in cluster color — the pie semantics only make
+    # sense on a circle.
+    node_pie_r <- node_size * 0.035  # Radius in plot units
 
     for (ni in seq_along(nx)) {
-      # Get self-transition proportion for this node
-      self_val <- 0
-      other_val <- 1
-      if (!is.null(within_w)) {
-        node_row <- within_w[ni, ]
-        self_val <- within_w[ni, ni]  # Diagonal = self-transition
-        other_val <- sum(node_row) - self_val
-        total <- self_val + other_val
-        if (total > 0) {
-          self_prop <- self_val / total
+      # Global node index (into node_shape vector)
+      gi <- idx[ni]
+      this_shape <- node_shape[gi]
+
+      if (this_shape == "circle") {
+        # Get self-transition proportion for this node
+        self_val <- 0
+        other_val <- 1
+        if (!is.null(within_w)) {
+          node_row <- within_w[ni, ]
+          self_val <- within_w[ni, ni]  # Diagonal = self-transition
+          other_val <- sum(node_row) - self_val
+          total <- self_val + other_val
+          if (total > 0) {
+            self_prop <- self_val / total
+          } else {
+            self_prop <- 0
+          }
         } else {
           self_prop <- 0
         }
-      } else {
-        self_prop <- 0
-      }
 
-      # Draw "other" slice (light version of cluster color)
-      if (self_prop < 1) {
+        # Draw "other" slice (light version of cluster color)
+        if (self_prop < 1) {
+          theta <- seq(0, 2 * pi, length.out = 40)
+          graphics::polygon(nx[ni] + node_pie_r * cos(theta),
+                            ny[ni] + node_pie_r * sin(theta),
+                            col = grDevices::adjustcolor(colors[i], 0.3),
+                            border = NA)
+        }
+
+        # Draw "self" slice (full cluster color)
+        if (self_prop > 0.001) { # nocov start
+          start_angle <- pi / 2
+          end_angle <- start_angle - self_prop * 2 * pi
+          n_pts <- max(10, round(40 * self_prop))
+          angles <- seq(start_angle, end_angle, length.out = n_pts)
+          slice_x <- c(nx[ni], nx[ni] + node_pie_r * cos(angles), nx[ni])
+          slice_y <- c(ny[ni], ny[ni] + node_pie_r * sin(angles), ny[ni])
+          graphics::polygon(slice_x, slice_y, col = colors[i], border = NA)
+        } # nocov end
+
+        # Border
         theta <- seq(0, 2 * pi, length.out = 40)
-        graphics::polygon(nx[ni] + node_pie_r * cos(theta),
-                          ny[ni] + node_pie_r * sin(theta),
-                          col = grDevices::adjustcolor(colors[i], 0.3),
-                          border = NA)
+        graphics::lines(nx[ni] + node_pie_r * cos(theta),
+                        ny[ni] + node_pie_r * sin(theta),
+                        col = node_border_color, lwd = 1.5)
+      } else {
+        draw_node_base(
+          x = nx[ni], y = ny[ni],
+          size = node_pie_r,
+          shape = this_shape,
+          col = colors[i],
+          border.col = node_border_color,
+          border.width = 1.5
+        )
       }
-
-      # Draw "self" slice (full cluster color)
-      if (self_prop > 0.001) { # nocov start
-        start_angle <- pi / 2
-        end_angle <- start_angle - self_prop * 2 * pi
-        n_pts <- max(10, round(40 * self_prop))
-        angles <- seq(start_angle, end_angle, length.out = n_pts)
-        slice_x <- c(nx[ni], nx[ni] + node_pie_r * cos(angles), nx[ni])
-        slice_y <- c(ny[ni], ny[ni] + node_pie_r * sin(angles), ny[ni])
-        graphics::polygon(slice_x, slice_y, col = colors[i], border = NA)
-      } # nocov end
-
-      # Border
-      theta <- seq(0, 2 * pi, length.out = 40)
-      graphics::lines(nx[ni] + node_pie_r * cos(theta),
-                      ny[ni] + node_pie_r * sin(theta),
-                      col = node_border_color, lwd = 1.5)
     }
 
     # Node labels - position on side (left or right only)
@@ -1044,7 +1021,7 @@ plot_mcml <- function(
     graphics::title(main = title, cex.main = title_size)
   }
   if (!is.null(subtitle)) {
-    graphics::title(sub = subtitle, cex.sub = subtitle_size, line = -0.5)
+    graphics::title(sub = subtitle, cex.sub = subtitle_size, line = bot_mar - 1)
   }
 
   # Legend (positioned based on legend_position)
@@ -1109,13 +1086,11 @@ plot_mcml <- function(
 #' @export
 #' @keywords internal
 #' @examples
-#' \dontrun{
-#' mat <- matrix(runif(100, 0, 0.3), 10, 10)
-#' diag(mat) <- 0
+#' set.seed(1)
+#' mat <- matrix(runif(100, 0, 0.3), 10, 10); diag(mat) <- 0
 #' colnames(mat) <- rownames(mat) <- paste0("N", 1:10)
 #' clusters <- list(C1 = paste0("N", 1:5), C2 = paste0("N", 6:10))
 #' mcml(mat, clusters)
-#' }
 mcml <- function(x,
                  cluster_list = NULL,
                  aggregation = c("sum", "mean", "max"),

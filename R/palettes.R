@@ -1,7 +1,6 @@
 #' @title Color Palettes
 #' @description Built-in color palettes for network visualization.
 #' @name palettes
-#' @return A character vector of hex color codes.
 #' @examples
 #' palette_blues(5)
 #' palette_reds(5)
@@ -52,7 +51,7 @@ palette_colorblind <- function(n, alpha = 1) {
   }
 
   if (alpha < 1) {
-    colors <- sapply(colors, adjust_alpha, alpha = alpha)
+    colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   }
 
   colors
@@ -87,7 +86,7 @@ palette_pastel <- function(n, alpha = 1) {
   }
 
   if (alpha < 1) {
-    colors <- sapply(colors, adjust_alpha, alpha = alpha)
+    colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   }
 
   colors
@@ -120,7 +119,7 @@ palette_viridis <- function(n, alpha = 1, option = "viridis") {
   colors <- grDevices::colorRampPalette(base)(n)
 
   if (alpha < 1) {
-    colors <- sapply(colors, adjust_alpha, alpha = alpha)
+    colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   }
 
   colors
@@ -140,7 +139,7 @@ palette_blues <- function(n, alpha = 1) {
   base_colors <- c("#f7fbff", "#deebf7", "#c6dbef", "#9ecae1",
                    "#6baed6", "#4292c6", "#2171b5", "#084594")
   colors <- grDevices::colorRampPalette(base_colors)(n)
-  if (alpha < 1) colors <- sapply(colors, adjust_alpha, alpha = alpha)
+  if (alpha < 1) colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   colors
 }
 
@@ -158,7 +157,7 @@ palette_reds <- function(n, alpha = 1) {
   base_colors <- c("#fff5f0", "#fee0d2", "#fcbba1", "#fc9272",
                    "#fb6a4a", "#ef3b2c", "#cb181d", "#99000d")
   colors <- grDevices::colorRampPalette(base_colors)(n)
-  if (alpha < 1) colors <- sapply(colors, adjust_alpha, alpha = alpha)
+  if (alpha < 1) colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   colors
 }
 
@@ -177,7 +176,7 @@ palette_diverging <- function(n, alpha = 1, midpoint = "white") {
   base_colors <- c("#2166ac", "#67a9cf", "#d1e5f0", midpoint,
                    "#fddbc7", "#ef8a62", "#b2182b")
   colors <- grDevices::colorRampPalette(base_colors)(n)
-  if (alpha < 1) colors <- sapply(colors, adjust_alpha, alpha = alpha)
+  if (alpha < 1) colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   colors
 }
 

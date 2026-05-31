@@ -26,16 +26,15 @@ set_groups(
 \item Data frame: Must have "node"/"nodes" column plus one of
 "layer"/"layers", "cluster"/"clusters", or "group"/"groups"
 (plural forms are automatically normalized to singular)
-\item NULL: Use \code{nodes} + one of \code{layers}/\code{clusters}/\code{groups} vectors
+\item NULL: Use \code{nodes} + one of \code{layers}/\code{clusters} vectors
 }}
 
 \item{type}{Group type. One of \code{"group"} (default), \code{"cluster"},
-or \code{"layer"}. Ignored when using vector arguments (\code{layers},
-\code{clusters}, \code{groups}) since the type is inferred from which
-argument is provided.}
+or \code{"layer"}. Ignored when using \code{layers} or \code{clusters}
+vector arguments since the type is inferred from which argument is provided.}
 
 \item{nodes}{Character vector of node labels. Use with \code{layers}, \code{clusters},
-or \code{groups} to specify groupings via vectors instead of a data frame.}
+to specify groupings via vectors instead of a data frame.}
 
 \item{layers}{Character/factor vector of layer assignments (same length as \code{nodes}).}
 
@@ -50,39 +49,18 @@ metadata with a type column ("layer", "cluster", or "group") for use by
 specialized plot functions.
 }
 \examples{
-# Create network (symmetric for community detection)
+set.seed(1)
 mat <- matrix(runif(100), 10, 10)
-mat <- (mat + t(mat)) / 2  # Make symmetric (undirected)
-diag(mat) <- 0
+mat <- (mat + t(mat)) / 2; diag(mat) <- 0
 rownames(mat) <- colnames(mat) <- paste0("N", 1:10)
 net <- as_cograph(mat)
-
-# Using vectors (recommended)
-net <- set_groups(net,
-  nodes = paste0("N", 1:10),
-  layers = c(rep("Macro", 3), rep("Meso", 4), rep("Micro", 3))
-)
 
 # Named list -> layers
 net <- set_groups(net, list(
   Macro = paste0("N", 1:3),
-  Meso = paste0("N", 4:7),
+  Meso  = paste0("N", 4:7),
   Micro = paste0("N", 8:10)
 ), type = "layer")
-
-# Vector -> clusters
-net <- set_groups(net, c("A", "A", "A", "B", "B", "B", "C", "C", "C", "C"),
-                  type = "cluster")
-
-# Community detection -> groups
-net <- set_groups(net, "louvain", type = "group")
-
-# Data frame with explicit columns
-df <- data.frame(nodes = paste0("N", 1:10),
-                 layers = rep(c("Top", "Bottom"), each = 5))
-net <- set_groups(net, df)
-
-# Check groups
 get_groups(net)
 }
 \seealso{

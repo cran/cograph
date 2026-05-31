@@ -9,6 +9,8 @@ plot_simplicial(
   pathways = NULL,
   method = "hon",
   max_pathways = 10L,
+  pathway_index = NULL,
+  anomaly = c("all", "over", "under"),
   layout = "circle",
   labels = NULL,
   node_color = "#4A7FB5",
@@ -16,6 +18,12 @@ plot_simplicial(
   ring_color = "#F5A623",
   node_size = 22,
   label_size = 5,
+  label_color = "#e8e8e8",
+  target_label_color = NULL,
+  label_halo = TRUE,
+  label_halo_color = NULL,
+  label_halo_width = 0.035,
+  label_halo_alpha = 0.6,
   blob_alpha = 0.25,
   blob_colors = NULL,
   blob_linetype = NULL,
@@ -37,11 +45,19 @@ plot_simplicial(
 using the \code{method} parameter.}
 
 \item{pathways}{Character vector of pathway strings, a list of
-character vectors, or a \code{net_hon} / \code{net_hypa} object.
-String separators: \code{"A B -> C"}, \code{"A, B, C"},
+character vectors, a \code{net_hon} / \code{net_hypa} object, or
+any data.frame with a \code{path} column (e.g., the output of
+\code{Nestimate::mogen_transitions()}). If a data.frame with a
+\code{path} column is passed as \code{x} and \code{pathways} is
+\code{NULL}, it is auto-promoted to \code{pathways} and the state
+set is derived from the path strings — \code{plot_simplicial(mgt)}
+works directly. String separators:
+\code{"A B -> C"}, \code{"A -> B -> C"}, \code{"A, B, C"},
 \code{"A - B - C"}, \code{"A B C"}. Last state is the target.
-When \code{NULL} and \code{x} is a model with sequence data,
-pathways are built automatically.}
+When a data.frame is passed and a \code{count} column is present,
+rows are sorted by count descending before \code{max_pathways} is
+applied. When \code{NULL} and \code{x} is a model with sequence
+data, pathways are built automatically.}
 
 \item{method}{Pathway source when auto-building from a
 \code{tna}/\code{netobject}: \code{"hon"} (default, higher-order
@@ -53,6 +69,20 @@ single-colored blobs because itemsets are undirected).}
 \item{max_pathways}{Maximum number of pathways to display. HON
 pathways are ranked by count, HYPA by anomaly ratio.
 \code{NULL} shows all. Default \code{10}.}
+
+\item{pathway_index}{Optional positive integer vector selecting
+ranked pathways after extraction and ranking, before
+\code{max_pathways} is applied. For example, \code{2} plots the
+second-ranked pathway and \code{2:4} plots pathways ranked second
+through fourth.}
+
+\item{anomaly}{HYPA anomaly type to display when plotting a
+\code{net_hypa} object or auto-building HYPA pathways via
+\code{method = "hypa"}. One of \code{"all"}, \code{"over"}, or
+\code{"under"}. Default \code{"all"}. Ignored (with a warning) for
+non-HYPA inputs such as \code{net_hon}, \code{net_association_rules},
+\code{net_link_prediction}, character pathway vectors, or
+\code{method = "hon"} / \code{"rules"}, which have no anomaly concept.}
 
 \item{layout}{\code{"circle"} (default) or a coordinate matrix.}
 
@@ -67,6 +97,35 @@ pathways are ranked by count, HYPA by anomaly ratio.
 \item{node_size}{Node point size.}
 
 \item{label_size}{Label text size.}
+
+\item{label_color}{Label text color (default \code{"#e8e8e8"},
+very light grey). Light grey reads on both white and dark fills
+when the auto-contrast halo is enabled (it is by default).
+Applied to both source and target labels unless
+\code{target_label_color} overrides for targets.}
+
+\item{target_label_color}{Target-node label color. \code{NULL}
+(default) reuses \code{label_color}.}
+
+\item{label_halo}{Logical. Draw a contrasting halo behind each
+label so it stays readable on any fill — node disc, blob, or
+the white canvas. Default \code{TRUE}. The halo is the only
+reliable way to keep, e.g., white labels legible when
+\code{node_color} is also light.}
+
+\item{label_halo_color}{Halo color. \code{NULL} (default)
+auto-picks black or white based on the luminance of
+\code{label_color}, so a white label gets a dark halo and vice
+versa.}
+
+\item{label_halo_width}{Halo thickness in plot units. Default
+\code{0.035}; raise for chunkier outlines, lower for subtler
+ones, or set to \code{0} to disable without touching
+\code{label_halo}.}
+
+\item{label_halo_alpha}{Halo opacity (0–1). Default \code{0.6}
+reads as a soft glow rather than a hard outline; raise toward
+\code{1} for sharper contrast on very busy backgrounds.}
 
 \item{blob_alpha}{Blob fill transparency.}
 
@@ -108,20 +167,10 @@ also be passed as \code{net_hon} or \code{net_hypa} objects, with
 labels auto-translated when \code{x} is a \code{tna}/\code{netobject}.
 }
 \examples{
-\dontrun{
+set.seed(1)
 mat <- matrix(runif(16), 4, 4,
               dimnames = list(LETTERS[1:4], LETTERS[1:4]))
 diag(mat) <- 0
 plot_simplicial(mat, c("A B -> C", "B C -> D"))
-
-# Direct from tna model (requires Nestimate):
-# model <- tna::tna(tna::group_regulation)
-# plot_simplicial(model, dismantled = TRUE)
-# plot_simplicial(model, method = "hypa")
-
-# With pre-built HON + tna for label translation:
-# hon <- Nestimate::build_hon(as.data.frame(model$data))
-# plot_simplicial(model, hon, dismantled = TRUE)
-}
 
 }

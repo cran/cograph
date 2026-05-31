@@ -6,7 +6,8 @@
 \usage{
 centrality(
   x,
-  measures = "all",
+  type = c("basic", "extended", "all"),
+  measures = NULL,
   mode = "all",
   normalized = FALSE,
   weighted = TRUE,
@@ -23,6 +24,7 @@ centrality(
   transitivity_type = "local",
   isolates = "nan",
   lambda = 1,
+  diffusion_method = NULL,
   k = 3,
   states = NULL,
   decay_parameter = 0.5,
@@ -30,14 +32,34 @@ centrality(
   membership = NULL,
   katz_alpha = 0.1,
   hubbell_weight = 0.5,
+  tna_network = NULL,
+  psych_network = NULL,
   ...
 )
 }
 \arguments{
 \item{x}{Network input (matrix, igraph, network, cograph_network, tna object)}
 
-\item{measures}{Which measures to calculate. Default "all" calculates all
-available measures (87 total). Can be a character vector of measure names.
+\item{type}{Character scalar selecting a curated tier of measures when
+\code{measures} is not supplied. One of:
+\describe{
+\item{\code{"basic"}}{(default) 6 canonical measures: \code{degree},
+\code{strength}, \code{closeness}, \code{betweenness},
+\code{eigenvector}, \code{pagerank}.}
+\item{\code{"extended"}}{Basic plus commonly-reported second-tier
+measures: harmonic, coreness, eccentricity, radiality,
+lin, decay, load, stress, katz, alpha, power, authority, leverage,
+constraint, effective_size, bridging, transitivity, subgraph,
+diffusion, laplacian, kreach, current_flow_betweenness,
+current_flow_closeness.}
+\item{\code{"all"}}{Every available measure.}
+}
+Passing \code{measures} explicitly overrides \code{type}.}
+
+\item{measures}{Character vector of specific measure names to compute.
+When \code{NULL} (default) the tier selected by \code{type} is used.
+Accepts \code{"all"} as a shortcut for every measure. Any custom vector
+of valid measure names is also accepted.
 \strong{Core} (igraph-backed): "degree", "strength", "betweenness", "closeness",
 "eigenvector", "pagerank", "authority", "hub", "eccentricity", "coreness",
 "constraint", "transitivity", "harmonic", "alpha", "power", "subgraph".
@@ -69,13 +91,21 @@ a directed graph; see \code{\link{centrality_brokerage_coordinator}}).
 "hubbell" (Hubbell 1965), "information" (Stephenson-Zelen 1989),
 "reaching_local" (Mones et al. 2012). See \code{\link{centrality_katz}},
 \code{\link{centrality_hubbell}}, \code{\link{centrality_information}},
-\code{\link{centrality_pairwisedis}}, \code{\link{centrality_reaching_local}}.}
+\code{\link{centrality_pairwisedis}}, \code{\link{centrality_reaching_local}}.
+\strong{Psychometric (signed-weight)}: "expected_influence_1",
+"expected_influence_2" (Robinaugh, Millner & McNally 2016). Expected
+influence keeps signed edge contributions, which is important when edges
+can be negative (partial-correlation, glasso, signed correlation networks).}
 
-\item{mode}{For directed networks: "all", "in", or "out". Affects degree,
-strength, closeness, eccentricity, coreness, and harmonic centrality.}
+\item{mode}{For directed networks: "all", "in", or "out". Affects measures
+whose output columns carry a mode suffix, including degree, strength,
+closeness, eccentricity, coreness, harmonic, diffusion, leverage, k-reach,
+distance-based measures, community-aware measures, and expected influence.}
 
-\item{normalized}{Logical. Normalize values to 0-1 range by dividing by max.
-For closeness, this is passed directly to igraph (proper normalization).}
+\item{normalized}{Logical. Normalize values by dividing by max. Most measures
+are scaled to 0-1; signed expected-influence measures can retain negative
+values under psychometric normalization. For closeness, this is passed
+directly to igraph.}
 
 \item{weighted}{Logical. Use edge weights if available. Default TRUE.}
 
@@ -95,16 +125,19 @@ decimal places. Default NULL (no rounding).}
 \item{sort_by}{Character or NULL. Column name to sort results by
 (descending order). Default NULL (original node order).}
 
-\item{cutoff}{Maximum path length to consider for betweenness and closeness.
+\item{cutoff}{Maximum path length to consider for betweenness, closeness,
+and harmonic centrality.
 Default -1 (no limit). Set to a positive value for faster computation
 on large networks at the cost of accuracy.}
 
-\item{invert_weights}{Logical or NULL. For path-based measures (betweenness,
-closeness, harmonic, eccentricity, kreach), should weights be inverted so
-that higher weights mean shorter paths? Default NULL which auto-detects:
-TRUE for tna objects (transition probabilities), FALSE otherwise (matching
-igraph/sna). Set explicitly to TRUE for strength/frequency weights (qgraph
-style) or FALSE for distance/cost weights.}
+\item{invert_weights}{Logical or NULL. For path- and distance-based measures
+(for example betweenness, closeness, harmonic, eccentricity, k-reach,
+radiality, decay, stress, flow betweenness, and related variants), should
+weights be inverted so that higher weights mean shorter paths? Default
+NULL auto-detects: TRUE for tna objects (transition probabilities), FALSE
+otherwise (matching igraph/sna). Set explicitly to TRUE for
+strength/frequency weights (qgraph style) or FALSE for distance/cost
+weights.}
 
 \item{alpha}{Numeric. Exponent for weight transformation when \code{invert_weights = TRUE}.
 Distance is computed as \code{1 / weight^alpha}. Default 1. Higher values
@@ -116,12 +149,30 @@ increase the influence of weight differences on path lengths.}
 Default NULL (standard PageRank). Values should sum to 1.}
 
 \item{transitivity_type}{Type of transitivity to calculate: "local" (default),
-"global", "undirected", "localundirected", "barrat" (weighted), or "weighted".}
+"global", "undirected", "localundirected", "barrat" (weighted),
+"weighted", or "onnela". The first six dispatch to
+\code{igraph::transitivity()}; \code{"onnela"} computes the Onnela /
+Holme weighted clustering coefficient on the symmetrized matrix
+(\code{wcc(x + t(x))}) and matches \code{tna::centralities(., "Clustering")}
+byte-for-byte. Auto-set to \code{"onnela"} when \code{tna_network = TRUE}
+and the user did not pass an explicit value.}
 
 \item{isolates}{How to handle isolate nodes in transitivity calculation:
 "nan" (default) returns NaN, "zero" returns 0.}
 
-\item{lambda}{Diffusion scaling factor for diffusion centrality. Default 1.}
+\item{lambda}{Diffusion scaling factor for diffusion centrality. Default 1.
+Only used when \code{diffusion_method = "kandhway_kuri"}.}
+
+\item{diffusion_method}{Character or NULL. Selects the diffusion-centrality
+formula. \code{"kandhway_kuri"} (Kandhway & Kuri, 2014) computes the
+1-hop binary-degree neighborhood sum
+\eqn{\lambda d_v + \lambda \sum_{u \in N(v)} d_u}. \code{"power_series"}
+computes the matrix power series \eqn{\mathrm{rowSums}(P + P^2 + \ldots + P^n)}
+on the (optionally diagonal-zeroed) weighted matrix and matches
+\code{tna::centralities(., measures = "Diffusion")} when
+\code{loops = FALSE}. Default NULL auto-detects: \code{"power_series"}
+for tna objects (transition probabilities), \code{"kandhway_kuri"}
+otherwise.}
 
 \item{k}{Path length parameter for geodesic k-path centrality. Default 3.}
 
@@ -137,8 +188,9 @@ Neighborhood Component). Default 1.7 as recommended by Lin et al. (2008).
 centiserve uses 1.67 (four-community assumption). Must be between 1 and 2.}
 
 \item{membership}{Integer vector of community assignments (one per node) for
-community-aware measures: participation, within_module_z, gateway.
-Default NULL. Required when requesting these measures.}
+community-aware measures: participation, within_module_z, gateway, and the
+Gould-Fernandez brokerage roles. Default NULL. Required when requesting
+these measures.}
 
 \item{katz_alpha}{Attenuation factor for Katz centrality. Must satisfy
 \eqn{\alpha < 1 / \rho(A)}. Default 0.1 (matches centiserve and NetworkX
@@ -147,6 +199,24 @@ conventions). Only used when \code{"katz"} is in \code{measures}.}
 \item{hubbell_weight}{Weight factor \eqn{w} for Hubbell centrality. Must
 satisfy \eqn{w \cdot \rho(W) \le 1} for solvability. Default 0.5. Only
 used when \code{"hubbell"} is in \code{measures}.}
+
+\item{tna_network}{Logical or NULL. Umbrella switch that forces tna-style
+conventions across all measures. \code{NULL} (default) auto-detects
+from the input class — TRUE iff \code{x} is a \code{tna} or related
+sequence-network object. \code{TRUE} forces tna conventions even on
+raw matrices: \code{invert_weights = TRUE}, \code{loops = FALSE},
+\code{diffusion_method = "power_series"}, \code{transitivity_type
+  = "onnela"}. \code{FALSE} suppresses all tna defaults even for tna
+inputs, giving the cograph defaults verbatim. Precedence: any arg
+the user passes explicitly always wins over \code{tna_network}.}
+
+\item{psych_network}{Logical or NULL. Switch for signed psychometric
+network conventions. \code{NULL} (default) auto-detects TRUE when a
+signed weighted network is evaluated with expected-influence measures.
+When \code{TRUE}, normalized expected influence is divided by the maximum
+absolute expected-influence value, preserving sign and bounding the result from
+-1 to 1.
+\code{FALSE} keeps the generic cograph normalization convention.}
 
 \item{...}{Additional arguments (currently unused)}
 }

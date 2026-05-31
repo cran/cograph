@@ -6,7 +6,8 @@ NULL
 
 #' Validate Network Object
 #'
-#' @param x Object to validate.
+#' @param x Object to validate. Must inherit from \code{CographNetwork} or
+#'   \code{cograph_network}.
 #' @param arg_name Argument name for error messages.
 #' @keywords internal
 validate_network <- function(x, arg_name = "network") {
@@ -14,11 +15,12 @@ validate_network <- function(x, arg_name = "network") {
     stop(arg_name, " must be a CographNetwork object", call. = FALSE)
   }
 
-  # Extract R6 object if wrapped
-  if (inherits(x, "cograph_network")) {
-    x <- x$network
-  }
-
+  # Historical note: this previously unwrapped via `x <- x$network` for the
+  # cograph_network branch, but S3 cograph_network is a flat list (nodes/edges/
+  # meta stored directly, not inside a `$network` slot). That branch returned
+  # NULL silently. Both representations are now returned as-is; callers decide
+  # whether they want the R6 or S3 flavor and use the accessor helpers
+  # (get_nodes / get_edges / is_directed / ...) which cover both.
   x
 }
 
@@ -201,7 +203,7 @@ resolve_aesthetic <- function(value, data = NULL, n = NULL, default = NULL) {
 #' abbrev_label(labels, NULL)
 #'
 #' # Fixed max length
-#' abbrev_label(labels, 5)  # "Very...", "Short", "Anot..."
+#' abbrev_label(labels, 5)  # "Very…", "Short", "Anot…"
 #'
 #' # Auto-adaptive
 #' abbrev_label(labels, "auto")

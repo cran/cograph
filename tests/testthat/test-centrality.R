@@ -273,6 +273,109 @@ test_that("diffusion matches centiserve", {
   )
 })
 
+test_that("diffusion power_series matches tna::Diffusion byte-for-byte", {
+  skip_if_not_installed("tna")
+  W <- matrix(c(0.4, 0.3, 0.3,
+                0.2, 0.5, 0.3,
+                0.1, 0.2, 0.7), 3, 3, byrow = TRUE)
+  rownames(W) <- colnames(W) <- c("A", "B", "C")
+  t1 <- tna::tna(W)
+
+  tna_diff <- tna::centralities(t1, measures = "Diffusion")$Diffusion
+
+  # tna_network auto-detects from class: tna input -> power_series + loops=FALSE
+  cog_auto <- cograph::centrality(t1, measures = "diffusion")$diffusion_all
+  expect_equal(cog_auto, tna_diff, tolerance = 1e-12)
+
+  # Explicit method on raw matrix produces the same result.
+  cog_explicit <- cograph::centrality(W, measures = "diffusion",
+                                       diffusion_method = "power_series",
+                                       loops = FALSE)$diffusion_all
+  expect_equal(cog_explicit, tna_diff, tolerance = 1e-12)
+
+  # tna_network = TRUE on raw matrix flips both diffusion_method and loops.
+  cog_umbrella <- cograph::centrality(W, measures = "diffusion",
+                                       tna_network = TRUE)$diffusion_all
+  expect_equal(cog_umbrella, tna_diff, tolerance = 1e-12)
+
+  # Default kandhway_kuri on a raw matrix is the binary-degree formula —
+  # different by construction from tna's power-series.
+  cog_kk <- cograph::centrality(W, measures = "diffusion")$diffusion_all
+  expect_false(isTRUE(all.equal(cog_kk, tna_diff, tolerance = 1e-3)))
+
+  # tna_network = FALSE on tna input opts out and returns cograph defaults.
+  cog_off <- cograph::centrality(t1, measures = "diffusion",
+                                  tna_network = FALSE)$diffusion_all
+  expect_equal(cog_off, cog_kk, tolerance = 1e-12)
+})
+
+test_that("transitivity onnela matches tna::Clustering byte-for-byte", {
+  skip_if_not_installed("tna")
+  W <- matrix(c(0.4, 0.3, 0.3,
+                0.2, 0.5, 0.3,
+                0.1, 0.2, 0.7), 3, 3, byrow = TRUE)
+  rownames(W) <- colnames(W) <- c("A", "B", "C")
+  t1 <- tna::tna(W)
+
+  tna_clust <- tna::centralities(t1, measures = "Clustering")$Clustering
+
+  # tna input via auto tna_network picks "onnela".
+  cog_auto <- cograph::centrality(t1, measures = "transitivity")$transitivity
+  expect_equal(cog_auto, tna_clust, tolerance = 1e-12)
+
+  # Explicit type on raw matrix matches.
+  cog_explicit <- cograph::centrality(W, measures = "transitivity",
+                                       transitivity_type = "onnela")$transitivity
+  expect_equal(cog_explicit, tna_clust, tolerance = 1e-12)
+
+  # Umbrella on raw matrix flips transitivity_type.
+  cog_umbrella <- cograph::centrality(W, measures = "transitivity",
+                                       tna_network = TRUE)$transitivity
+  expect_equal(cog_umbrella, tna_clust, tolerance = 1e-12)
+
+  # Default Watts-Strogatz on raw matrix is unweighted and differs.
+  cog_local <- cograph::centrality(W, measures = "transitivity")$transitivity
+  expect_false(isTRUE(all.equal(cog_local, tna_clust, tolerance = 1e-3)))
+})
+
+test_that("tna_network respects user-explicit overrides", {
+  skip_if_not_installed("tna")
+  W <- matrix(c(0.4, 0.3, 0.3,
+                0.2, 0.5, 0.3,
+                0.1, 0.2, 0.7), 3, 3, byrow = TRUE)
+  rownames(W) <- colnames(W) <- c("A", "B", "C")
+  t1 <- tna::tna(W)
+
+  # User says tna_network = TRUE but explicitly passes loops = TRUE.
+  # loops should stay TRUE; everything else takes tna defaults.
+  out <- cograph::centrality(t1, measures = "diffusion",
+                              tna_network = TRUE, loops = TRUE)
+  # With loops kept on a row-stochastic matrix, the power-series collapses
+  # to a constant n for every node.
+  expect_equal(unique(out$diffusion_all), ncol(W))
+
+  # User explicitly sets transitivity_type = "local" — onnela should NOT
+  # silently take over even with tna_network = TRUE. Positive assertion:
+  # the explicit-override result equals the baseline obtained by manually
+  # mirroring the umbrella's other defaults (loops = FALSE,
+  # invert_weights = TRUE) under tna_network = FALSE. If the override
+  # works, the umbrella adds nothing on top.
+  out_explicit_local <- cograph::centrality(t1, measures = "transitivity",
+                              tna_network = TRUE, transitivity_type = "local")
+  out_baseline_local <- cograph::centrality(t1, measures = "transitivity",
+                              tna_network = FALSE, transitivity_type = "local",
+                              loops = FALSE, invert_weights = TRUE)
+  expect_equal(out_explicit_local$transitivity,
+               out_baseline_local$transitivity, tolerance = 1e-12)
+
+  # And it must NOT equal the onnela value the umbrella would have picked.
+  out_default_onnela <- cograph::centrality(t1, measures = "transitivity",
+                              tna_network = TRUE)
+  expect_false(isTRUE(all.equal(out_explicit_local$transitivity,
+                                out_default_onnela$transitivity,
+                                tolerance = 1e-3)))
+})
+
 test_that("leverage matches centiserve", {
   skip_if_not_installed("centiserve")
   expect_equal(
@@ -436,4 +539,66 @@ test_that("voterank returns valid scores", {
 
   # All values should be in [0, 1]
   expect_true(all(vr >= 0 & vr <= 1))
+})
+
+# ============================================
+# Tiered centrality via `type` argument
+# ============================================
+
+test_that("centrality default tier is 'basic' with 6 canonical measures", {
+  mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+  rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+
+  result <- centrality(mat)
+  cols <- setdiff(names(result), "node")
+  # basic resolves to 6 measure names; each measure expands to 1+ columns
+  # (e.g. degree -> degree_all), so we check that each measure has a column.
+  expect_true(any(grepl("^degree", cols)))
+  expect_true(any(grepl("^strength", cols)))
+  expect_true(any(grepl("^closeness", cols)))
+  expect_true("betweenness" %in% cols)
+  expect_true("eigenvector" %in% cols)
+  expect_true("pagerank" %in% cols)
+  # And confirms the trimming: no extended-only measure like katz/coreness
+  expect_false("katz" %in% cols)
+  expect_false(any(grepl("^coreness", cols)))
+})
+
+test_that("centrality type='extended' is a strict superset of basic", {
+  mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+  rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+
+  basic_cols <- setdiff(names(centrality(mat, type = "basic")), "node")
+  ext_cols <- setdiff(names(centrality(mat, type = "extended")), "node")
+
+  expect_true(all(basic_cols %in% ext_cols))
+  expect_gt(length(ext_cols), length(basic_cols))
+  expect_true(any(grepl("^coreness", ext_cols)))
+  expect_true("katz" %in% ext_cols)
+})
+
+test_that("centrality type='all' returns every measure", {
+  mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+  rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+
+  all_cols <- setdiff(names(centrality(mat, type = "all")), "node")
+  ext_cols <- setdiff(names(centrality(mat, type = "extended")), "node")
+  # "all" must include everything in "extended" plus more
+  expect_true(all(ext_cols %in% all_cols))
+  expect_gt(length(all_cols), length(ext_cols))
+})
+
+test_that("centrality explicit measures= overrides type", {
+  mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+  rownames(mat) <- colnames(mat) <- c("A", "B", "C")
+
+  # Asking for only pagerank should trump the "extended" tier
+  result <- centrality(mat, type = "extended", measures = "pagerank")
+  cols <- setdiff(names(result), "node")
+  expect_equal(cols, "pagerank")
+})
+
+test_that("centrality type argument rejects invalid values", {
+  mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
+  expect_error(centrality(mat, type = "bogus"), "should be one of")
 })

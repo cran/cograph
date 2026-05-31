@@ -7,7 +7,8 @@
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
 #' @param directed Logical or NULL. If NULL (default), auto-detect from matrix
 #'   symmetry. Set TRUE to force directed, FALSE to force undirected.
-#' @param weighted Logical. Use edge weights for strength/centrality calculations.
+#' @param weighted Logical. Use edge weights for strength, shortest-path, and
+#'   centrality calculations where the underlying igraph routine accepts them.
 #'   Default TRUE.
 #' @param mode For directed networks: "all", "in", or "out". Affects degree-based
 #'   calculations. Default "all".
@@ -274,8 +275,9 @@ network_summary <- function(x,
 #' @param normalize Logical. If TRUE, the y-axis shows proportions (bars sum
 #'   to 1) instead of counts. Default FALSE.
 #' @param log Character. Axis log-scaling: "" (none, default), "x", "y", or
-#'   "xy". For cumulative plots, "xy" produces log-log CCDF (standard for
-#'   power-law inspection).
+#'   "xy". Histogram plots apply y-axis log scaling for "y" or "xy";
+#'   cumulative plots support x, y, and xy scaling, with "xy" producing a
+#'   log-log CCDF (standard for power-law inspection).
 #' @param main Character. Plot title. Default "Degree Distribution".
 #' @param xlab Character. X-axis label. Default "Degree".
 #' @param ylab Character. Y-axis label. Default auto-chosen based on
@@ -288,7 +290,7 @@ network_summary <- function(x,
 #'
 #' @return Invisibly returns a list with components:
 #'   \describe{
-#'     \item{degree}{Named integer vector of per-node degrees.}
+#'     \item{degree}{Named numeric vector of per-node degrees.}
 #'     \item{table}{Table of degree frequencies.}
 #'     \item{breaks}{Breakpoints used for the histogram (non-cumulative only).}
 #'     \item{counts}{Bin counts (non-cumulative only).}
@@ -297,36 +299,16 @@ network_summary <- function(x,
 #'
 #' @export
 #' @examples
-#' # Basic usage — integer-aligned bins by default
-#' adj <- matrix(c(0, 1, 1, 0,
-#'                 1, 0, 1, 1,
-#'                 1, 1, 0, 1,
-#'                 0, 1, 1, 0), 4, 4, byrow = TRUE)
+#' # Undirected network
+#' adj <- matrix(c(0, 1, 1, 0, 1, 0, 1, 1,
+#'                 1, 1, 0, 1, 0, 1, 1, 0), 4, 4, byrow = TRUE)
 #' cograph::degree_distribution(adj)
-#'
-#' # Cumulative (CCDF)
 #' cograph::degree_distribution(adj, cumulative = TRUE)
 #'
-#' # Control bins
-#' \dontrun{
-#' cograph::degree_distribution(large_net, bins = 15)
-#' cograph::degree_distribution(large_net, bin_width = 5)
-#' cograph::degree_distribution(large_net, breaks = c(0, 5, 10, 20, 50, 100))
-#' }
-#'
-#' # For directed networks
-#' directed_adj <- matrix(c(0, 1, 0, 0,
-#'                          0, 0, 1, 0,
-#'                          1, 0, 0, 1,
-#'                          0, 1, 0, 0), 4, 4, byrow = TRUE)
-#' cograph::degree_distribution(directed_adj, mode = "in",
-#'   main = "In-Degree Distribution")
-#'
-#' # With igraph
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::sample_gnp(100, 0.1)
-#'   cograph::degree_distribution(g, col = "coral")
-#' }
+#' # Directed network, in-degree
+#' directed_adj <- matrix(c(0, 1, 0, 0, 0, 0, 1, 0,
+#'                          1, 0, 0, 1, 0, 1, 0, 0), 4, 4, byrow = TRUE)
+#' cograph::degree_distribution(directed_adj, mode = "in")
 degree_distribution <- function(x,
                                 mode = "all",
                                 directed = NULL,
@@ -733,7 +715,8 @@ network_bridges <- function(x, count_only = FALSE, ...) {
 #'   Default 1.
 #' @param ... Additional arguments passed to \code{\link{to_igraph}}
 #'
-#' @return Numeric in \[0, 1\]: global efficiency
+#' @return Numeric global efficiency. For unweighted simple graphs this is in
+#'   \eqn{[0, 1]}; weighted graphs can exceed 1 when edge distances are below 1.
 #'
 #' @export
 #' @examples
@@ -802,7 +785,9 @@ network_global_efficiency <- function(x, directed = NULL, weights = NULL,
 #' @param alpha Numeric. Exponent for weight inversion. Default 1.
 #' @param ... Additional arguments passed to \code{\link{to_igraph}}
 #'
-#' @return Numeric in \[0, 1\]: average local efficiency
+#' @return Numeric average local efficiency. For unweighted simple graphs this
+#'   is in \eqn{[0, 1]}; weighted graphs can exceed 1 when edge distances are
+#'   below 1.
 #'
 #' @export
 #' @examples
@@ -945,7 +930,7 @@ network_small_world <- function(x, n_random = 10, ...) {
 #' @examples
 #' # Scale-free networks often show rich-club effect
 #' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::barabasi.game(50, m = 2)
+#'   g <- igraph::sample_pa(50, m = 2, directed = FALSE)
 #'   network_rich_club(g, k = 5)
 #' }
 network_rich_club <- function(x, k = NULL, normalized = FALSE, n_random = 10, ...) {

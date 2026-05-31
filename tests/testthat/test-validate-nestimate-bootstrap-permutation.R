@@ -155,7 +155,7 @@ test_that("net_permutation directed: renders all modes", {
   skip_if_no_nestimate()
   nobj1 <- make_directed_netobject(seed = 42)
   nobj2 <- make_directed_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 100)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 100)
 
   expect_no_error(with_temp_png(splot(nperm)))
   expect_no_error(with_temp_png(splot(nperm, show_nonsig = TRUE)))
@@ -169,7 +169,7 @@ test_that("net_permutation directed: sig_mask matches p_values < alpha", {
   skip_if_no_nestimate()
   nobj1 <- make_directed_netobject(seed = 42)
   nobj2 <- make_directed_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 100)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 100)
 
   sig_from_diff <- nperm$diff_sig != 0
   sig_from_pval <- nperm$p_values < nperm$alpha
@@ -180,7 +180,7 @@ test_that("net_permutation directed: positive diffs get green, negative get red"
   skip_if_no_nestimate()
   nobj1 <- make_directed_netobject(seed = 42)
   nobj2 <- make_directed_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 100)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 100)
 
   weights_display <- round(nperm$diff_sig, 2)
   edge_idx <- which(weights_display != 0, arr.ind = TRUE)
@@ -202,7 +202,7 @@ test_that("net_permutation directed: edge labels format correctly", {
   skip_if_no_nestimate()
   nobj1 <- make_directed_netobject(seed = 42)
   nobj2 <- make_directed_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 100)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 100)
 
   get_significance_stars <- cograph:::get_significance_stars
 
@@ -233,7 +233,7 @@ test_that("net_permutation undirected: renders all modes", {
   skip_if_no_nestimate()
   nobj1 <- make_undirected_netobject(seed = 42)
   nobj2 <- make_undirected_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 50)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 50)
 
   expect_no_error(with_temp_png(splot(nperm)))
   expect_no_error(with_temp_png(splot(nperm, show_nonsig = TRUE)))
@@ -246,7 +246,7 @@ test_that("net_permutation undirected: uses upper-triangle edge indexing", {
   skip_if_no_nestimate()
   nobj1 <- make_undirected_netobject(seed = 42)
   nobj2 <- make_undirected_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 50)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 50)
 
   is_directed <- isTRUE(nperm$x$directed)
   expect_false(is_directed)
@@ -285,7 +285,7 @@ test_that("net_permutation: cograph reads correct fields from Nestimate", {
   skip_if_no_nestimate()
   nobj1 <- make_directed_netobject(seed = 42)
   nobj2 <- make_directed_netobject(seed = 99)
-  nperm <- Nestimate::permutation_test(nobj1, nobj2, iter = 50)
+  nperm <- Nestimate::permutation(nobj1, nobj2, iter = 50)
 
   # These are the exact fields splot.net_permutation reads
   expect_true(!is.null(nperm$alpha))
@@ -299,4 +299,60 @@ test_that("net_permutation: cograph reads correct fields from Nestimate", {
   # p_values and effect_size are already matrices (not in edge stats df)
   expect_true(is.matrix(nperm$p_values))
   expect_true(is.matrix(nperm$effect_size))
+})
+
+# ============================================
+# Regression: self-loops survive netobject -> centrality round-trip
+# ============================================
+# Nestimate's .extract_edges_from_matrix() previously dropped the diagonal
+# when constructing a netobject's $edges, so $weights kept self-loops but
+# $edges did not. cograph::centrality() routes netobjects through
+# network_to_igraph() which builds from $edges, so loops were silently
+# missing for any netobject path while the matrix path kept them.
+# Symptom: centrality_degree(MCMLL_tna$macro) and
+#          centrality_degree(MCMLL_tna$macro$weights) disagreed by 2 per node.
+
+test_that("netobject path preserves self-loops when weights have non-zero diagonal", {
+  skip_if_no_nestimate()
+
+  # build_network() on sequence data produces a netobject whose weight
+  # matrix has a non-zero diagonal (transitions where the same code
+  # follows itself), so it exercises the loop-extraction path.
+  nobj <- make_directed_netobject(n = 400, seed = 7)
+  W <- nobj$weights
+
+  # Sanity: at least one self-loop in $weights so the test is meaningful.
+  expect_gt(sum(diag(W) != 0), 0)
+
+  # Behavior probe: skip cleanly on Nestimate versions that predate the
+  # .extract_edges_from_matrix() loop-extraction fix. The test asserts
+  # the post-fix invariant; on the old extractor it would fail with a
+  # confusing diff instead of skipping.
+  if (nrow(nobj$edges) != sum(W != 0)) {
+    skip(paste0(
+      "Installed Nestimate (",
+      utils::packageVersion("Nestimate"),
+      ") drops self-loops in .extract_edges_from_matrix(); ",
+      "reinstall from source to run this regression test."
+    ))
+  }
+
+  # $edges must include every non-zero entry, including the diagonal.
+  expect_equal(nrow(nobj$edges), sum(W != 0))
+
+  # Centrality through the netobject (uses $edges via network_to_igraph)
+  # must agree with centrality through the raw weight matrix on
+  # loop-sensitive measures.
+  by_object <- cograph::centrality(
+    nobj,
+    measures = c("degree", "strength"),
+    invert_weights = FALSE
+  )
+  by_matrix <- cograph::centrality(
+    W,
+    measures = c("degree", "strength"),
+    invert_weights = FALSE
+  )
+  expect_equal(by_object$degree_all, by_matrix$degree_all)
+  expect_equal(by_object$strength_all, by_matrix$strength_all)
 })

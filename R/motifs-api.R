@@ -47,8 +47,14 @@
 #'   \code{pattern} filter.
 #' @param significance Logical. Run permutation significance test? Default TRUE.
 #' @param n_perm Number of permutations for significance. Default 1000.
-#' @param min_count Minimum observed count to include a triad (instance mode
-#'   only). Default 5 for instances, NULL for census.
+#' @param min_count Inclusive minimum count to keep a row — rows with
+#'   \code{count >= min_count} are retained. In instance mode
+#'   (\code{named_nodes = TRUE}) this filters the \code{observed} column:
+#'   at individual level the number of subjects exhibiting the triad, at
+#'   aggregate level the triad's weighted edge mass (sum of its 6 directed
+#'   edge weights). In census mode (\code{named_nodes = FALSE}) this filters
+#'   the \code{count} column — the number of times each MAN type appears.
+#'   Default 5 for instances, NULL for census (no filter).
 #' @param edge_method Method for determining edge presence: "any" (default),
 #'   "expected", or "percent".
 #' @param edge_threshold Threshold for "expected" or "percent" methods. Default 1.5.
@@ -57,32 +63,56 @@
 #' @param top Return only the top N results. NULL returns all.
 #' @param seed Random seed for reproducibility.
 #'
-#' @return A \code{cograph_motif_result} object with:
+#' @return A \code{cograph_motif_result} object (a list) with:
 #'   \describe{
-#'     \item{results}{Data frame of results. Census: type, count, (z, p, sig).
-#'       Instances: triad, type, observed, (z, p, sig).}
-#'     \item{type_summary}{Named counts by MAN type}
-#'     \item{level}{Analysis level: "individual" or "aggregate"}
-#'     \item{named_nodes}{Whether nodes are identified (TRUE) or exchangeable (FALSE)}
-#'     \item{n_units}{Number of units analyzed}
-#'     \item{params}{List of parameters used}
+#'     \item{results}{Data frame of results. Census mode
+#'       (\code{named_nodes = FALSE}): one row per MAN type with columns
+#'       \code{type}, \code{count}, and when \code{significance = TRUE} also
+#'       \code{expected}, \code{z}, \code{p}, \code{sig}. Instance mode
+#'       (\code{named_nodes = TRUE}): one row per concrete node triple with
+#'       columns \code{triad}, \code{type}, \code{observed}, and when
+#'       \code{significance = TRUE} also \code{expected}, \code{z}, \code{p},
+#'       \code{sig}.}
+#'     \item{type_summary}{Named \code{table} of MAN-type counts. In census
+#'       mode the values come from the \code{count} column; in instance
+#'       mode they come from \code{table(results$type)} and describe how
+#'       many concrete node-triples fall under each MAN type. Sorted
+#'       descending so \code{plot(., type = "patterns")} draws the most
+#'       frequent types first.}
+#'     \item{level}{Analysis level: \code{"individual"} when the input
+#'       carried per-subject sequence data (\code{tna} with \code{$data},
+#'       edge list with an actor column, Nestimate \code{netobject} built
+#'       from \code{build_tna()}/similar), otherwise \code{"aggregate"}
+#'       (a single transition matrix).}
+#'     \item{named_nodes}{Logical mirror of the \code{named_nodes} argument.
+#'       Plot helpers gate per-type significance decoration on this so the
+#'       instance-mode case (multiple triples per MAN type) doesn't get
+#'       silently aggregated.}
+#'     \item{n_units}{Number of subjects/units. 1 at aggregate level,
+#'       \code{nrow} of the input sequence data at individual level.}
+#'     \item{params}{List of the call's parameters (\code{pattern},
+#'       \code{edge_method}, \code{edge_threshold}, \code{significance},
+#'       \code{n_perm}, \code{min_count}, \code{labels}, \code{n_states},
+#'       and the window settings if any). Read by \code{print()} and the
+#'       \code{plot()} dispatcher.}
 #'   }
 #'
 #' @examples
-#' # Census from a matrix (no significance test — fastest path)
+#' # Census from a matrix (no significance test -- fastest path)
 #' mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
 #' motifs(mat, significance = FALSE)
 #'
+#' \dontrun{
 #' # With a minimal significance test (set n_perm >= 500 in practice)
 #' motifs(mat, n_perm = 10L, seed = 1)
-#' \dontrun{
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   # tna object input — keep n_perm small for example speed
-#'   Mod <- tna::tna(tna::group_regulation)
-#'   motifs(Mod, n_perm = 10L, seed = 1)
-#'   subgraphs(Mod, n_perm = 10L, seed = 1)
 #' }
+#'
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
+#' \dontrun{
+#' Mod <- tna::tna(tna::group_regulation)
+#' motifs(Mod, n_perm = 10L, seed = 1)
+#' subgraphs(Mod, n_perm = 10L, seed = 1)
 #' }
 #'
 #' @seealso [subgraphs()], [motif_census()], [extract_motifs()]
@@ -152,9 +182,10 @@ motifs <- function(x,
     level <- "individual"
     n_units <- dim(trans)[1]
 
-  # --- Case 2: cograph_network ---
+  # --- Case 2: cograph_network (includes Nestimate netobject) ---
   } else if (inherits(x, "cograph_network")) {
     raw_data <- x$data
+    net_labels <- get_labels(x)
 
     if (is.data.frame(raw_data) &&
         all(c("from", "to") %in% tolower(names(raw_data)))) {
@@ -183,6 +214,22 @@ motifs <- function(x,
         labels <- get_labels(x)
         trans <- array(mat, dim = c(1, nrow(mat), ncol(mat)))
       }
+
+    } else if (.is_tna_sequence_data(raw_data, net_labels) &&
+               requireNamespace("tna", quietly = TRUE)) {
+      # Nestimate::build_tna() (and similar) stores raw sequence data in $data
+      # — structurally identical to what tna::tna() consumes. Route through
+      # the individual-level tna path so motifs sees per-subject transitions.
+      tna_obj <- tna::tna(raw_data)
+      init_fn <- .get_tna_initialize_model()
+      model <- init_fn(tna_obj$data, attr(tna_obj, "type"),
+                       attr(tna_obj, "scaling"), attr(tna_obj, "params"),
+                       transitions = TRUE)
+      trans <- model$trans
+      labels <- tna_obj$labels
+      level <- "individual"
+      n_units <- dim(trans)[1]
+
     } else {
       mat <- to_matrix(x)
       labels <- get_labels(x)
@@ -416,6 +463,7 @@ motifs <- function(x,
       }, character(1))
 
       data.frame(unit = ind, triad = triads, type = counted$type,
+                 weight = counted$weight,
                  stringsAsFactors = FALSE)
     })
 
@@ -437,19 +485,25 @@ motifs <- function(x,
       results <- merge(obs, type_map, by = "triad")
       results <- results[order(results$observed, decreasing = TRUE), ]
     } else {
+      # Aggregate level: a single matrix contains each triad at most once, so a
+      # frequency-style "observed" is structurally always 1. Use the weighted
+      # edge mass of the triad (sum of its 6 directed edge weights) instead, so
+      # min_count becomes a meaningful strength filter at aggregate level.
+      first_idx <- !duplicated(combined$triad)
       results <- data.frame(
-        triad = unique(combined$triad),
-        type = combined$type[!duplicated(combined$triad)],
-        observed = 1L,
+        triad = combined$triad[first_idx],
+        type = combined$type[first_idx],
+        observed = combined$weight[first_idx],
         stringsAsFactors = FALSE
       )
+      results <- results[order(results$observed, decreasing = TRUE), ]
     }
     rownames(results) <- NULL
 
     # ---- INSTANCE SIGNIFICANCE (exact configuration model) ----
     if (significance && level == "individual") {
       if (!is.null(min_count)) {
-        candidates <- results[results$observed > min_count, ]
+        candidates <- results[results$observed >= min_count, ]
       } else {
         candidates <- results
       }
@@ -546,12 +600,23 @@ motifs <- function(x,
     }
   }
 
-  # Min count filter (instance mode without significance)
-  if (!is.null(min_count) && named_nodes && !significance) {
-    results <- results[results$observed > min_count, ]
-    if (nrow(results) == 0) {
-      message("No motifs with count > ", min_count, ".")
-      return(NULL)
+  # Min count filter (inclusive). In instance mode, applied for every path
+  # EXCEPT the significance + level=="individual" branch above, which already
+  # filters before computing the null distribution. In census mode
+  # (named_nodes=FALSE), filters MAN types by the `count` column.
+  if (!is.null(min_count)) {
+    if (named_nodes && !(significance && level == "individual")) {
+      results <- results[results$observed >= min_count, ]
+      if (nrow(results) == 0) {
+        message("No motifs with count >= ", min_count, ".")
+        return(NULL)
+      }
+    } else if (!named_nodes && "count" %in% names(results)) {
+      results <- results[results$count >= min_count, ]
+      if (nrow(results) == 0) {
+        message("No motif types with count >= ", min_count, ".")
+        return(NULL)
+      }
     }
   }
 
@@ -560,13 +625,24 @@ motifs <- function(x,
     results <- results[seq_len(top), ]
   }
 
-  # Type summary
-  type_summary <- sort(table(results$type), decreasing = TRUE)
+  # Type summary. In census mode each MAN type collapses to one row, so
+  # table(results$type) gives all 1s — use results$count directly. In
+  # instance mode `results` has one row per node-triple, so table() counts
+  # how many instances belong to each MAN type, which is what we want.
+  # We always return a `table` so as.data.frame(type_summary) yields a
+  # tidy two-column frame (consumers downstream rely on this shape).
+  if (!named_nodes && "count" %in% names(results)) {
+    type_summary <- as.table(stats::setNames(as.integer(results$count),
+                                             as.character(results$type)))
+    type_summary <- sort(type_summary, decreasing = TRUE)
+  } else {
+    type_summary <- sort(table(results$type), decreasing = TRUE)
+  }
 
   # Informative message (instance mode with defaults)
   if (named_nodes && !.user_set_pattern) {
-    mc_label <- if (!is.null(min_count)) min_count else 0
-    message("Showing triangle patterns (count > ", mc_label, "). ",
+    mc_label <- if (!is.null(min_count)) min_count else 1L
+    message("Showing triangle patterns (count >= ", mc_label, "). ",
             "For all MAN types use pattern = 'all'.")
   }
 
@@ -599,13 +675,27 @@ motifs <- function(x,
 #' Extract Specific Motif Instances (Subgraphs)
 #'
 #' Convenience wrapper for \code{motifs(x, named_nodes = TRUE, ...)}. Returns
-#' specific node triples forming each MAN pattern.
+#' one row per concrete node-triple instantiating each MAN pattern, so the
+#' same MAN type can appear in many rows with its own \code{z} / \code{p}
+#' per triple. For per-triple significance use
+#' \code{plot(., type = "significance")} or \code{plot(., type = "triads")};
+#' the per-type plots (\code{"types"}, \code{"patterns"}) deliberately drop
+#' the significance decoration here, because aggregating per type requires a
+#' rule (median? max-|z|?) that isn't pinned and would be misleading by
+#' default.
 #'
-#' @inheritParams motifs
+#' @param ... Arguments forwarded to \code{\link{motifs}()}. See \code{?motifs}
+#'   for the full parameter list (\code{x}, \code{actor}, \code{window},
+#'   \code{pattern}, \code{include}, \code{exclude}, \code{significance},
+#'   \code{n_perm}, \code{min_count}, \code{edge_method}, \code{edge_threshold},
+#'   \code{min_transitions}, \code{top}, \code{seed}).
 #' @return A \code{cograph_motif_result} object with \code{named_nodes = TRUE}.
 #'   Contains \code{$results} (data frame with columns \code{triad}, \code{type},
 #'   \code{observed}, and optionally \code{z}, \code{p}, \code{sig}),
 #'   \code{$type_summary}, \code{$level}, \code{$n_units}, and \code{$params}.
+#'   In instance mode, \code{$type_summary} is built via
+#'   \code{table(results$type)} so it counts how many node-triples fall under
+#'   each MAN type.
 #' @examples
 #' mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
@@ -637,8 +727,8 @@ print.cograph_motif_result <- function(x, ...) {
     cat("Significance: permutation (n_perm=", x$params$n_perm, ")\n", sep = "")
   }
 
-  if (!is.null(x$params$min_count) && x$named_nodes) {
-    cat("Min count: >", x$params$min_count, "\n")
+  if (!is.null(x$params$min_count)) {
+    cat("Min count: >=", x$params$min_count, "\n")
   }
 
   cat("\nType distribution:\n")
@@ -654,22 +744,66 @@ print.cograph_motif_result <- function(x, ...) {
 
 #' @param type Plot type:
 #'   \describe{
-#'     \item{\code{"triads"}}{Network diagrams of specific node triples (instance
-#'       mode) or falls back to patterns (census mode). Arranged in a grid.}
-#'     \item{\code{"types"}}{Bar chart of MAN type frequencies.}
-#'     \item{\code{"significance"}}{Z-score plot showing over- and
-#'       under-represented types relative to a null model. Requires
+#'     \item{\code{"triads"}}{Network diagrams of specific node triples
+#'       (instance mode) or falls back to patterns (census mode). Each panel
+#'       title reads \code{"<MAN code>: <description>"} (e.g. \code{"030T:
+#'       Feed-forward"}) and, in census mode, appends the z-score and a
+#'       significance star (\code{*} p<.05, \code{**} p<.01, \code{***}
+#'       p<.001). Arranged in a grid.}
+#'     \item{\code{"types"}}{Bar chart of MAN type frequencies. In census
+#'       mode bars are colored by significance direction (see \code{colors});
+#'       in instance mode bars use a single fill because per-type
+#'       significance would need an aggregation rule across multiple
+#'       node-triple rows of the same type.}
+#'     \item{\code{"significance"}}{Z-score bars per row of
+#'       \code{x$results}. In census mode each bar is one MAN type; in
+#'       instance mode each bar is one concrete node-triple, labeled
+#'       \code{"<triple> [<MAN code>: <description>]"}. Bars are colored
+#'       with the same three-tone rule (see \code{colors}). Requires
 #'       \code{significance = TRUE} in the \code{motifs()} call.}
-#'     \item{\code{"patterns"}}{Abstract MAN pattern diagrams showing the edge
-#'       structure of each triad type.}
+#'     \item{\code{"patterns"}}{Abstract MAN pattern diagrams showing the
+#'       edge structure of each triad type. In census mode panel nodes are
+#'       filled by significance direction (red sig over / blue sig under /
+#'       grey ns); in instance mode panels use a single fill, same reason
+#'       as \code{"types"}.}
 #'   }
 #' @param n Maximum number of items to plot. Default 15.
 #' @param ncol Number of columns in the triad/pattern grid. Default 5.
-#' @param colors Two-element color vector: first color for over-represented or
-#'   positive values, second for under-represented or negative values.
-#'   Default \code{c("#2166AC", "#B2182B")} (blue/red).
+#' @param colors Two-element color vector mapped to a three-tone
+#'   significance scale (used by \code{type = "significance"}, plus
+#'   \code{type = "types"} and \code{type = "patterns"} in census mode):
+#'   \code{colors[1]} fills items that are significantly under-represented
+#'   (\code{p < .05} and \code{z < 0}); \code{colors[2]} fills items that
+#'   are significantly over-represented (\code{p < .05} and \code{z > 0});
+#'   everything else is filled neutral grey (\code{"#9E9E9E"}). Default
+#'   \code{c("#2166AC", "#B2182B")} (blue for under, red for over).
+#'   When significance was not run, \code{type = "types"} falls back to a
+#'   single \code{colors[1]} fill and patterns nodes use \code{colors[1]}.
+#' @param node_size Triad node radius (relative). Default 5.
+#'   (\code{type = "triads"} only.)
+#' @param label_size Triad node-label font size in points. Default 11.
+#' @param title_size Per-panel title font size in points. Default 12.
+#' @param stats_size Per-panel statistics caption font size in points
+#'   (e.g., \code{n=34 z=-55.3 p<.001}). Default 13.
+#' @param legend_size Bottom legend font size in points. Default 13.
+#' @param legend Logical. Show the abbreviation legend strip below the
+#'   triad grid. Default \code{TRUE}. (\code{type = "triads"} only.)
+#' @param motif_color Color of triad nodes/edges/labels. Default
+#'   \code{"#800020"} (deep burgundy). (\code{type = "triads"} only.)
+#' @param spacing Triangle spread inside each panel; \code{> 1} pulls
+#'   nodes inward, \code{< 1} pushes them apart. Default 1.
+#' @param base_size Base font size for the \code{ggplot2} themes used
+#'   by \code{type = "types"} and \code{type = "significance"}.
+#'   Default 12.
+#' @param combined Logical: when TRUE (default) and \code{type = "patterns"}
+#'   (or \code{type = "triads"} on unnamed-node input that falls back to
+#'   pattern plotting), arrange the per-motif panels in an internal grid via
+#'   \code{graphics::par(mfrow=...)}. Set to FALSE to draw into a layout the
+#'   caller has already configured (e.g. via \code{\link{panel_layout}()}).
 #' @param ... Additional arguments passed to internal plot helpers.
-#' @return Invisibly returns the input \code{x}.
+#' @return Invisibly returns the input \code{x} for \code{"triads"} and
+#'   \code{"patterns"}, or the underlying \code{ggplot} for \code{"types"} and
+#'   \code{"significance"}.
 #' @rdname motifs
 #' @method plot cograph_motif_result
 #' @export
@@ -677,6 +811,16 @@ plot.cograph_motif_result <- function(x, type = c("triads", "types",
                                                     "significance", "patterns"),
                                        n = 15, ncol = 5,
                                        colors = c("#2166AC", "#B2182B"),
+                                       node_size = 5,
+                                       label_size = 11,
+                                       title_size = 12,
+                                       stats_size = 13,
+                                       legend_size = 13,
+                                       legend = TRUE,
+                                       motif_color = "#800020",
+                                       spacing = 1,
+                                       base_size = 12,
+                                       combined = TRUE,
                                        ...) {
   type <- match.arg(type)
 
@@ -687,12 +831,14 @@ plot.cograph_motif_result <- function(x, type = c("triads", "types",
 
   if (type == "triads") {
     if (x$named_nodes) {
-      # Instance mode: delegate to existing helper
-      .plot_triad_networks(x, n = n, ncol = ncol,
-                           colors = colors, ...)
+      .plot_triad_networks(x, n = n, ncol = ncol, colors = colors,
+                           node_size = node_size, label_size = label_size,
+                           title_size = title_size, stats_size = stats_size,
+                           legend_size = legend_size, legend = legend,
+                           color = motif_color, spacing = spacing, ...)
     } else {
-      # Census mode: no named triads, plot patterns instead
-      .plot_motif_patterns(x, n = n, colors = colors, ...)
+      .plot_motif_patterns(x, n = n, colors = colors,
+                           combined = combined, ...)
     }
     return(invisible(x))
 
@@ -704,13 +850,51 @@ plot.cograph_motif_result <- function(x, type = c("triads", "types",
     names(df) <- c("type", "count")
     df <- df[order(df$count, decreasing = TRUE), ]
 
-    p <- ggplot2::ggplot(df, ggplot2::aes(
-      x = stats::reorder(.data$type, .data$count), y = .data$count)) +
-      ggplot2::geom_col(fill = colors[1]) +
-      ggplot2::coord_flip() +
-      ggplot2::labs(x = "MAN Type", y = "Count",
-                    title = "Motif Type Distribution") +
-      .motifs_ggplot_theme()
+    # Color bars by significance direction — only safe in census mode.
+    # In instance mode (named_nodes = TRUE) `results` has one row per
+    # node-triple, so the same MAN type appears in many rows with
+    # potentially conflicting z/p values; there's no single type-level
+    # statistic without an aggregation rule that's documented and tested.
+    # Skip the coloring there and fall back to a single fill color.
+    has_sig <- !isTRUE(x$named_nodes) &&
+               isTRUE(x$params$significance) &&
+               is.data.frame(x$results) &&
+               "z" %in% names(x$results) &&
+               "p" %in% names(x$results) &&
+               "type" %in% names(x$results)
+    if (has_sig) {
+      type_z <- stats::setNames(x$results$z, x$results$type)
+      type_p <- stats::setNames(x$results$p, x$results$type)
+      df$direction <- ifelse(
+        !is.na(type_p[df$type]) & type_p[df$type] < 0.05 &
+          type_z[df$type] > 0, "over",
+        ifelse(!is.na(type_p[df$type]) & type_p[df$type] < 0.05 &
+                 type_z[df$type] < 0, "under", "ns")
+      )
+      p <- ggplot2::ggplot(df, ggplot2::aes(
+        x = stats::reorder(.data$type, .data$count), y = .data$count,
+        fill = .data$direction)) +
+        ggplot2::geom_col() +
+        ggplot2::scale_fill_manual(
+          values = c(over = colors[2], under = colors[1], ns = "#9E9E9E"),
+          labels = c(over = "Over-represented (p<.05)",
+                     under = "Under-represented (p<.05)",
+                     ns = "Not significant"),
+          name = NULL) +
+        ggplot2::coord_flip() +
+        ggplot2::labs(x = "MAN Type", y = "Count",
+                      title = "Motif Type Distribution") +
+        .motifs_ggplot_theme(base_size = base_size) +
+        ggplot2::theme(legend.position = "bottom")
+    } else {
+      p <- ggplot2::ggplot(df, ggplot2::aes(
+        x = stats::reorder(.data$type, .data$count), y = .data$count)) +
+        ggplot2::geom_col(fill = colors[1]) +
+        ggplot2::coord_flip() +
+        ggplot2::labs(x = "MAN Type", y = "Count",
+                      title = "Motif Type Distribution") +
+        .motifs_ggplot_theme(base_size = base_size)
+    }
     print(p)
     return(invisible(p))
 
@@ -722,30 +906,110 @@ plot.cograph_motif_result <- function(x, type = c("triads", "types",
     sig_df <- sig_df[order(abs(sig_df$z), decreasing = TRUE), ]
     sig_df <- utils::head(sig_df, n)
 
-    # Create label column (use triad if available, else type)
-    sig_df$label <- if ("triad" %in% names(sig_df)) sig_df$triad else sig_df$type
+    # In instance mode, label each bar with the node triple AND the MAN-type
+    # description so "Context - Critique - Instruct" reads as
+    # "Context - Critique - Instruct [030T: Feed-forward]" — much easier to
+    # scan than the bare code.
+    if ("triad" %in% names(sig_df)) {
+      type_desc <- .get_man_descriptions()
+      desc_vec <- type_desc[sig_df$type]
+      desc_vec[is.na(desc_vec)] <- ""
+      tag <- ifelse(nzchar(desc_vec),
+                    sprintf("  [%s: %s]", sig_df$type, desc_vec),
+                    sprintf("  [%s]", sig_df$type))
+      sig_df$label <- paste0(sig_df$triad, tag)
+    } else {
+      type_desc <- .get_man_descriptions()
+      desc_vec <- type_desc[sig_df$type]
+      desc_vec[is.na(desc_vec)] <- ""
+      sig_df$label <- ifelse(nzchar(desc_vec),
+                             sprintf("%s: %s", sig_df$type, desc_vec),
+                             sig_df$type)
+    }
 
+    # Unified 3-tone coding: red = sig over, blue = sig under, grey = ns.
+    # Same rule as the types bar plot and the patterns node fills.
+    sig_df$direction <- ifelse(
+      !is.na(sig_df$p) & sig_df$p < 0.05 & sig_df$z > 0, "over",
+      ifelse(!is.na(sig_df$p) & sig_df$p < 0.05 & sig_df$z < 0,
+             "under", "ns")
+    )
     p <- ggplot2::ggplot(sig_df, ggplot2::aes(
       x = stats::reorder(.data$label, abs(.data$z)),
       y = .data$z,
-      fill = .data$z > 0)) +
+      fill = .data$direction)) +
       ggplot2::geom_col() +
       ggplot2::coord_flip() +
       ggplot2::scale_fill_manual(
-        values = c("TRUE" = colors[2], "FALSE" = colors[1]),
-        guide = "none") +
+        values = c(over = colors[2], under = colors[1], ns = "#9E9E9E"),
+        labels = c(over = "Over-represented (p<.05)",
+                   under = "Under-represented (p<.05)",
+                   ns = "Not significant"),
+        name = NULL) +
       ggplot2::geom_hline(yintercept = c(-1.96, 1.96), linetype = "dashed",
                            color = "grey50") +
       ggplot2::labs(x = NULL, y = "Z-score",
                     title = "Motif Significance") +
-      .motifs_ggplot_theme()
+      .motifs_ggplot_theme(base_size = base_size) +
+      ggplot2::theme(legend.position = "bottom")
     print(p)
     return(invisible(p))
 
   } else if (type == "patterns") {
-    .plot_motif_patterns(x, n = n, colors = colors, ...)
+    .plot_motif_patterns(x, n = n, colors = colors,
+                         combined = combined, ...)
     return(invisible(x))
   }
 
   invisible(x) # nocov — all type branches return above
+}
+
+
+#' Plot a motif/subgraph result
+#'
+#' Tab-completion-friendly wrapper around the
+#' \code{plot.cograph_motif_result} S3 method. Functionally identical
+#' to \code{plot(x, ...)} on a \code{cograph_motif_result} object,
+#' but exposes the \code{type / n / ncol / colors} arguments to
+#' editor autocompletion.
+#'
+#' @inheritParams plot.cograph_motif_result
+#' @param x A \code{cograph_motif_result} object from \code{motifs()} or
+#'   \code{subgraphs()}.
+#' @return Invisibly returns the input \code{x} (or the underlying
+#'   \code{ggplot} for the \code{"types"} and \code{"significance"}
+#'   types, matching the S3 method).
+#' @seealso \code{\link{motifs}}, \code{\link{subgraphs}}
+#' @examples
+#' \dontrun{
+#' g <- igraph::sample_gnp(20, 0.2, directed = TRUE)
+#' m <- motifs(g)
+#' plot_motifs(m)
+#' plot_motifs(m, type = "types")
+#' }
+#' @export
+plot_motifs <- function(x, type = c("triads", "types",
+                                     "significance", "patterns"),
+                         n = 15, ncol = 5,
+                         colors = c("#2166AC", "#B2182B"),
+                         node_size = 5,
+                         label_size = 11,
+                         title_size = 12,
+                         stats_size = 13,
+                         legend_size = 13,
+                         legend = TRUE,
+                         motif_color = "#800020",
+                         spacing = 1,
+                         base_size = 12,
+                         ...) {
+  if (!inherits(x, "cograph_motif_result")) {
+    stop("'x' must be a cograph_motif_result (from motifs() or subgraphs()).",
+         call. = FALSE)
+  }
+  plot(x, type = match.arg(type), n = n, ncol = ncol, colors = colors,
+       node_size = node_size, label_size = label_size,
+       title_size = title_size, stats_size = stats_size,
+       legend_size = legend_size, legend = legend,
+       motif_color = motif_color, spacing = spacing,
+       base_size = base_size, ...)
 }

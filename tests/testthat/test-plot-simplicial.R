@@ -482,3 +482,127 @@ test_that("plot_simplicial custom labels with repeated states", {
     )
   ))
 })
+
+# ---------------------------------------------------------------------------
+# pathways accepts any data.frame with a $path column (shape-based dispatch,
+# so Nestimate::mogen_transitions() output works without a special class).
+# ---------------------------------------------------------------------------
+
+test_that("plot_simplicial accepts a data.frame with a $path column", {
+  mat <- matrix(0.1, 3, 3, dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
+  pw_df <- data.frame(
+    path = c("A -> B -> C", "B -> C -> A", "A -> C -> B"),
+    count = c(10L, 5L, 3L),
+    stringsAsFactors = FALSE
+  )
+  expect_no_error(with_temp_png(
+    plot_simplicial(mat, pathways = pw_df, shadow = FALSE)
+  ))
+})
+
+test_that("plot_simplicial sorts data.frame pathways by count when present", {
+  pw_df <- data.frame(
+    path = c("A -> B -> C", "B -> C -> A"),
+    count = c(2L, 99L),
+    stringsAsFactors = FALSE
+  )
+  extracted <- cograph:::.extract_mogen_transitions_pathways(pw_df)
+  expect_match(extracted[1L], "B C -> A", fixed = TRUE)
+})
+
+test_that("plot_simplicial pathway_index selects explicit pathway ranks", {
+  mat <- matrix(0.1, 4, 4, dimnames = list(LETTERS[1:4], LETTERS[1:4]))
+  expect_no_error(with_temp_png(
+    plot_simplicial(
+      mat,
+      pathways = c("A -> B -> C", "B -> C -> D", "A -> C -> D"),
+      pathway_index = 2L,
+      max_pathways = 1,
+      shadow = FALSE
+    )
+  ))
+})
+
+test_that("plot_simplicial pathway_index accepts ranges", {
+  mat <- matrix(0.1, 4, 4, dimnames = list(LETTERS[1:4], LETTERS[1:4]))
+  expect_no_error(with_temp_png(
+    plot_simplicial(
+      mat,
+      pathways = c("A -> B -> C", "B -> C -> D", "A -> C -> D"),
+      pathway_index = 2:3,
+      max_pathways = NULL,
+      dismantled = TRUE,
+      shadow = FALSE
+    )
+  ))
+})
+
+test_that("plot_simplicial pathway_index applies after data.frame ranking", {
+  mat <- matrix(0.1, 4, 4, dimnames = list(LETTERS[1:4], LETTERS[1:4]))
+  pw_df <- data.frame(
+    path = c("A -> B -> C", "B -> C -> D", "A -> C -> D"),
+    count = c(5L, 100L, 10L),
+    stringsAsFactors = FALSE
+  )
+  expect_no_error(with_temp_png(
+    plot_simplicial(
+      mat,
+      pathways = pw_df,
+      pathway_index = 2L,
+      max_pathways = 1,
+      shadow = FALSE
+    )
+  ))
+})
+
+test_that("plot_simplicial pathway_index validates bounds and integers", {
+  mat <- matrix(0.1, 3, 3, dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
+  expect_error(
+    plot_simplicial(mat, pathways = c("A -> B -> C"), pathway_index = 2L),
+    "only 1 pathway available",
+    fixed = TRUE
+  )
+  expect_error(
+    plot_simplicial(mat, pathways = c("A -> B -> C"), pathway_index = 1.5),
+    "positive integer vector",
+    fixed = TRUE
+  )
+})
+
+test_that("plot_simplicial handles a data.frame with no count column", {
+  mat <- matrix(0.1, 3, 3, dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
+  pw_df <- data.frame(
+    path = c("A -> B -> C", "B -> C -> A"),
+    stringsAsFactors = FALSE
+  )
+  expect_no_error(with_temp_png(
+    plot_simplicial(mat, pathways = pw_df, shadow = FALSE)
+  ))
+})
+
+test_that("plot_simplicial returns NULL on an empty data.frame", {
+  mat <- matrix(0.1, 3, 3, dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
+  pw_empty <- data.frame(path = character(0), count = integer(0),
+                         stringsAsFactors = FALSE)
+  expect_message(
+    res <- plot_simplicial(mat, pathways = pw_empty),
+    "No pathways to plot."
+  )
+  expect_null(res)
+})
+
+# Regression: passing a mogen_transitions()-style data.frame as `x` alone
+# (no `pathways`, no model) should "just work" — the path strings carry
+# every state we need, so x is auto-promoted to pathways and the state
+# set is derived from the parsed pathways.
+test_that("plot_simplicial auto-promotes a data.frame in `x` to pathways", {
+  mgt_like <- data.frame(
+    path = c("A -> B -> C", "B -> C -> A", "A -> C -> B"),
+    count = c(10L, 7L, 4L),
+    stringsAsFactors = FALSE
+  )
+  expect_no_error(with_temp_png(
+    p <- plot_simplicial(mgt_like, shadow = FALSE)
+  ))
+  expect_s3_class(p, "ggplot")
+})

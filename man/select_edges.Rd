@@ -28,7 +28,8 @@ Available variables:
 \item{Edge columns}{\code{from}, \code{to}, \code{weight}, plus any custom}
 \item{Computed metrics}{\code{abs_weight}, \code{from_degree}, \code{to_degree},
 \code{from_strength}, \code{to_strength}, \code{edge_betweenness},
-\code{is_bridge}, \code{is_mutual}, \code{same_community}}
+\code{is_bridge}, \code{is_mutual}, \code{same_community},
+\code{from_label}, \code{to_label}}
 }}
 
 \item{top}{Integer. Select top N edges by a metric.}
@@ -54,14 +55,14 @@ variable. One of \code{"louvain"}, \code{"walktrap"}, \code{"fast_greedy"},
 
 \item{.keep_isolates}{Logical. Keep nodes with no remaining edges? Default FALSE.}
 
-\item{keep_format}{Logical. If TRUE, return the same format as input.
-Default FALSE returns cograph_network.}
+\item{keep_format}{Logical. If TRUE, matrix, igraph, and statnet network
+inputs are returned in that format. Default FALSE returns cograph_network.}
 
 \item{directed}{Logical or NULL. If NULL (default), auto-detect.}
 }
 \value{
 A cograph_network object with selected edges. If \code{keep_format = TRUE},
-returns the same type as input.
+matrix, igraph, and statnet network inputs are converted back to that type.
 }
 \description{
 A powerful edge selection function with lazy computation (only computes
@@ -80,38 +81,14 @@ Edge metrics are computed lazily - only those actually referenced in
 expressions or required by selection modes are computed.
 }
 \examples{
-adj <- matrix(c(0, .5, .8, 0,
-                .5, 0, .3, .6,
-                .8, .3, 0, .4,
-                 0, .6, .4, 0), 4, 4, byrow = TRUE)
+adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+                .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 
-# Expression-based (lazy - only computes what's needed)
 select_edges(adj, weight > 0.5)
-select_edges(adj, abs_weight > 0.4)
-
-# Top N edges by weight
 select_edges(adj, top = 3)
-select_edges(adj, top = 3, by = "edge_betweenness")
-
-# Edges involving specific nodes
 select_edges(adj, involving = "A")
-select_edges(adj, involving = c("A", "B"))
-
-# Edges between two node sets
 select_edges(adj, between = list(c("A", "B"), c("C", "D")))
-
-# Bridge edges only
-select_edges(adj, bridges_only = TRUE)
-
-# Combined: top 3 edges involving A
-select_edges(adj, involving = "A", top = 3)
-
-# Using endpoint degrees
-select_edges(adj, from_degree >= 3 | to_degree >= 3)
-
-# Within-community edges
-select_edges(adj, same_community)
 }
 \seealso{
 \code{\link{filter_edges}}, \code{\link{select_nodes}},

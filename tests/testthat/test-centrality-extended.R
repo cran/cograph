@@ -48,7 +48,7 @@ comm_membership <- c(1, 1, 1, 2, 2, 2)
 # ===========================================================================
 
 test_that("centrality() returns 64 measures for undirected graph", {
-  suppressWarnings(df <- centrality(k3, membership = c(1, 1, 2)))
+  suppressWarnings(df <- centrality(k3, type = "all", membership = c(1, 1, 2)))
   # node column + measures
 
   expect_equal(nrow(df), 3)
@@ -536,6 +536,179 @@ test_that("stress matches sna on random graphs", {
 
   cat(sprintf("sna stress equivalence: 20 tests, %d failures\n", failures))
   expect_equal(failures, 0L)
+})
+
+# ---------- Weighted stress ----------
+# Reference: reconstruct stress from igraph::all_shortest_paths() enumeration.
+# Slow but transparent — enumerates every shortest path and counts which ones
+# pass through each interior node.
+stress_from_all_paths <- function(g, weights = NULL, directed = TRUE) {
+  n <- igraph::vcount(g)
+  is_dir <- igraph::is_directed(g) && directed
+  mode <- if (is_dir) "out" else "all"
+  stress <- numeric(n)
+  w_use <- if (is.null(weights)) NA else weights
+  pairs <- if (is_dir) {
+    expand.grid(s = seq_len(n), t = seq_len(n))
+    } else {
+      do.call(rbind, lapply(seq_len(n - 1), function(s) {
+        data.frame(s = s, t = seq.int(s + 1L, n))
+      }))
+    }
+  pairs <- pairs[pairs$s != pairs$t, , drop = FALSE]
+
+  for (row in seq_len(nrow(pairs))) {
+    s <- pairs$s[row]; t <- pairs$t[row]
+    paths <- suppressWarnings(
+      igraph::all_shortest_paths(g, from = s, to = t,
+                                 mode = mode, weights = w_use)$vpaths
+    )
+    for (p in paths) {
+      p_int <- as.integer(p)
+      if (length(p_int) <= 2L) next
+      interior <- p_int[-c(1L, length(p_int))]
+      stress[interior] <- stress[interior] + 1
+    }
+  }
+  stress
+}
+
+test_that("weighted stress matches all_shortest_paths enumeration (undirected)", {
+  set.seed(2026)
+  failures <- 0L
+  diffs <- numeric(0)
+  for (i in seq_len(15)) {
+    g <- igraph::sample_gnp(6, 0.5, directed = FALSE)
+    while (!igraph::is_connected(g)) g <- igraph::sample_gnp(6, 0.5)
+    w <- runif(igraph::ecount(g), 0.1, 3.0)
+    igraph::E(g)$weight <- w
+
+    co <- cograph:::calculate_stress(g, weights = w, directed = FALSE)
+    ref <- stress_from_all_paths(g, weights = w, directed = FALSE)
+    if (!isTRUE(all.equal(co, ref, tolerance = 1e-8))) {
+      failures <- failures + 1L
+      diffs <- c(diffs, max(abs(co - ref)))
+    }
+  }
+  cat(sprintf("weighted undirected stress: 15 tests, %d failures\n", failures))
+  expect_equal(failures, 0L)
+})
+
+test_that("weighted stress matches all_shortest_paths enumeration (directed)", {
+  set.seed(2027)
+  failures <- 0L
+  for (i in seq_len(15)) {
+    g <- igraph::sample_gnp(6, 0.5, directed = TRUE)
+    w <- runif(igraph::ecount(g), 0.1, 3.0)
+    igraph::E(g)$weight <- w
+
+    co <- cograph:::calculate_stress(g, weights = w, directed = TRUE)
+    ref <- stress_from_all_paths(g, weights = w, directed = TRUE)
+    if (!isTRUE(all.equal(co, ref, tolerance = 1e-8))) {
+      failures <- failures + 1L
+    }
+  }
+  cat(sprintf("weighted directed stress: 15 tests, %d failures\n", failures))
+  expect_equal(failures, 0L)
+})
+
+test_that("weighted stress with constant-1 weights matches unweighted stress", {
+  # Equivalence check: uniform weights should reproduce hop-count (BFS) result.
+  set.seed(2028)
+  g <- igraph::sample_gnp(10, 0.35, directed = FALSE)
+  while (!igraph::is_connected(g)) g <- igraph::sample_gnp(10, 0.35)
+  w1 <- rep(1, igraph::ecount(g))
+
+  unw <- cograph:::calculate_stress(g, weights = NULL, directed = FALSE)
+  w <- cograph:::calculate_stress(g, weights = w1, directed = FALSE)
+  expect_equal(w, unw, tolerance = 1e-8)
+})
+
+test_that("weighted stress honors edge weight ordering (shorter path wins)", {
+  # Triangle A-B-C with edges A-B=1, B-C=1, A-C=10. Shortest A<->C path is
+  # A-B-C, so B should accrue stress from that pair. With A-C=0.5 instead,
+  # the direct edge wins and B's stress drops to 0.
+  mk <- function(wAC) {
+    g <- igraph::make_graph(c(1, 2, 2, 3, 1, 3), directed = FALSE)
+    igraph::E(g)$weight <- c(1, 1, wAC)
+    g
+  }
+
+  g_long_ac <- mk(10)
+  s1 <- cograph:::calculate_stress(g_long_ac,
+                                   weights = igraph::E(g_long_ac)$weight,
+                                   directed = FALSE)
+  expect_equal(s1[2], 1)  # B is the midpoint of A-B-C
+
+  g_short_ac <- mk(0.5)
+  s2 <- cograph:::calculate_stress(g_short_ac,
+                                   weights = igraph::E(g_short_ac)$weight,
+                                   directed = FALSE)
+  expect_equal(s2[2], 0)  # A-C direct is shortest, B is on no shortest path
+})
+
+# ---------- Expected influence (Robinaugh, Millner & McNally 2016) ----------
+
+test_that("expected_influence_1 matches qgraph on signed graphs", {
+  skip_if_not_installed("qgraph")
+
+  set.seed(42)
+  failures <- 0L
+  max_diff <- 0
+  for (i in seq_len(20)) {
+    n <- sample(5:12, 1)
+    W <- matrix(runif(n * n, -0.8, 0.8), n, n)
+    W <- (W + t(W)) / 2
+    diag(W) <- 0
+    rownames(W) <- colnames(W) <- paste0("n", seq_len(n))
+
+    qg <- suppressMessages(qgraph::centrality(W))
+    ref <- qg$OutExpectedInfluence
+    names(ref) <- rownames(W)
+    co <- centrality_expected_influence_1(W)
+    co <- co[names(ref)]
+
+    if (!isTRUE(all.equal(unname(co), unname(ref), tolerance = 1e-8))) {
+      failures <- failures + 1L
+    }
+    max_diff <- max(max_diff, max(abs(co - ref)))
+  }
+  cat(sprintf("qgraph expected_influence equivalence: 20 tests, %d failures (max diff %.2e)\n",
+              failures, max_diff))
+  expect_equal(failures, 0L)
+})
+
+test_that("expected_influence_2 matches Robinaugh 2016 formula", {
+  set.seed(7)
+  for (i in seq_len(10)) {
+    n <- sample(5:10, 1)
+    W <- matrix(runif(n * n, -0.6, 0.6), n, n)
+    W <- (W + t(W)) / 2
+    diag(W) <- 0
+    rownames(W) <- colnames(W) <- paste0("n", seq_len(n))
+
+    ei1 <- centrality_expected_influence_1(W)
+    ei2 <- centrality_expected_influence_2(W)
+    ei2_formula <- ei1 + as.numeric(W %*% ei1)
+    expect_equal(unname(ei2), unname(ei2_formula), tolerance = 1e-10)
+  }
+})
+
+test_that("expected influence respects mode on directed graphs", {
+  skip_if_not_installed("qgraph")
+  set.seed(99)
+  W <- matrix(runif(64, -0.6, 0.6), 8, 8)
+  diag(W) <- 0
+  rownames(W) <- colnames(W) <- paste0("n", 1:8)
+
+  qg <- suppressMessages(qgraph::centrality(W))
+  out_ref <- qg$OutExpectedInfluence; names(out_ref) <- rownames(W)
+  in_ref  <- qg$InExpectedInfluence;  names(in_ref)  <- rownames(W)
+
+  out_co <- centrality_expected_influence_1(W, mode = "out")
+  in_co  <- centrality_expected_influence_1(W, mode = "in")
+  expect_equal(unname(out_co[names(out_ref)]), unname(out_ref), tolerance = 1e-8)
+  expect_equal(unname(in_co[names(in_ref)]),   unname(in_ref),  tolerance = 1e-8)
 })
 
 test_that("gilschmidt matches sna on random graphs", {

@@ -14,11 +14,12 @@ NULL
 #'   \item{vsize_base}{Base multiplier in vsize formula: 8}
 #'   \item{vsize_decay}{Decay constant in vsize formula: 80}
 #'   \item{vsize_min}{Minimum added to vsize: 1}
-#'   \item{vsize_factor}{Scale factor to convert vsize to user coordinates: 0.015}
+#'   \item{vsize_factor}{Scale factor to convert vsize to user coordinates: 0.012}
 #'   \item{esize_base}{Base multiplier in esize formula: 15}
 #'   \item{esize_decay}{Decay constant in esize formula: 90}
 #'   \item{esize_min}{Minimum added to esize: 1}
 #'   \item{esize_unweighted}{Default edge width for unweighted networks: 2}
+#'   \item{esize_scale}{Scale factor converting qgraph esize to line width: 0.27}
 #'   \item{cent2edge_divisor}{Divisor in cent2edge formula: 17.5}
 #'   \item{cent2edge_reference}{Reference value in cent2edge: 2.16}
 #'   \item{cent2edge_plot_ref}{Plot reference size: 7}
@@ -82,8 +83,14 @@ QGRAPH_SCALE <- list(
 #'   \item{edge_base}{Base edge width}
 #'   \item{edge_scale}{Edge width scale factor}
 #'   \item{edge_default}{Default edge width}
+#'   \item{edge_width_range}{Default output range for scaled edge widths}
+#'   \item{edge_scale_mode}{Default edge scaling mode}
+#'   \item{edge_cut_quantile}{Default cut quantile used by callers}
+#'   \item{edge_width_default}{Default edge width when weights are unavailable}
 #'   \item{arrow_factor}{Scale factor for arrow sizes}
 #'   \item{arrow_default}{Default arrow size}
+#'   \item{soplot_node_factor}{Node-size factor for soplot NPC coordinates}
+#'   \item{tna_edge_color}{Default TNA edge color}
 #' }
 #'
 #' @keywords internal
@@ -182,6 +189,69 @@ get_scale_constants <- function(scaling = "default") {
   }
 }
 
+# ============================================================================
+# Visual-scale (device-dependent) constants
+# ============================================================================
+
+#' Reference plot region for visual-scale computation (inches, geometric
+#' mean of `par("pin")`). 5.6 matches `par("pin")` at an RStudio 7x5" pane
+#' with splot's tight default margins (`margins = c(0.1, 0.1, 0.1, 0.1)`):
+#' pin ~ 6.96 x 4.96, geomean ~5.88. Recalibrated from the previous 5.9
+#' (canvas geomean) to 5.6 (pin geomean) after diagnosis showed the
+#' multiplier must track pin to stay in lockstep with user-coord nodes.
+#' At the default device this produces `scale = 1.0` and existing plots
+#' render unchanged.
+#' @keywords internal
+#' @noRd
+VISUAL_SCALE_REFERENCE <- 5.6
+
+#' Hard bounds on every visual-scale multiplier.
+#'
+#' Widened to `[0.35, 2.3]` after research into qgraph/ggraph/igraph showed
+#' the prior `[0.55, 1.9]` was over-conservative:
+#'
+#' - Floor 0.35: at 800x800@300dpi (2.67" canvas) raw is 0.45, which now
+#'   passes through unclamped — so labels/edges shrink to the *actual*
+#'   ratio their canvas demands instead of being held artificially large.
+#'   At extreme thumbnails (< 1" canvas) the floor still engages.
+#' - Ceiling 2.3: at 1200x1200@96dpi (12.5" canvas) raw is 2.12, which now
+#'   passes through — so labels grow proportionally at poster-size canvases
+#'   instead of being artificially suppressed.
+#'
+#' Below ~0.8" canvas the layout is infeasible regardless of cex — users
+#' should suppress labels/legend/title rather than rely on further scaling.
+#' @keywords internal
+#' @noRd
+VISUAL_SCALE_CAP <- c(0.35, 2.3)
+
+#' Edge-label-specific scale cap.
+#'
+#' Tighter ceiling than the main `VISUAL_SCALE_CAP` because edge labels are
+#' *annotations* (weight values like ".19"), not primary content. They
+#' should shrink with the canvas (to avoid overwhelming small plots) but
+#' grow less aggressively than node labels at poster sizes — otherwise at
+#' a 14"+ canvas with `vs$scale = 2.3`, edge-label cex reaches ~0.9 which
+#' is visually competing with node labels rather than supporting them.
+#' Ceiling 1.6 caps edge-label scaling roughly at the halfway point of
+#' node-label growth; floor 0.35 matches the main cap so tiny canvases
+#' aren't doubly-clamped. Only applied when the user passes
+#' `edge_label_size` explicitly; the auto-default path uses
+#' `EDGE_LABEL_NODE_CEX_FRACTION` coupling instead.
+#' @keywords internal
+#' @noRd
+EDGE_LABEL_SCALE_CAP <- c(0.35, 1.6)
+
+#' Fraction of the node label cex used for the auto-default edge label cex.
+#'
+#' When the user does not pass `edge_label_size` explicitly, the default
+#' is `mean(label_cex) * EDGE_LABEL_NODE_CEX_FRACTION`. A fixed fraction
+#' locks the node-to-edge-label cex ratio at `1 / fraction` on every
+#' canvas (with 0.55 that is ~1.82x, calibrated to keep edge labels
+#' readable without competing with node labels).
+#' @keywords internal
+#' @noRd
+EDGE_LABEL_NODE_CEX_FRACTION <- 0.55
+
 #' Compute Adaptive Base Edge Size
 #'
 #' Calculates the maximum edge width that decreases with more nodes.
@@ -216,18 +286,21 @@ compute_adaptive_esize <- function(n_nodes, directed = FALSE) {
 
 #' Scale Edge Widths Based on Weights
 #'
-#' Unified edge width scaling function that supports multiple scaling modes,
-#' two-tier cutoff system (like qgraph), and output range specification.
+#' Unified edge width scaling function that supports multiple scaling modes
+#' and output range specification.
 #'
 #' @param weights Numeric vector of edge weights.
-#' @param esize Base edge size. NULL uses adaptive sizing based on n_nodes.
-#' @param n_nodes Number of nodes (for adaptive esize calculation).
-#' @param directed Whether network is directed (affects adaptive esize).
+#' @param esize Maximum edge size. If NULL, \code{range[2]} is used.
+#' @param n_nodes Number of nodes. Accepted for caller compatibility; not used
+#'   by this scaler.
+#' @param directed Whether network is directed. Accepted for caller
+#'   compatibility; not used by this scaler.
 #' @param mode Scaling mode: "linear", "log", "sqrt", or "rank".
 #' @param maximum Max weight for normalization. NULL for auto-detect.
 #' @param minimum Min weight threshold. Edges below this get minimum width.
-#' @param cut Two-tier cutoff threshold. NULL = auto (75th percentile),
-#'   0 = disabled (continuous scaling), positive number = manual threshold.
+#' @param cut Accepted for caller compatibility. Width scaling is continuous
+#'   in the current implementation; cutoff handling is performed by callers
+#'   for other aesthetics such as transparency.
 #' @param range Output width range as c(min_width, max_width).
 #' @return Numeric vector of scaled edge widths.
 #'
@@ -239,14 +312,6 @@ compute_adaptive_esize <- function(n_nodes, directed = FALSE) {
 #' - **sqrt**: Square root scaling for moderate compression.
 #' - **rank**: Rank-based scaling for equal visual spacing regardless of weight distribution.
 #'
-#' ## Two-Tier System (cut parameter)
-#'
-#' When cut > 0, edges are divided into two tiers:
-#' - Below cut: Minimal width variation (20% of range)
-#' - Above cut: Full width scaling (80% of range)
-#'
-#' This matches qgraph's behavior where weak edges are visually de-emphasized.
-#'
 #' @keywords internal
 scale_edge_widths <- function(weights,
                                esize = NULL,
@@ -256,7 +321,8 @@ scale_edge_widths <- function(weights,
                                maximum = NULL,
                                minimum = 0,
                                cut = NULL,
-                               range = c(0.5, 4)) {
+                               range = c(0.5, 4),
+                               visual_scale = NULL) {
   if (length(weights) == 0) return(numeric(0))
 
   # Validate scale mode
@@ -319,6 +385,14 @@ scale_edge_widths <- function(weights,
 
   # Apply minimum threshold (set to min width)
   widths[abs_weights < minimum | is.na(abs_weights)] <- effective_range[1]
+
+  # Device-dependent compensation: scale the mapped output (not the range),
+  # so the "thinnest to thickest" rank mapping is preserved while absolute
+  # lwd tracks the output canvas.
+  if (!is.null(visual_scale) && !is.null(visual_scale$line) &&
+      is.finite(visual_scale$line)) {
+    widths <- widths * visual_scale$line
+  }
 
   widths
 }

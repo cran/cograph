@@ -445,7 +445,7 @@ draw_self_loop <- function(x, y, node_size, color, width, lty, rotation = pi/2) 
   y_scale <- min_dim / vp_height
 
   # Loop parameters
-  loop_angle <- pi/8  # Angle spread for loop attachment points
+  loop_angle <- pi/5  # Angle spread for loop attachment points
   # rotation is now a parameter (default: pi/2 = top of node)
 
   # Points where loop attaches to node edge
@@ -588,7 +588,7 @@ render_edge_labels_grid <- function(network) {
     if (!is.null(aes$label_fontface)) aes$label_fontface else "plain",
     m, "edge_label_fontface"
   )
-  label_fontfaces <- sapply(label_fontface_raw, function(ff) {
+  label_fontfaces <- vapply(label_fontface_raw, function(ff) {
     if (is.character(ff)) {
       switch(ff,
         "plain" = 1,
@@ -598,9 +598,9 @@ render_edge_labels_grid <- function(network) {
         1  # default
       )
     } else {
-      ff
+      as.numeric(ff)
     }
-  })
+  }, numeric(1))
   label_border <- aes$label_border  # NULL, "rect", "rounded", "circle"
   label_border_color <- if (!is.null(aes$label_border_color)) aes$label_border_color else "gray50"
   label_underline <- if (!is.null(aes$label_underline)) aes$label_underline else FALSE

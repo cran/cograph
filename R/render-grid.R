@@ -5,11 +5,35 @@
 #'   \code{cograph_network} object invisibly; \code{\link{sn_ggplot}} returns a
 #'   ggplot2 object.
 #' @examples
-#' \dontrun{
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 #' soplot(adj)
-#' }
 NULL
+
+# Copy aesthetic/theme state from an S3 cograph_network or R6 CographNetwork
+# onto a fresh R6 target. render_*_grid() reads aes/theme via R6 getters, so
+# without this copy anything set via sn_nodes / sn_edges / sn_theme /
+# sn_palette on an S3 source is lost at draw time.
+.copy_aes_to_r6 <- function(source, target) {
+  node_aes <- if (inherits(source, "CographNetwork")) {
+    source$get_node_aes()
+  } else {
+    source$node_aes
+  }
+  edge_aes <- if (inherits(source, "CographNetwork")) {
+    source$get_edge_aes()
+  } else {
+    source$edge_aes
+  }
+  theme <- if (inherits(source, "CographNetwork")) {
+    source$get_theme()
+  } else {
+    source$theme
+  }
+  if (!is.null(node_aes) && length(node_aes) > 0) target$set_node_aes(node_aes)
+  if (!is.null(edge_aes) && length(edge_aes) > 0) target$set_edge_aes(edge_aes)
+  if (!is.null(theme)) target$set_theme(theme)
+  invisible(target)
+}
 
 #' Plot Cograph Network
 #'
@@ -165,7 +189,8 @@ NULL
 #'   \item{\strong{donut_show_value}}{Show numeric value in center.}
 #' }
 #'
-#' @return Invisible NULL. Called for side effect of drawing.
+#' @return The updated \code{cograph_network} object, invisibly. Called
+#'   primarily for the side effect of drawing.
 #'
 #' @seealso
 #' \code{\link{splot}} for base R graphics rendering (alternative engine),
@@ -538,7 +563,7 @@ soplot <- function(network, title = NULL, title_size = 14,
     donut2_inner_ratio = donut2_inner_ratio,
     node_names = node_names
   )
-  node_aes <- node_aes[!sapply(node_aes, is.null)]
+  node_aes <- node_aes[!vapply(node_aes, is.null, logical(1))]
   if (length(node_aes) > 0) {
     network <- do.call(sn_nodes, c(list(network = network), node_aes))
   }
@@ -583,7 +608,7 @@ soplot <- function(network, title = NULL, title_size = 14,
     curve_pivot = curve_pivot,
     curves = curves
   )
-  edge_aes <- edge_aes[!sapply(edge_aes, is.null)]
+  edge_aes <- edge_aes[!vapply(edge_aes, is.null, logical(1))]
   if (length(edge_aes) > 0) {
     network <- do.call(sn_edges, c(list(network = network), edge_aes))
   }
@@ -621,11 +646,15 @@ soplot <- function(network, title = NULL, title_size = 14,
     network$nodes <- nodes
   }
 
-  # Create temporary R6 network for grid rendering functions
+  # Create temporary R6 network for grid rendering functions. Copy
+  # aesthetics/theme as well — otherwise sn_nodes/sn_edges/sn_theme/
+  # sn_palette state set on the S3 object never reaches render_*_grid(),
+  # which reads network$get_node_aes() / get_edge_aes() / get_theme().
   net <- CographNetwork$new()
   net$set_nodes(get_nodes(network))
   net$set_edges(get_edges(network))
   net$set_directed(is_directed(network))
+  .copy_aes_to_r6(network, net)
 
   if (newpage) {
     grid::grid.newpage()
@@ -720,7 +749,7 @@ soplot <- function(network, title = NULL, title_size = 14,
     node_names = node_names, legend = legend, legend_position = legend_position
   )
   # Remove NULL values
-  plot_params <- plot_params[!sapply(plot_params, is.null)]
+  plot_params <- plot_params[!vapply(plot_params, is.null, logical(1))]
 
   # Update the original unified network with layout info
   network$meta$layout <- list(
@@ -745,11 +774,13 @@ create_grid_grob <- function(network, title = NULL, background = "white") {
     stop("network must be a cograph_network object", call. = FALSE)
   }
 
-  # Create temporary R6 network for grid rendering functions
+  # Create temporary R6 network for grid rendering functions (see note in
+  # the soplot() path above about aesthetic/theme propagation).
   net <- CographNetwork$new()
   net$set_nodes(get_nodes(network))
   net$set_edges(get_edges(network))
   net$set_directed(is_directed(network))
+  .copy_aes_to_r6(network, net)
 
   # Background
   bg_color <- background
@@ -902,11 +933,10 @@ render_legend_grid <- function(network, position = "topright") {
 }
 
 #' @rdname soplot
-#' @return Invisible NULL. Called for side effect of drawing.
+#' @return The updated \code{cograph_network} object, invisibly. Called
+#'   primarily for the side effect of drawing.
 #' @export
 #' @examples
-#' \dontrun{
 #' mat <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
 #' sn_render(mat)
-#' }
 sn_render <- soplot

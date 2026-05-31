@@ -11,16 +11,10 @@
 #' @param directed Logical. Treat as directed? Default auto-detected.
 #' @param seed Random seed for reproducibility
 #'
-#' @return A `cograph_motifs` object containing:
-#'   - `counts`: Motif counts in observed network
-#'   - `null_mean`: Mean counts in random networks
-#'   - `null_sd`: Standard deviation in random networks
-#'   - `z_scores`: Z-scores (observed - mean) / sd
-#'   - `p_values`: Two-tailed p-values
-#'   - `significant`: Logical vector (|z| > 2)
-#'   - `size`: Motif size (3 or 4)
-#'   - `directed`: Whether network is directed
-#'   - `n_random`: Number of random networks used
+#' @return A `cograph_motifs` data frame with motif count, null-model mean,
+#'   null-model standard deviation, z-score, p-value, and significance columns.
+#'   The motif size, directed flag, null-model method, and number of random
+#'   networks are stored as attributes.
 #'
 #' @examples
 #' # Create a directed network
@@ -249,6 +243,11 @@ print.cograph_motifs <- function(x, ...) {
 #' @param colors Three-element color vector for under-represented, neutral, and
 #'   over-represented motifs. Default \code{c("#2166AC", "#999999", "#B2182B")}
 #'   (blue/gray/red).
+#' @param combined Logical: when TRUE (default) and \code{type = "network"},
+#'   arrange the per-motif panels in an internal grid via
+#'   \code{graphics::par(mfrow=...)}. Set to FALSE to draw into a layout the
+#'   caller has already configured (e.g. via \code{\link{panel_layout}()}).
+#'   Has no effect for \code{type = "bar"} or \code{type = "heatmap"}.
 #' @param ... Additional arguments passed to plotting functions
 #'
 #' @return A ggplot2 object (invisibly)
@@ -267,6 +266,7 @@ print.cograph_motifs <- function(x, ...) {
 plot.cograph_motifs <- function(x, type = c("bar", "heatmap", "network"),
                                  show_nonsig = FALSE, top_n = NULL,
                                  colors = c("#2166AC", "#F7F7F7", "#B2182B"),
+                                 combined = TRUE,
                                  ...) {
 
   type <- match.arg(type)
@@ -310,7 +310,7 @@ plot.cograph_motifs <- function(x, type = c("bar", "heatmap", "network"),
   } else if (type == "heatmap") {
     .plot_motifs_heatmap(df, colors)
   } else if (type == "network") {
-    .plot_motifs_network(df, dir, sz, colors)
+    .plot_motifs_network(df, dir, sz, colors, combined = combined)
   }
 }
 
@@ -323,8 +323,8 @@ plot.cograph_motifs <- function(x, type = c("bar", "heatmap", "network"),
 #' @return Named vector of triad counts
 #'
 #' @details
-#' Triad census is defined only for directed networks. The input is always
-#' treated as directed.
+#' Triad census is defined only for directed networks. Matrix input is built
+#' as directed; existing igraph and cograph inputs must already be directed.
 #'
 #' MAN notation describes triads by:
 #' - M: number of Mutual (reciprocal) edges
@@ -405,30 +405,14 @@ triad_census <- function(x) {
 #' - **Weights** are the actual frequency counts, useful for ranking triads by strength
 #'
 #' @examples
-#' # Create a frequency matrix
-#' mat <- matrix(c(
-#'   0, 3, 2, 0,
-#'   0, 0, 5, 1,
-#'   0, 0, 0, 4,
-#'   2, 0, 0, 0
-#' ), 4, 4, byrow = TRUE)
+#' mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("Plan", "Execute", "Monitor", "Adapt")
-#'
 #' net <- as_cograph(mat)
 #'
-#' # Extract all triads
-#' triads <- extract_triads(net)
-#' head(triads)
-#'
-#' # Filter by motif type (feed-forward loops only)
-#' ff_loops <- extract_triads(net, type = "030T")
-#'
-#' # Filter by node involvement
-#' plan_triads <- extract_triads(net, involving = "Plan")
-#'
-#' # Find strongest triads
-#' triads <- extract_triads(net)
-#' strongest <- triads[order(triads$total_weight, decreasing = TRUE), ]
+#' # All triads, feed-forward loops, triads involving "Plan"
+#' head(extract_triads(net))
+#' extract_triads(net, type = "030T")
+#' extract_triads(net, involving = "Plan")
 #'
 #' @seealso [motifs()], [subgraphs()], [motif_census()], [extract_motifs()]
 #' @family motifs
@@ -605,6 +589,7 @@ extract_triads <- function(x, type = NULL, involving = NULL,
   obs_kj <- mat[cbind(k, j)]
 
   total <- obs_ij + obs_ji + obs_ik + obs_ki + obs_jk + obs_kj
+  weight <- total
 
   has_edges <- total > 0
   if (!any(has_edges)) return(NULL)
@@ -653,6 +638,7 @@ extract_triads <- function(x, type = NULL, involving = NULL,
   i <- i[keep]
   j <- j[keep]
   k <- k[keep]
+  weight <- weight[keep]
   e_ij <- e_ij[keep]
   e_ji <- e_ji[keep]
   e_ik <- e_ik[keep]
@@ -668,6 +654,7 @@ extract_triads <- function(x, type = NULL, involving = NULL,
     i <- i[keep_include]
     j <- j[keep_include]
     k <- k[keep_include]
+    weight <- weight[keep_include]
     triad_types <- triad_types[keep_include]
   }
 
@@ -677,6 +664,7 @@ extract_triads <- function(x, type = NULL, involving = NULL,
     i <- i[keep_exclude]
     j <- j[keep_exclude]
     k <- k[keep_exclude]
+    weight <- weight[keep_exclude]
     triad_types <- triad_types[keep_exclude]
   }
 
@@ -687,6 +675,7 @@ extract_triads <- function(x, type = NULL, involving = NULL,
     j = j,
     k = k,
     type = triad_types,
+    weight = as.numeric(weight),
     stringsAsFactors = FALSE
   )
 }
@@ -778,7 +767,7 @@ get_edge_list <- function(x, by_individual = TRUE, drop_zeros = TRUE) {
       )) # nocov end
     }
   } else {
-    agg <- apply(trans, c(2, 3), sum)
+    agg <- colSums(trans, dims = 1)
 
     idx <- if (drop_zeros) which(agg > 0, arr.ind = TRUE) else
            expand.grid(from = seq_len(s), to = seq_len(s))

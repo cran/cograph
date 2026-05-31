@@ -175,8 +175,8 @@ draw_straight_edge_base <- function(x1, y1, x2, y2, col = "gray50", lwd = 1,
 #'
 #' Renders a curved edge using xspline() with optional arrow.
 #' Uses qgraph-style curve calculation for smooth, natural-looking curves.
-#' Curve direction is normalized so positive curve always bends the same
-#' visual direction regardless of edge orientation.
+#' Uses the supplied signed curve value; reciprocal-edge direction should be
+#' resolved by the caller.
 #'
 #' @param x1,y1 Start point coordinates.
 #' @param x2,y2 End point coordinates.
@@ -359,30 +359,41 @@ draw_curved_edge_base <- function(x1, y1, x2, y2, curve = 0.2, curvePivot = 0.5,
 #' @param arrow Logical: draw arrow?
 #' @param asize Arrow size.
 #' @param arrow_angle Arrow head angle in radians. Default pi/6 (30 degrees).
+#' @param anchor_radius Radius used for the loop's node-boundary anchor. NULL
+#'   defaults to \code{node_size}.
 #' @keywords internal
 draw_self_loop_base <- function(x, y, node_size, col = "gray50", lwd = 1,
                                 lty = 1, rotation = pi/2, arrow = TRUE,
-                                asize = 0.02, arrow_angle = pi/6) {
+                                asize = 0.02, arrow_angle = pi/6,
+                                anchor_radius = NULL) {
 
-  # qgraph-style loop: circular arc outside the node
-  # Loop size proportional to node size
+  # Open circle: loop circle overlaps node so arc visibly intersects
   loop_radius <- node_size * 0.8
-  loop_dist <- node_size + loop_radius * 0.9  # Center of loop circle
+  loop_dist <- node_size * 1.0  # Tight to the node
 
-  # Center of the loop arc (outside the node)
+  # anchor_radius controls where the arc starts/ends (the visual node
+
+  # boundary). Defaults to node_size (splot nodes where node_size IS the
+  # user-coordinate radius). For contexts where the visible node is
+  # smaller (e.g. graphics::points), pass a smaller value so the arc
+  # hugs the dot.
+  if (is.null(anchor_radius)) anchor_radius <- node_size
+
+  # Center of the loop circle
   loop_cx <- x + loop_dist * cos(rotation)
   loop_cy <- y + loop_dist * sin(rotation)
 
-  # Generate circular arc (about 300 degrees, leaving gap for arrow)
+  # Find the arc angles where the loop circle intersects the anchor circle
+  # Using law of cosines: cos(alpha) = (d^2 + r^2 - R^2) / (2*d*r)
+  cos_alpha <- (loop_dist^2 + loop_radius^2 - anchor_radius^2) /
+               (2 * loop_dist * loop_radius)
+  cos_alpha <- max(-1, min(1, cos_alpha))
+  alpha <- acos(cos_alpha)
+
+  # Arc from one intersection to the other (the far side from the node)
   n_pts <- 40
-  arc_start <- rotation + pi + 0.4  # Start angle (relative to loop center)
-  arc_end <- rotation + pi - 0.4    # End angle
-
-  # Handle angle wrapping
-  if (arc_end < arc_start) {
-    arc_end <- arc_end + 2 * pi
-  }
-
+  arc_start <- rotation + pi + alpha
+  arc_end <- rotation + pi - alpha + 2 * pi
   angles <- seq(arc_start, arc_end, length.out = n_pts)
 
   loop_x <- loop_cx + loop_radius * cos(angles)
@@ -397,11 +408,10 @@ draw_self_loop_base <- function(x, y, node_size, col = "gray50", lwd = 1,
     lty = lty
   )
 
-  # Draw arrow at end of loop
+  # Draw arrow at end of loop (on node boundary, pointing inward)
   if (arrow && asize > 0) {
     n <- length(loop_x)
-    # Arrow angle tangent to circle at endpoint
-    angle <- splot_angle(loop_x[n-1], loop_y[n-1], loop_x[n], loop_y[n])
+    angle <- splot_angle(loop_x[n - 1], loop_y[n - 1], loop_x[n], loop_y[n])
     draw_arrow_base(loop_x[n], loop_y[n], angle, asize, arrow_angle = arrow_angle, col = col)
   }
 }
@@ -511,7 +521,7 @@ draw_edge_label_base <- function(x, y, label, cex = 0.8, col = "gray30",
 #' @param curvePivot Curve pivot position.
 #' @param label_offset Additional perpendicular offset for the label (in user coords).
 #'   Positive values offset in the same direction as the curve bulge.
-#'   Default 0.03 provides good separation from the edge line.
+#'   Default 0 keeps the label on the computed edge position.
 #' @return List with x, y coordinates.
 #' @keywords internal
 get_edge_label_position <- function(x1, y1, x2, y2, position = 0.5,
@@ -666,8 +676,8 @@ render_edges_base <- function(edges, layout, node_sizes, shapes = "circle",
         asize = asize[i]
       )
 
-      # Label position for self-loop (at top of loop)
-      loop_dist <- node_sizes[from_idx] * 2.5
+      # Label position for self-loop (at peak of loop)
+      loop_dist <- node_sizes[from_idx] * 1.3
       label_positions[[i]] <- list(
         x = x1 + loop_dist * cos(loopRotation[i]),
         y = y1 + loop_dist * sin(loopRotation[i])

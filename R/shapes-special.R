@@ -121,7 +121,7 @@ draw_pie <- function(x, y, size, fill, border_color, border_width,
       colors <- grDevices::rainbow(length(values), alpha = alpha)
     }
   } else {
-    colors <- sapply(colors, adjust_alpha, alpha = alpha)
+    colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
   }
 
   # Create pie slices
@@ -186,7 +186,7 @@ draw_pie <- function(x, y, size, fill, border_color, border_width,
 #' @param inner_ratio Ratio of inner to outer radius (0-1). Default 0.5.
 #' @param bg_color Background color for unfilled portion. Default "gray90".
 #' @param donut_shape Base polygon shape: "circle", "square", "hexagon", "triangle", "diamond", "pentagon".
-#' @param show_value Logical: show value in center? Default FALSE.
+#' @param show_value Logical: show value in center? Default TRUE.
 #' @param value_size Font size for center value.
 #' @param value_color Color for center value text.
 #' @param value_fontface Font face for center value.
@@ -340,7 +340,7 @@ draw_polygon_donut <- function(x, y, size, fill, border_color, border_width,
 #' @param colors Override fill color (optional).
 #' @param inner_ratio Ratio of inner to outer radius (0-1). Default 0.5.
 #' @param bg_color Background color for unfilled portion. Default "gray90".
-#' @param show_value Logical: show value in center? Default FALSE.
+#' @param show_value Logical: show value in center? Default TRUE.
 #' @param value_size Font size for center value.
 #' @param value_color Color for center value text.
 #' @param value_fontface Font face for center value.
@@ -455,7 +455,7 @@ draw_donut <- function(x, y, size, fill, border_color, border_width,
     if (is.null(colors)) {
       colors <- grDevices::rainbow(length(values), alpha = alpha)
     } else {
-      colors <- sapply(colors, adjust_alpha, alpha = alpha)
+      colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
     }
 
     # Inset factor to keep fill inside border
@@ -629,7 +629,7 @@ draw_donut_pie <- function(x, y, size, fill, border_color, border_width,
     if (is.null(pie_colors)) {
       pie_colors <- grDevices::rainbow(length(pie_values), alpha = alpha)
     } else {
-      pie_colors <- sapply(pie_colors, adjust_alpha, alpha = alpha)
+      pie_colors <- vapply(pie_colors, adjust_alpha, character(1), alpha = alpha)
       pie_colors <- rep(pie_colors, length.out = length(pie_values))
     }
 
@@ -769,7 +769,7 @@ draw_double_donut_pie <- function(x, y, size, fill, border_color, border_width,
       if (is.null(colors)) {
         colors <- grDevices::rainbow(length(values), alpha = alpha)
       } else {
-        colors <- sapply(colors, adjust_alpha, alpha = alpha)
+        colors <- vapply(colors, adjust_alpha, character(1), alpha = alpha)
         colors <- rep(colors, length.out = length(values))
       }
 
@@ -804,7 +804,7 @@ draw_double_donut_pie <- function(x, y, size, fill, border_color, border_width,
     if (is.null(pie_colors)) {
       pie_colors <- grDevices::rainbow(length(pie_values), alpha = alpha)
     } else {
-      pie_colors <- sapply(pie_colors, adjust_alpha, alpha = alpha)
+      pie_colors <- vapply(pie_colors, adjust_alpha, character(1), alpha = alpha)
       pie_colors <- rep(pie_colors, length.out = length(pie_values))
     }
 

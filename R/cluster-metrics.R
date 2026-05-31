@@ -225,70 +225,17 @@ wagg <- aggregate_weights
 #'   \code{\link{plot_mtna}} for flat cluster visualization
 #'
 #' @examples
-#' # -----------------------------------------------------
-#' # Basic usage with matrix and cluster vector
-#' # -----------------------------------------------------
-#' mat <- matrix(runif(100), 10, 10)
-#' diag(mat) <- 0
+#' mat <- matrix(runif(100), 10, 10); diag(mat) <- 0
 #' rownames(mat) <- colnames(mat) <- LETTERS[1:10]
 #'
-#' clusters <- c(1, 1, 1, 2, 2, 2, 3, 3, 3, 3)
-#' cs <- cluster_summary(mat, clusters)
-#'
-#' # Access results
+#' # Membership vector
+#' cs <- cluster_summary(mat, c(1,1,1,2,2,2,3,3,3,3))
 #' cs$macro$weights      # 3x3 cluster transition matrix
-#' cs$macro$inits        # Initial distribution
-#' cs$clusters$`1`$weights # Per-cluster 1 transitions
-#' cs$meta               # Metadata
 #'
-#' # -----------------------------------------------------
-#' # Named list clusters (more readable)
-#' # -----------------------------------------------------
-#' clusters <- list(
-#'   Alpha = c("A", "B", "C"),
-#'   Beta = c("D", "E", "F"),
-#'   Gamma = c("G", "H", "I", "J")
-#' )
+#' # Named list of clusters, TNA-normalized
+#' clusters <- list(Alpha = LETTERS[1:3], Beta = LETTERS[4:6], Gamma = LETTERS[7:10])
 #' cs <- cluster_summary(mat, clusters, type = "tna")
-#' cs$macro$weights      # Rows/cols named Alpha, Beta, Gamma
-#' cs$clusters$Alpha     # Per-cluster Alpha network
-#'
-#' # -----------------------------------------------------
-#' # Auto-detect clusters from cograph_network
-#' # -----------------------------------------------------
-#' net <- as_cograph(mat)
-#' net$nodes$clusters <- c(1, 1, 1, 2, 2, 2, 3, 3, 3, 3)
-#' cs <- cluster_summary(net)  # No clusters argument needed
-#'
-#' # -----------------------------------------------------
-#' # Different aggregation methods
-#' # -----------------------------------------------------
-#' cs_sum <- cluster_summary(mat, clusters, method = "sum")   # Total flow
-#' cs_mean <- cluster_summary(mat, clusters, method = "mean") # Average
-#' cs_max <- cluster_summary(mat, clusters, method = "max")   # Strongest
-#'
-#' # -----------------------------------------------------
-#' # Raw counts vs TNA probabilities
-#' # -----------------------------------------------------
-#' cs_raw <- cluster_summary(mat, clusters, type = "raw")
-#' cs_tna <- cluster_summary(mat, clusters, type = "tna")
-#'
-#' rowSums(cs_raw$macro$weights)  # Various sums
-#' rowSums(cs_tna$macro$weights)  # All equal to 1
-#'
-#' # -----------------------------------------------------
-#' # Skip within-cluster computation for speed
-#' # -----------------------------------------------------
-#' cs_fast <- cluster_summary(mat, clusters, compute_within = FALSE)
-#' cs_fast$clusters  # NULL
-#'
-#' # -----------------------------------------------------
-#' # Convert to tna objects for tna package
-#' # -----------------------------------------------------
-#' cs <- cluster_summary(mat, clusters, type = "tna")
-#' tna_models <- as_tna(cs)
-#' # tna_models$macro         # tna object
-#' # tna_models$Alpha         # tna object (cluster network)
+#' rowSums(cs$macro$weights)  # all 1 (TNA probabilities)
 cluster_summary <- function(x,
                             clusters = NULL,
                             method = c("sum", "mean", "median", "max",
@@ -570,14 +517,16 @@ csum <- cluster_summary
 #'
 #' @param method Aggregation method for combining edge weights: "sum", "mean",
 #'   "median", "max", "min", "density", "geomean". Default "sum".
-#' @param type Post-processing: "tna" (row-normalize), "cooccurrence"
-#'   (symmetrize), "semi_markov", or "raw". Default "tna".
+#' @param type Post-processing: "tna" (row-normalize), "frequency" or "raw"
+#'   (no normalization), "cooccurrence" (symmetrize), or "semi_markov".
+#'   Default "tna".
 #' @param directed Logical. Treat as directed network? Default TRUE.
 #' @param compute_within Logical. Compute within-cluster matrices? Default TRUE.
 #'
-#' @return A \code{cluster_summary} object with \code{meta$source = "transitions"},
-#'   fully compatible with \code{\link{plot_mcml}}, \code{\link{as_tna}}, and
-#'   \code{\link{splot}}.
+#' @return Usually an \code{mcml} object. Existing \code{mcml} or
+#'   \code{cluster_summary} inputs are returned unchanged. Transition-data
+#'   results include \code{meta$source = "transitions"} and are compatible with
+#'   \code{\link{plot_mcml}}, \code{\link{as_tna}}, and \code{\link{splot}}.
 #'
 #' @export
 #' @seealso \code{\link{cluster_summary}} for matrix-based aggregation,
@@ -1368,82 +1317,14 @@ build_mcml <- function(x,
 #'   \code{\link{plot_mcml}} for visualization without conversion,
 #'   \code{tna::tna} for the underlying tna constructor
 #'
-#' @examples
-#' # -----------------------------------------------------
-#' # Basic usage
-#' # -----------------------------------------------------
-#' mat <- matrix(runif(36), 6, 6)
-#' diag(mat) <- 0
+#' @examplesIf requireNamespace("tna", quietly = TRUE)
+#' mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
 #' rownames(mat) <- colnames(mat) <- LETTERS[1:6]
-#'
-#' clusters <- list(
-#'   G1 = c("A", "B"),
-#'   G2 = c("C", "D"),
-#'   G3 = c("E", "F")
-#' )
-#'
+#' clusters <- list(G1 = c("A","B"), G2 = c("C","D"), G3 = c("E","F"))
 #' cs <- cluster_summary(mat, clusters, type = "tna")
 #' tna_models <- as_tna(cs)
-#'
-#' # Print summary
-#' tna_models
-#'
-#' # -----------------------------------------------------
-#' # Access components
-#' # -----------------------------------------------------
-#' # Macro (cluster-level) tna
-#' tna_models$macro
-#' tna_models$macro$weights  # 3x3 transition matrix
-#' tna_models$macro$inits    # Initial distribution
-#' tna_models$macro$labels   # c("G1", "G2", "G3")
-#'
-#' # Per-cluster tnas
 #' names(tna_models)          # "macro", "G1", "G2", "G3"
-#' tna_models$G1              # tna for cluster G1
-#' tna_models$G1$weights      # 2x2 matrix (A, B)
-#'
-#' # -----------------------------------------------------
-#' # Plot via cograph's own renderer — avoids tna's plot dispatch,
-#' # which pulls in `cluster` for layout and breaks
-#' # `_R_CHECK_DEPENDS_ONLY_=TRUE` CRAN checks.
-#' # -----------------------------------------------------
-#' splot(tna_models$macro)
-#' splot(tna_models$G1)
-#'
-#' # -----------------------------------------------------
-#' # Centrality analysis via tna (optional dependency)
-#' # -----------------------------------------------------
-#' \dontrun{
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   tna::centralities(tna_models$macro)
-#'   tna::centralities(tna_models$G1)
-#'   tna::centralities(tna_models$G2)
-#' }
-#' }
-#'
-#' \dontrun{
-#' # Bootstrap requires a tna object built from raw sequence data (has $data)
-#' # as_tna() returns weight-matrix-based tnas which don't satisfy that requirement
-#' if (requireNamespace("tna", quietly = TRUE)) {
-#'   boot <- tna::bootstrap(tna_models$macro, iter = 1000)
-#'   summary(boot)
-#' }
-#' }
-#'
-#' # -----------------------------------------------------
-#' # Check which within-cluster models were created
-#' # -----------------------------------------------------
-#' cs <- cluster_summary(mat, clusters, type = "tna")
-#' tna_models <- as_tna(cs)
-#'
-#' # All cluster names
-#' names(cs$cluster_members)
-#'
-#' # Clusters with valid per-cluster models
-#' setdiff(names(tna_models), "macro")
-#'
-#' # Clusters excluded (single node or zero rows)
-#' setdiff(names(cs$cluster_members), names(tna_models))
+#' splot(tna_models$macro)    # cograph renderer avoids tna's plot deps
 as_tna <- function(x) {
   UseMethod("as_tna")
 }
@@ -1562,14 +1443,6 @@ as_tna.default <- function(x) {
 #' m <- as_mcml(cs)
 #' m$macro$weights
 #'
-#' \dontrun{
-#' # From group_tna with cluster assignments (requires tna + Nestimate)
-#' seqs <- data.frame(T1 = c("A", "B", "A"), T2 = c("B", "A", "B"))
-#' mod <- tna::tna(seqs)
-#' cl <- Nestimate::cluster_data(mod, k = 2)
-#' gt <- tna::group_model(cl)
-#' m <- as_mcml(gt, clusters = cl$assignments)
-#' }
 as_mcml <- function(x, ...) {
   UseMethod("as_mcml")
 }
@@ -1866,6 +1739,17 @@ cqual <- cluster_quality
 #'     \item{"gnm"}{Erdos-Renyi model with same number of edges. Tests against
 #'       random baseline.}
 #'   }
+#' @param null Which null question to answer. Default \code{"detect"}:
+#'   \describe{
+#'     \item{"detect"}{Null is the modularity of the \emph{best partition
+#'       found by community detection} on each null graph. Answers "is the
+#'       observed partition stronger than what community detection would
+#'       recover on similar random graphs?" — the historical behavior.}
+#'     \item{"fixed"}{Null is the modularity of the supplied
+#'       \code{communities} membership \emph{evaluated on each null graph}.
+#'       Answers "does the supplied partition itself explain more structure
+#'       than it would on similar random graphs?" — the conservative test.}
+#'   }
 #' @param seed Random seed for reproducibility. Default NULL.
 #'
 #' @return A \code{cograph_cluster_significance} object with:
@@ -1878,18 +1762,20 @@ cqual <- cluster_quality
 #'       higher modularity by chance)}
 #'     \item{null_values}{Vector of modularity values from null distribution}
 #'     \item{method}{Null model method used}
+#'     \item{null}{Which null question was asked ("detect" or "fixed")}
 #'     \item{n_random}{Number of random networks generated}
 #'   }
 #'
 #' @details
-#' The test works by:
-#' \enumerate{
-#'   \item Computing the modularity of the provided community structure
-#'   \item Generating \code{n_random} random networks using the specified null model
-#'   \item For each random network, detecting communities with Louvain and
-#'     computing modularity
-#'   \item Comparing the observed modularity to this null distribution
-#' }
+#' Two null models are supported. The default, \code{null = "detect"},
+#' generates \code{n_random} random networks, runs community detection
+#' (Louvain, with fast-greedy fallback) on each, and records the resulting
+#' modularity. Low p-value means the observed partition beats what
+#' detection would return on similar random graphs. \code{null = "fixed"}
+#' instead evaluates the user-supplied membership on each null graph, so
+#' low p-value means the partition itself is stronger than it would be on
+#' similar random graphs — a tighter question that isolates the
+#' partition's quality from any detector's behavior.
 #'
 #' A significant result (low p-value) indicates that the community structure
 #' is stronger than expected by chance for networks with similar properties.
@@ -1902,27 +1788,20 @@ cqual <- cluster_quality
 #' @export
 #' @seealso \code{\link{communities}}, \code{\link{cluster_quality}}
 #'
-#' @examples
-#' \dontrun{
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::make_graph("Zachary")
-#'   comm <- community_louvain(g)
-#'
-#'   # Test significance
-#'   sig <- cluster_significance(g, comm, n_random = 100, seed = 123)
-#'   print(sig)
-#'
-#'   # Configuration model (stricter test)
-#'   sig2 <- cluster_significance(g, comm, method = "configuration")
-#' }
-#' }
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
+#' g <- igraph::make_graph("Zachary")
+#' comm <- community_louvain(g)
+#' sig <- cluster_significance(g, comm, n_random = 20, seed = 123)
+#' print(sig)
 cluster_significance <- function(x,
                                   communities,
                                   n_random = 100,
                                   method = c("configuration", "gnm"),
+                                  null = c("detect", "fixed"),
                                   seed = NULL) {
 
   method <- match.arg(method)
+  null <- match.arg(null)
   if (!is.null(seed)) {
     saved_rng <- .save_rng()
     on.exit(.restore_rng(saved_rng), add = TRUE)
@@ -1975,15 +1854,25 @@ cluster_significance <- function(x,
       g_null <- igraph::sample_gnm(n_nodes, n_edges, directed = igraph::is_directed(g))
     }
 
-    # Detect communities on null graph (use Louvain for speed)
-    comm_null <- tryCatch(
-      igraph::cluster_louvain(g_null),
-      error = function(e) { # nocov start
-        # If Louvain fails, use fast_greedy
-        igraph::cluster_fast_greedy(igraph::as_undirected(g_null))
-      } # nocov end
-    )
-    null_mods[i] <- igraph::modularity(comm_null)
+    if (null == "detect") {
+      # Historical default: re-run detection on the null graph and record the
+      # best-partition modularity. Compares observed structure to what
+      # detection would recover on similar random graphs.
+      comm_null <- tryCatch(
+        igraph::cluster_louvain(g_null),
+        error = function(e) { # nocov start
+          igraph::cluster_fast_greedy(igraph::as_undirected(g_null))
+        } # nocov end
+      )
+      null_mods[i] <- igraph::modularity(comm_null)
+    } else {
+      # null == "fixed": evaluate the SUPPLIED partition on the null graph.
+      # Isolates the partition's quality from detector behavior.
+      null_mods[i] <- tryCatch(
+        igraph::modularity(g_null, mem),
+        error = function(e) NA_real_
+      )
+    }
   }
 
   # Statistics
@@ -2000,6 +1889,7 @@ cluster_significance <- function(x,
     p_value = p_value,
     null_values = null_mods,
     method = method,
+    null = null,
     n_random = n_random
   )
   class(result) <- "cograph_cluster_significance"
@@ -2051,15 +1941,11 @@ print.cograph_cluster_significance <- function(x, ...) {
 #' @param x A \code{cograph_cluster_significance} object
 #' @param ... Additional arguments passed to \code{hist}
 #' @return Invisibly returns x
-#' @examples
-#' \dontrun{
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::make_graph("Zachary")
-#'   comm <- community_louvain(g)
-#'   sig <- cluster_significance(g, comm, n_random = 20, seed = 42)
-#'   plot(sig)
-#' }
-#' }
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
+#' g <- igraph::make_graph("Zachary")
+#' comm <- community_louvain(g)
+#' sig <- cluster_significance(g, comm, n_random = 20, seed = 42)
+#' plot(sig)
 #' @export
 plot.cograph_cluster_significance <- function(x, ...) {
   # Create histogram of null distribution
@@ -2256,7 +2142,21 @@ ldegcor <- layer_degree_correlation
 #' @param layers List of adjacency matrices (same dimensions)
 #' @param omega Inter-layer coupling coefficient (scalar or L x L matrix)
 #' @param coupling Coupling type: "diagonal", "full", or "custom"
-#' @param interlayer_matrices For coupling="custom", list of inter-layer matrices
+#' @param interlayer_matrices For \code{coupling = "custom"}, a list of
+#'   inter-layer matrices. Accepted shapes:
+#'   \itemize{
+#'     \item Named list with keys \code{"a_b"} (integer layer indices) or
+#'       \code{"<layer_name_a>_<layer_name_b>"}; either order works.
+#'     \item Unnamed list of length \code{choose(L, 2)} giving every pair
+#'       in upper-triangle row-major order: \code{(1,2), (1,3), ..., (1,L),
+#'       (2,3), ..., (L-1,L)}.
+#'     \item Unnamed list of length \code{L-1} giving adjacent pairs only
+#'       (legacy chain layout): entry \code{i} is the coupling for
+#'       \code{(i, i+1)}. Non-adjacent pairs use \code{omega[a,b] * I}.
+#'   }
+#'   If no entry matches a pair and no legacy chain layout applies, a
+#'   warning is emitted and the diagonal default \code{omega[a,b] * I}
+#'   is used (previously this happened silently).
 #' @return Supra-adjacency matrix of dimension (N*L) x (N*L)
 #' @export
 #' @examples
@@ -2310,6 +2210,34 @@ supra_adjacency <- function(layers,
       matrix(omega, L, L)
     }
 
+    # Pre-compute an upper-triangle → list-position lookup once per call so
+    # the hot inner loop just does table reads (formerly ran a full which()
+    # per pair and silently returned the diagonal default for non-adjacent
+    # (a, b) — see docs for the accepted interlayer_matrices shapes).
+    n_pairs_full <- L * (L - 1L) / 2L
+    lookup_pair <- function(a, b) {
+      if (is.null(interlayer_matrices)) return(NULL)
+      nms <- names(interlayer_matrices)
+      if (!is.null(nms)) {
+        keys <- c(paste0(a, "_", b), paste0(b, "_", a),
+                  paste0(layer_names[a], "_", layer_names[b]),
+                  paste0(layer_names[b], "_", layer_names[a]))
+        for (k in keys) {
+          if (k %in% nms) return(interlayer_matrices[[k]])
+        }
+      }
+      if (length(interlayer_matrices) == n_pairs_full) {
+        # upper-tri row-major index
+        pos <- (a - 1L) * (L - a / 2L) + (b - a)
+        return(interlayer_matrices[[as.integer(pos)]])
+      }
+      if (length(interlayer_matrices) == L - 1L && b == a + 1L) {
+        # legacy adjacent-chain layout
+        return(interlayer_matrices[[a]])
+      }
+      NULL
+    }
+
     for (a in seq_len(L - 1)) {
       for (b in (a + 1):L) {
         idx_a <- ((a - 1) * n + 1):(a * n)
@@ -2323,12 +2251,14 @@ supra_adjacency <- function(layers,
               stop("interlayer_matrices required for custom coupling",
                    call. = FALSE)
             }
-            idx_pair <- which(a == seq_len(L - 1) & b == (a + 1))
-            if (length(idx_pair) == 1) {
-              interlayer_matrices[[idx_pair]]
-            } else {
-              omega_matrix[a, b] * I
+            mat_ab <- lookup_pair(a, b)
+            if (is.null(mat_ab)) {
+              warning(sprintf(
+                "supra_adjacency: no custom interlayer matrix for pair (%d, %d); using omega diagonal fallback",
+                a, b), call. = FALSE)
+              mat_ab <- omega_matrix[a, b] * I
             }
+            mat_ab
           }
         )
 
@@ -2470,10 +2400,10 @@ aggregate_layers <- function(layers,
         }
         Reduce(`+`, Map(`*`, layers, weights))
       } else {
-        apply(arr, c(1, 2), sum)
+        rowSums(arr, dims = 2)
       }
     },
-    "mean" = apply(arr, c(1, 2), mean),
+    "mean" = rowMeans(arr, dims = 2),
     "max" = apply(arr, c(1, 2), max),
     "min" = apply(arr, c(1, 2), min),
     "union" = {
@@ -2794,11 +2724,6 @@ summarize_network <- function(x,
 
   result
 }
-
-#' @rdname summarize_network
-#' @return See \code{\link{summarize_network}}.
-#' @export
-cluster_network <- summarize_network
 
 #' @rdname summarize_network
 #' @return See \code{\link{summarize_network}}.

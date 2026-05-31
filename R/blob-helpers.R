@@ -118,9 +118,21 @@
 # =========================================================================
 
 #' Smooth blob polygon via padded convex hull + Laplacian smoothing
+#'
+#' Filters non-finite anchor points before calling `grDevices::chull()` —
+#' callers that pass NA coordinates (e.g. when a pathway references a
+#' state missing from the layout) would otherwise abort with "finite
+#' coordinates are needed". Returns an empty polygon (zero-row data.frame
+#' on the caller's expected shape) when no finite anchors remain, so the
+#' caller can skip the geom without erroring.
 #' @noRd
 .smooth_blob <- function(px, py, pad = 1.0, n_circle = 60L,
                          n_upsample = 800L, n_smooth_iter = 80L) {
+  ok <- is.finite(px) & is.finite(py)
+  px <- px[ok]; py <- py[ok]
+  if (length(px) == 0L) {
+    return(data.frame(x = numeric(0), y = numeric(0)))
+  }
   all_x <- all_y <- numeric(0)
   for (i in seq_along(px)) {
     a <- seq(0, 2 * pi, length.out = n_circle + 1L)[-(n_circle + 1L)]
@@ -159,6 +171,17 @@
     rgb <- grDevices::col2rgb(col)[, 1] / 255
     darkened <- pmax(rgb * (1 - amount), 0)
     grDevices::rgb(darkened[1], darkened[2], darkened[3])
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Pick black or white text for readability over a fill color
+#' @noRd
+.contrasting_text_color <- function(fill, light = "white", dark = "#1a1a1a",
+                                     threshold = 0.6) {
+  vapply(fill, function(col) {
+    rgb <- grDevices::col2rgb(col)[, 1] / 255
+    lum <- 0.2126 * rgb[1] + 0.7152 * rgb[2] + 0.0722 * rgb[3]
+    if (lum > threshold) dark else light
   }, character(1), USE.NAMES = FALSE)
 }
 
@@ -223,7 +246,18 @@
 #' @noRd
 .add_pathway_nodes <- function(p, ndf, is_target, node_color, target_color,
                                 ring_color, ring_border, node_size,
-                                label_size) {
+                                label_size,
+                                label_color = "#e8e8e8",
+                                target_label_color = NULL,
+                                label_halo = TRUE,
+                                label_halo_color = NULL,
+                                label_halo_width = 0.035,
+                                label_halo_alpha = 0.6) {
+  src_text_color <- label_color
+  tgt_text_color <- target_label_color %||% label_color
+  src_halo_color <- label_halo_color %||% .contrasting_text_color(src_text_color)
+  tgt_halo_color <- label_halo_color %||% .contrasting_text_color(tgt_text_color)
+
   ring_size <- node_size * 1.27
   p <- p + ggplot2::geom_point(
     data = ndf, ggplot2::aes(x = x, y = y),
@@ -238,10 +272,9 @@
       fill = node_color, color = node_color,
       size = node_size, shape = 21, stroke = 0.5
     )
-    p <- p + ggplot2::geom_text(
-      data = src_df, ggplot2::aes(x = x, y = y, label = label),
-      color = "white", fontface = "bold", size = label_size
-    )
+    p <- .add_text_with_halo(p, src_df, src_text_color, src_halo_color,
+                              label_size, label_halo, label_halo_width,
+                              label_halo_alpha)
   }
 
   tgt_df <- ndf[is_target, , drop = FALSE]
@@ -251,12 +284,41 @@
       fill = target_color, color = target_color,
       size = node_size, shape = 21, stroke = 0.5
     )
-    p <- p + ggplot2::geom_text(
-      data = tgt_df, ggplot2::aes(x = x, y = y, label = label),
-      color = "white", fontface = "bold", size = label_size
-    )
+    p <- .add_text_with_halo(p, tgt_df, tgt_text_color, tgt_halo_color,
+                              label_size, label_halo, label_halo_width,
+                              label_halo_alpha)
   }
   p
+}
+
+#' Draw bold text with an optional contrasting halo for readability
+#'
+#' Stamps the text 8x at small offsets in \code{halo_color}, then the
+#' real text once on top in \code{color}. Eight directions is the
+#' minimum that reads as smooth at typical print sizes; four is
+#' visibly blocky.
+#' @noRd
+.add_text_with_halo <- function(p, data, color, halo_color,
+                                 size, halo = TRUE, halo_width = 0.035,
+                                 halo_alpha = 0.6) {
+  if (isTRUE(halo) && halo_width > 0 && halo_alpha > 0) {
+    angles <- seq(0, 2 * pi, length.out = 9L)[-9L]
+    halo_layers <- lapply(angles, function(a) {
+      d <- data
+      d$x <- d$x + halo_width * cos(a)
+      d$y <- d$y + halo_width * sin(a)
+      ggplot2::geom_text(
+        data = d, ggplot2::aes(x = x, y = y, label = label),
+        color = halo_color, fontface = "bold", size = size,
+        alpha = halo_alpha
+      )
+    })
+    p <- Reduce(`+`, halo_layers, init = p)
+  }
+  p + ggplot2::geom_text(
+    data = data, ggplot2::aes(x = x, y = y, label = label),
+    color = color, fontface = "bold", size = size
+  )
 }
 
 # =========================================================================
@@ -306,6 +368,7 @@
 #' @return Character vector of pathway strings.
 #' @noRd
 .extract_hypa_pathways <- function(x, type = "all", label_map = NULL) {
+  type <- match.arg(type, c("all", "over", "under"))
   scores <- x$scores
   if (type == "all") {
     anom <- scores[scores$anomaly != "normal", , drop = FALSE]
@@ -314,10 +377,46 @@
   }
   if (nrow(anom) == 0L) return(character(0))
   if ("ratio" %in% names(anom)) {
-    anom <- anom[order(-anom$ratio), , drop = FALSE]
+    if (type == "under") {
+      anom <- anom[order(anom$ratio), , drop = FALSE]
+    } else {
+      anom <- anom[order(-anom$ratio), , drop = FALSE]
+    }
   }
   vapply(anom$path, function(p) {
     parts <- trimws(strsplit(p, "->", fixed = TRUE)[[1]])
+    if (!is.null(label_map)) {
+      parts <- vapply(parts, function(s) {
+        if (s %in% names(label_map)) unname(label_map[s]) else s
+      }, character(1), USE.NAMES = FALSE)
+    }
+    src <- parts[-length(parts)]
+    tgt <- parts[length(parts)]
+    paste0(paste(src, collapse = " "), " -> ", tgt)
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Extract pathways from a data.frame with a \code{$path} column
+#'
+#' Converts rows of the form \code{"A -> B -> C"} into the simplicial
+#' pathway string format (\code{"A B -> C"}). When a \code{$count}
+#' column is present, rows are sorted by count descending. Designed to
+#' accept \code{Nestimate::mogen_transitions()} output without depending
+#' on its class.
+#'
+#' @param x A data.frame with a \code{path} column (and optionally a
+#'   \code{count} column).
+#' @param label_map Named character vector mapping numeric IDs to labels
+#'   (accepted for signature consistency with the other extractors;
+#'   ignored when paths are already in label space).
+#' @return Character vector of pathway strings.
+#' @noRd
+.extract_mogen_transitions_pathways <- function(x, label_map = NULL) {
+  if (nrow(x) == 0L) return(character(0))
+  d <- if ("count" %in% names(x)) x[order(-x$count), , drop = FALSE] else x
+  vapply(d$path, function(p) {
+    parts <- trimws(strsplit(p, "->", fixed = TRUE)[[1]])
+    if (length(parts) < 2L) return(p)
     if (!is.null(label_map)) {
       parts <- vapply(parts, function(s) {
         if (s %in% names(label_map)) unname(label_map[s]) else s

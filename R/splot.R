@@ -14,18 +14,20 @@ NULL
 #'   - A square numeric matrix (adjacency/weight matrix)
 #'   - A data frame with edge list (from, to, optional weight columns)
 #'   - An igraph object
-#'   - A cograph_network object
+#'   - A CographNetwork or cograph_network object
 #'   - A tna object (from tna package)
 #'   - A group_tna object (list of tna objects from tna package).
 #'     Use parameter `i` to select a specific group, or omit to plot all groups.
-#' @param layout Layout algorithm: "circle", "spring", "groups", or a matrix
-#'   of x,y coordinates, or an igraph layout function. Also supports igraph
-#'   two-letter codes: "kk", "fr", "drl", "mds", "ni", etc.
+#' @param layout Layout algorithm: "oval" (default), "circle", "spring",
+#'   "groups", or a matrix of x,y coordinates, or an igraph layout function.
+#'   Also supports igraph two-letter codes: "kk", "fr", "drl", "mds", "ni",
+#'   etc.
 #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
 #' @param seed Random seed for deterministic layouts. Default 42.
 #' @param theme Theme name: "classic", "dark", "minimal", "colorblind", etc.
 #'
-#' @param node_size Node size(s). Single value or vector. Default 3.
+#' @param node_size Node size(s). Single value or vector. Default NULL, which
+#'   resolves to 7 with default scaling.
 #' @param node_size2 Secondary node size for ellipse/rectangle height.
 #' @param scale_nodes_by Scale node sizes by a centrality measure. Can be:
 #'   \itemize{
@@ -92,7 +94,7 @@ NULL
 #' @param donut_line_type Line type for donut borders: "solid", "dashed", "dotted", or
 #'   numeric (1=solid, 2=dashed, 3=dotted). Can be scalar or per-node vector.
 #' @param donut_border_lty Deprecated. Use `donut_line_type` instead.
-#' @param donut_inner_ratio Inner radius ratio for donut (0-1). Default 0.5.
+#' @param donut_inner_ratio Inner radius ratio for donut (0-1). Default 0.8.
 #' @param donut_bg_color Background color for unfilled donut portion.
 #' @param donut_shape Base shape for donut: "circle", "square", "hexagon", "triangle",
 #'   "diamond", "pentagon". Can be a single value or per-node vector.
@@ -114,18 +116,19 @@ NULL
 #'
 #' @param edge_color Edge color(s). If NULL, uses edge_positive_color/edge_negative_color based on weight.
 #' @param edge_width Edge width(s). If NULL, scales by weight using edge_size and edge_width_range.
-#' @param edge_size Base edge size for weight scaling. NULL (default) uses adaptive sizing
-#'   based on network size: `15 * exp(-n_nodes/90) + 1`. For directed networks, this
-#'   is halved. Larger values = thicker edges overall.
+#' @param edge_size Maximum edge size for weight scaling. NULL (default) uses
+#'   the upper bound of \code{edge_width_range}. Larger values = thicker edges
+#'   overall.
 #' @param esize Deprecated. Use `edge_size` instead.
 #' @param edge_width_range Output width range as c(min, max) for weight-based scaling.
-#'   Default c(0.5, 4). Edges are scaled to fit within this range.
+#'   Default c(0.1, 4). Edges are scaled to fit within this range unless
+#'   \code{edge_size} supplies the maximum.
 #' @param edge_scale_mode Scaling mode for edge weights: "linear" (default, qgraph-style),
 #'   "log" (logarithmic for wide weight ranges), "sqrt" (moderate compression),
 #'   or "rank" (equal visual spacing regardless of weight distribution).
-#' @param edge_cutoff Two-tier cutoff for edge width scaling. NULL (default) = auto-calculate
-#'   as 75th percentile of weights (qgraph behavior). 0 = disabled (continuous scaling).
-#'   Positive number = manual threshold. Edges below cutoff get minimal width variation.
+#' @param edge_cutoff Optional cutoff for edge emphasis. NULL (default) or 0
+#'   disables cutoff fading. Positive values fade edges whose absolute weights
+#'   are below the cutoff; width scaling remains continuous.
 #' @param cut Deprecated. Use `edge_cutoff` instead.
 #' @param edge_alpha Edge transparency (0-1). Default 0.8.
 #' @param edge_labels Edge labels: TRUE (show weights), FALSE (none),
@@ -141,10 +144,10 @@ NULL
 #' @param edge_label_shadow_offset Offset distance for shadow in points. Default 0.5.
 #' @param edge_label_shadow_alpha Transparency for shadow (0-1). Default 0.5.
 #' @param edge_label_halo Logical: enable white halo/outline around edge labels for
-#'   readability over dark edges? Default FALSE. When TRUE, overrides shadow settings.
+#'   readability over dark edges? Default TRUE. When TRUE, overrides shadow settings.
 #' @param edge_style Line type(s): 1=solid, 2=dashed, 3=dotted, etc.
 #' @param curvature Edge curvature. 0 for straight, positive/negative for curves.
-#' @param curve_scale Logical: auto-curve reciprocal edges?
+#' @param curve_scale Reserved for future curve scaling; currently not used.
 #' @param curve_shape Spline tension (-1 to 1). Default 0.
 #' @param curve_pivot Position along edge for curve control point (0-1).
 #' @param curves Curve mode: TRUE (default) = single edges straight, reciprocal edges
@@ -152,6 +155,8 @@ NULL
 #' @param arrow_size Arrow head size.
 #' @param arrow_angle Arrow head angle in radians. Default pi/6 (30 degrees).
 #' @param show_arrows Logical or vector: show arrows on directed edges?
+#' @param show Dispatch-only placeholder used by method dispatch (e.g.,
+#'   \code{splot.tna_disparity}). Not intended for direct use.
 #' @param bidirectional Logical or vector: show arrows at both ends?
 #' @param loop_rotation Angle(s) in radians for self-loop direction.
 #' @param edge_start_style Style for the start segment of edges: "solid" (default),
@@ -217,6 +222,17 @@ NULL
 #' @param usePCH Deprecated. Use `use_pch` instead.
 #' @param scaling Scaling mode: "default" for qgraph-matched scaling where node_size=6
 #'   looks similar to qgraph vsize=6, or "legacy" to preserve pre-v2.0 behavior.
+#' @param align_panels Logical. If \code{TRUE}, forces a uniform symmetric
+#'   plot box (\code{c(-layout_scale, layout_scale)} on each axis) so two
+#'   networks plotted side-by-side in a \code{par(mfrow)} grid render at
+#'   identical absolute scales — useful for bootstrap panels, comparison
+#'   grids with networks of different node counts, or any case where
+#'   visual-size parity across panels matters more than canvas fill.
+#'   Default \code{FALSE} uses dynamic, layout-driven bounds (the
+#'   pre-2.1.x behaviour) which renders tighter on the canvas. The
+#'   per-node loop-reservation pad in \code{compute_plot_limits} runs
+#'   regardless, so networks with different self-loop patterns stay
+#'   centered consistently in either mode.
 #'
 #' @param legend Logical: show legend?
 #' @param legend_position Position: "topright", "topleft", "bottomright", "bottomleft".
@@ -247,6 +263,18 @@ NULL
 #' @param height Output height in inches.
 #' @param res Resolution in DPI for raster outputs (PNG, JPEG, TIFF). Default 600.
 #' @param ... Additional arguments passed to layout functions.
+#'   One ride-along worth calling out: \code{combined} (default
+#'   \code{TRUE}). When \code{x} is a multi-panel input (a
+#'   \code{group_tna}, \code{group_tna_bootstrap},
+#'   \code{group_tna_permutation}, \code{net_permutation_group}, or any
+#'   class routed to a \code{splot.*} method that draws multiple panels
+#'   such as \code{splot.net_mlvar} with \code{type = "all"}),
+#'   \code{combined = FALSE} skips the internal
+#'   \code{graphics::par(mfrow = ...)} grid so the caller can drive
+#'   layout explicitly via \code{\link{panel_layout}()} or
+#'   \code{graphics::layout()}. For single-network inputs (a single
+#'   \code{tna}, \code{netobject}, matrix, etc.) \code{combined} has no
+#'   effect — there is no panel grid to gate.
 #'
 #' @details
 #' ## Edge Curve Behavior
@@ -330,28 +358,15 @@ NULL
 #' @export
 #'
 #' @examples
-#' # Basic network from adjacency matrix
-#' adj <- matrix(c(0, 1, 1, 0,
-#'                 0, 0, 1, 1,
-#'                 0, 0, 0, 1,
-#'                 0, 0, 0, 0), 4, 4, byrow = TRUE)
-#' splot(adj)
-#'
-#' # With curved edges
-#' splot(adj, curvature = 0.2)
-#'
-#' # Weighted network with colors
-#' w_adj <- matrix(c(0, 0.5, -0.3, 0,
-#'                   0.8, 0, 0.4, -0.2,
-#'                   0, 0, 0, 0.6,
-#'                   0, 0, 0, 0), 4, 4, byrow = TRUE)
-#' splot(w_adj, edge_positive_color = "darkgreen", edge_negative_color = "red")
-#'
-#' # Pie chart nodes
-#' splot(adj, pie_values = list(c(1,2,3), c(2,2), c(1,1,1,1), c(3,1)))
-#'
-#' # Circle layout with labels
+#' # Basic directed network
+#' adj <- matrix(c(0, 1, 1, 0, 0, 0, 1, 1,
+#'                 0, 0, 0, 1, 0, 0, 0, 0), 4, 4, byrow = TRUE)
 #' splot(adj, layout = "circle", labels = c("A", "B", "C", "D"))
+#'
+#' # Weighted network with signed edges
+#' w_adj <- matrix(c(0, .5, -.3, 0, .8, 0, .4, -.2,
+#'                   0, 0, 0, .6, 0, 0, 0, 0), 4, 4, byrow = TRUE)
+#' splot(w_adj, edge_positive_color = "darkgreen", edge_negative_color = "red")
 #'
 #' @export
 splot <- function(
@@ -449,6 +464,12 @@ splot <- function(
     bidirectional = FALSE,
     loop_rotation = NULL,
 
+    # Dispatch-only placeholder: prevents R's partial-argument matching from
+    # binding a caller's `show = ...` (intended for splot.tna_disparity) to
+    # `show_arrows`. Defaults to NULL here; actual handling lives in
+    # splot.tna_disparity, which receives `show` via .collect_dispatch_args.
+    show = NULL,
+
     # Edge Start Style (for direction clarity)
     edge_start_style = "solid",
     edge_start_length = 0.15,
@@ -500,6 +521,7 @@ splot <- function(
     use_pch = FALSE,
     usePCH = NULL,  # Deprecated: use use_pch
     scaling = "default",
+    align_panels = FALSE,
 
     # Legend
     legend = FALSE,
@@ -599,12 +621,18 @@ splot <- function(
       return(do.call(splot, c(list(x = x[[idx]]), fwd_args)))
     }
 
-    # No i specified: plot all groups in a grid
-    n_cols <- ceiling(sqrt(n_groups))
-    n_rows <- ceiling(n_groups / n_cols)
+    # No i specified: plot all groups in a grid.
+    # `combined` rides in via ...; pull it out before recursing so splot()'s
+    # main signature doesn't see an unknown argument.
+    combined <- if (is.null(fwd_args$combined)) TRUE else isTRUE(fwd_args$combined)
+    fwd_args$combined <- NULL
 
-    old_par <- graphics::par(mfrow = c(n_rows, n_cols), mar = c(1, 1, 2, 1))
-    on.exit(graphics::par(old_par), add = TRUE)
+    if (combined) {
+      n_cols <- ceiling(sqrt(n_groups))
+      n_rows <- ceiling(n_groups / n_cols)
+      old_par <- graphics::par(mfrow = c(n_rows, n_cols), mar = c(1, 1, 2, 1))
+      on.exit(graphics::par(old_par), add = TRUE)
+    }
 
     for (idx in seq_len(n_groups)) {
       grp_fwd <- fwd_args
@@ -826,7 +854,7 @@ splot <- function(
       edge_label_position <- .psych_defs$edge_label_position
     if (!"minimum" %in% explicit_args)
       minimum <- .psych_defs$minimum
-    if (is.null(donut_bg_color) || donut_bg_color == "gray90")
+    if (!"donut_bg_color" %in% explicit_args)
       donut_bg_color <- .psych_defs$donut_bg_color
     if (is.null(donut_border_width))
       donut_border_width <- .psych_defs$donut_border_width
@@ -859,9 +887,13 @@ splot <- function(
       if (is.null(node_fill)) node_fill <- th$get("node_fill")
       if (is.null(node_border_color)) node_border_color <- th$get("node_border_color")
       if (is.null(background)) background <- th$get("background")
-      if (length(label_color) == 1 && label_color == "black") label_color <- th$get("label_color")
-      if (length(edge_positive_color) == 1 && edge_positive_color == "#2E7D32") edge_positive_color <- th$get("edge_positive_color")
-      if (length(edge_negative_color) == 1 && edge_negative_color == "#C62828") edge_negative_color <- th$get("edge_negative_color")
+      # Use explicit_args (built earlier from match.call) to detect "user did
+      # not pass this", rather than value-equality against the signature
+      # default — value-equality silently overrides users who pass the default
+      # literal explicitly together with a theme.
+      if (!"label_color" %in% explicit_args) label_color <- th$get("label_color")
+      if (!"edge_positive_color" %in% explicit_args) edge_positive_color <- th$get("edge_positive_color")
+      if (!"edge_negative_color" %in% explicit_args) edge_negative_color <- th$get("edge_negative_color")
     }
   }
 
@@ -905,7 +937,8 @@ splot <- function(
 
   # Rescale to [-1, 1]
   if (rescale) {
-    layout_mat <- as.matrix(rescale_layout(layout_mat, mar = 0.1))
+    layout_mat <- as.matrix(rescale_layout(layout_mat, mar = 0.1,
+                                            keep_aspect = aspect))
   }
 
   # Apply layout scale (expand/contract around center)
@@ -1010,8 +1043,19 @@ splot <- function(
   # Labels
   node_labels <- resolve_labels(labels, nodes, n_nodes)
 
-  # Label sizes (using new decoupled system)
-  label_cex <- resolve_label_sizes(label_size, vsize_usr, n_nodes, scaling = scaling)
+  # Device-dependent visual scale: reserve the per-draw env now so inner
+  # helpers can retrieve it. The actual scale computation is DEFERRED until
+  # after `graphics::plot()` is called further down, because before plot.new
+  # `par("pin")` is still reflecting the previous plot (or default margins)
+  # rather than the real plot region about to be drawn. Setting an identity
+  # placeholder here keeps `.get_current_visual_scale()` safe to call from
+  # any code path that runs between now and the post-plot refresh.
+  visual_scale <- .identity_visual_scale()
+  .set_current_visual_scale(visual_scale)
+  on.exit(.clear_current_visual_scale(), add = TRUE)
+
+  # Per-node label colours (vectorised). Actual label cex is resolved after
+  # plot.new so par("pin") is accurate.
   label_colors <- recycle_to_length(label_color, n_nodes)
 
   # ============================================
@@ -1087,25 +1131,8 @@ splot <- function(
       }
     }
 
-    # Edge widths
-    edge_widths <- resolve_edge_widths(
-      edges = edges,
-      edge.width = edge_width,
-      esize = edge_size,
-      n_nodes = n_nodes,
-      directed = directed,
-      maximum = maximum,
-      minimum = threshold,
-      cut = edge_cutoff,
-      edge_width_range = edge_width_range,
-      edge_scale_mode = edge_scale_mode,
-      scaling = scaling
-    )
-
-    # Line types and dotted-width adjustment
-    es <- resolve_edge_styles(edge_style, edge_widths, n_edges)
-    ltys <- es$ltys
-    edge_widths <- es$edge_widths
+    # Edge widths are resolved post-plot (below) so par("pin") is valid.
+    # We still compute curvatures here because they don't depend on device.
 
     # Compute per-edge curvatures (reciprocal detection + direction)
     curve_result <- compute_edge_curvatures(curvature, curves, edges, layout_mat)
@@ -1205,13 +1232,53 @@ splot <- function(
   # Default margins[3] (top) is 0.1 which is too small for titles
   # Add extra space proportional to title_size when title is provided
   title_space <- if (!is.null(title)) max(1.5, title_size * 1.2) else 0
-  graphics::par(mar = c(margins[1], margins[2], margins[3] + title_space, margins[4]))
+  graphics::par(mar = c(margins[1], margins[2],
+                        margins[3] + title_space, margins[4]))
 
   # Calculate plot limits accounting for node radii, self-loops, and margins
+  # When the layout was auto-rescaled (rescale = TRUE, the default),
+  # rescale_layout fits it inside [-0.9, 0.9] with aspect preserved, so
+  # the plot area should anchor to a consistent [-1, 1] box regardless
+  # of layout shape. This keeps node pixel sizes stable across different
+  # seeds / algorithms / imported qgraph layouts, fixing the long-standing
+  # "different layout -> different apparent node size" surprise.
+  # `align_panels = TRUE` opts into cf525b30's fixed-bounds box, which
+  # forces consistent xlim/ylim across panels regardless of layout
+  # extremity. Default FALSE = dynamic bounds (pre-cf525b30) for tighter
+  # rendering. The all-nodes loop-reservation in compute_plot_limits
+  # (lines ~619-632) runs regardless and keeps loop-presence-driven
+  # centering consistent across panels even on the dynamic path.
+  fixed_bounds <- if (isTRUE(rescale) && isTRUE(align_panels)) {
+    b <- layout_scale %||% 1
+    c(-b, b, -b, b)
+  } else NULL
   lims <- compute_plot_limits(layout_mat, vsize_usr, layout_margin,
-                              edges, n_edges, loop_rotations)
+                              edges, n_edges, loop_rotations,
+                              fixed_bounds = fixed_bounds)
   xlim <- lims$xlim
   ylim <- lims$ylim
+
+  # Reserve native whitespace for the legend by expanding `xlim` on the
+  # appropriate side (qgraph's GLratio idiom). Doing it in user-coordinates
+  # rather than via `par("mar")` keeps the legend-band expansion in the
+  # same units as `inset`, so a small positive inset places the legend
+  # cleanly inside the expanded region rather than pushing it off the PNG.
+  # With `asp = 1`, R preserves visual circularity by widening the physical
+  # plot box and compensating `ylim` — nodes stay round.
+  legend_xlim_expansion <- 0
+  if (isTRUE(legend)) {
+    x_span <- xlim[2] - xlim[1]
+    pos <- legend_position
+    if (identical(pos, "topright") || identical(pos, "bottomright") ||
+        identical(pos, "right")) {
+      xlim[2] <- xlim[2] + x_span * 0.25
+      legend_xlim_expansion <- x_span * 0.25
+    } else if (identical(pos, "topleft") || identical(pos, "bottomleft") ||
+               identical(pos, "left")) {
+      xlim[1] <- xlim[1] - x_span * 0.25
+      legend_xlim_expansion <- x_span * 0.25
+    }
+  }
 
   # Create plot
   graphics::plot(
@@ -1224,6 +1291,59 @@ splot <- function(
     xaxs = "i", yaxs = "i"
   )
 
+  # Compute visual_scale NOW — par("pin") is accurate for the freshly-opened
+  # plot region. Labels and edges are resolved from this scale below so
+  # they share the same pin-based anchor as the node user-coordinates.
+  visual_scale <- .resolve_visual_scale(scaling)
+  .set_current_visual_scale(visual_scale)
+
+  # Label sizes (qgraph-style invariant: label cex tracks node_size so the
+  # node-to-label ratio is locked by construction). Device compensation
+  # is applied uniformly via visual_scale so label pixel size tracks pin.
+  label_cex <- resolve_label_sizes(label_size, vsize_usr, n_nodes,
+                                   scaling = scaling,
+                                   visual_scale = visual_scale,
+                                   node_size = node_size)
+
+  # Default edge_label_size is a fixed fraction of node label cex so the
+  # node-to-edge-label ratio stays constant across canvases. User-explicit
+  # values skip the coupling and receive the (capped) visual_scale
+  # compensation instead — that logic lives here rather than in
+  # render_edges_splot so the final cex is produced in one place.
+  if (!("edge_label_size" %in% explicit_args)) {
+    edge_label_size <- mean(label_cex) * EDGE_LABEL_NODE_CEX_FRACTION
+  } else {
+    .vs_mult_edge <- visual_scale$scale %||% 1
+    if (is.finite(.vs_mult_edge) && .vs_mult_edge > 0) {
+      .vs_mult_edge <- pmin(pmax(.vs_mult_edge, EDGE_LABEL_SCALE_CAP[1]),
+                            EDGE_LABEL_SCALE_CAP[2])
+      edge_label_size <- edge_label_size * .vs_mult_edge
+    }
+  }
+
+  # Edge widths (visual_scale multiplies the mapped lwd so absolute widths
+  # track the canvas; weight-to-width rank mapping is preserved). Line
+  # types / dotted-width adjustment applied after.
+  if (n_edges > 0) {
+    edge_widths <- resolve_edge_widths(
+      edges = edges,
+      edge.width = edge_width,
+      esize = edge_size,
+      n_nodes = n_nodes,
+      directed = directed,
+      maximum = maximum,
+      minimum = threshold,
+      cut = edge_cutoff,
+      edge_width_range = edge_width_range,
+      edge_scale_mode = edge_scale_mode,
+      scaling = scaling,
+      visual_scale = visual_scale
+    )
+    es <- resolve_edge_styles(edge_style, edge_widths, n_edges)
+    ltys <- es$ltys
+    edge_widths <- es$edge_widths
+  }
+
   # Background
   if (!is.null(background) && background != "transparent") {
     graphics::rect(
@@ -1233,9 +1353,12 @@ splot <- function(
     )
   }
 
-  # Title
+  # Title — scaled by the same uniform visual_scale multiplier as labels and
+  # legend so title-to-plot ratio is stable across canvases.
   if (!is.null(title)) {
-    graphics::title(main = title, cex.main = title_size)
+    graphics::title(main = title,
+                    cex.main = title_size *
+                      (visual_scale$scale %||% visual_scale$text %||% 1))
   }
 
   # ============================================
@@ -1373,13 +1496,79 @@ splot <- function(
       has_pos_edges = has_pos_edges,
       has_neg_edges = has_neg_edges,
       show_node_sizes = legend_node_sizes,
-      node_size = vsize_usr
+      node_size = vsize_usr,
+      visual_scale = visual_scale
     )
   }
 
   # ============================================
   # 9. RETURN
   # ============================================
+
+  # Attach the actual plot-space coordinates (post-rescale, post-layout_scale)
+  # so downstream helpers like overlay_communities() can place annotations at
+  # true node positions without reconstructing splot's internal transform.
+  # network$nodes$x / $y remain in the original layout-coord space (used by
+  # tests and non-rendering callers); plot_x / plot_y are the coords that
+  # actually appeared on the device.
+  if (!is.null(network$nodes) && nrow(network$nodes) == nrow(layout_mat)) {
+    network$nodes$plot_x <- layout_mat[, 1]
+    network$nodes$plot_y <- layout_mat[, 2]
+
+    # Port the layout across plots: stash the rendered coord matrix on
+    # $meta$layout so a caller can do
+    #   p2 <- splot(other_graph, layout = p$meta$layout)
+    # and get identical positions without manually reassembling plot_x/y.
+    rendered_coords <- layout_mat
+    rownames(rendered_coords) <- network$nodes$name
+    colnames(rendered_coords) <- c("x", "y")
+    existing <- network$meta$layout %||% list()
+    network$meta$layout <- modifyList(
+      if (is.list(existing)) existing else list(name = existing),
+      list(coords = rendered_coords,
+           rescale = FALSE,
+           layout_scale = 1)
+    )
+
+    # Stash resolved per-node render params so the returned object is
+    # self-sufficient for replot. Column names deliberately mirror splot
+    # argument names (node_size, node_fill, node_shape, ...).
+    if (exists("vsize_usr", inherits = FALSE))
+      network$nodes$node_size  <- vsize_usr
+    if (exists("node_colors", inherits = FALSE))
+      network$nodes$node_fill  <- node_colors
+    if (exists("shapes", inherits = FALSE) && length(shapes) == nrow(network$nodes))
+      network$nodes$node_shape <- shapes
+    if (exists("label_cex", inherits = FALSE))
+      network$nodes$label_size <- label_cex
+  }
+
+  # Same for edges — stash resolved widths, colors, styles.
+  if (!is.null(network$edges) && nrow(network$edges) == n_edges && n_edges > 0) {
+    if (exists("edge_widths", inherits = FALSE))
+      network$edges$edge_size  <- edge_widths
+    if (exists("edge_colors", inherits = FALSE))
+      network$edges$edge_color <- edge_colors
+    if (exists("ltys", inherits = FALSE))
+      network$edges$edge_style <- ltys
+    if (exists("curves_vec", inherits = FALSE))
+      network$edges$curve      <- curves_vec
+  }
+
+  # Attach device geometry so the visual-sweep harness (and external callers)
+  # can compute label/node pixel ratios without re-running the plot. Captured
+  # while the device is still open — both scales require live par("pin").
+  attr(network, "cograph.visual_scale") <- visual_scale
+  if (exists("vsize_usr", inherits = FALSE)) {
+    ux <- tryCatch(get_x_scale(), error = function(e) NA_real_)
+    uy <- tryCatch(get_y_scale(), error = function(e) NA_real_)
+    if (is.finite(ux) && is.finite(uy)) {
+      # Representative diameter: 2 * median node radius, in inches (mean of
+      # x- and y-inch scales so it is rotation-independent).
+      attr(network, "cograph.node_diam_in") <-
+        2 * stats::median(vsize_usr, na.rm = TRUE) * mean(c(ux, uy))
+    }
+  }
 
   invisible(network)
 }
@@ -1562,6 +1751,23 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
     start <- cent_to_edge(x1, y1, angle_to, node_sizes[from_idx], NULL, shapes[from_idx])
     end <- cent_to_edge(x2, y2, angle_from, node_sizes[to_idx], NULL, shapes[to_idx])
 
+    # For reciprocal edges, shift snap points perpendicular to the edge
+    if (!is.null(is_reciprocal) && is_reciprocal[i]) {
+      dx <- x2 - x1
+      dy <- y2 - y1
+      len <- sqrt(dx^2 + dy^2)
+      if (len > 1e-10) {
+        px <- -dy / len
+        py <- dx / len
+        shift <- node_sizes[from_idx] * 0.12 * sign(curvature[i])
+        start$x <- start$x + px * shift
+        start$y <- start$y + py * shift
+        shift_end <- node_sizes[to_idx] * 0.12 * sign(curvature[i])
+        end$x <- end$x + px * shift_end
+        end$y <- end$y + py * shift_end
+      }
+    }
+
     # Determine curve direction
     # For reciprocal edges, use pre-computed curvature directly (preserves opposite directions)
     # For non-reciprocal edges, apply inward curve direction adjustment
@@ -1646,7 +1852,10 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
 
   # Draw edge labels
   if (!is.null(edge_labels)) {
-    # Vectorize edge label parameters (strict: length 1 or m)
+    # Vectorize edge label parameters (strict: length 1 or m). The caller
+    # (splot.R) has already applied the harmony coupling (fraction of node
+    # label cex for auto-defaults, or visual_scale with EDGE_LABEL_SCALE_CAP
+    # for user-explicit values), so `edge_label_size` arrives as final cex.
     edge_label_sizes <- expand_param(edge_label_size, m, "edge_label_size")
     edge_label_colors <- expand_param(edge_label_color, m, "edge_label_color")
     edge_label_bgs <- expand_param(edge_label_bg, m, "edge_label_bg")
@@ -2026,7 +2235,8 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
                                 show_edge_colors = FALSE,
                                 positive_color = "#2E7D32", negative_color = "#C62828",
                                 has_pos_edges = FALSE, has_neg_edges = FALSE,
-                                show_node_sizes = FALSE, node_size = NULL) {
+                                show_node_sizes = FALSE, node_size = NULL,
+                                visual_scale = NULL) {
 
   n <- length(node_colors)
 
@@ -2045,16 +2255,16 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
     unique_groups <- unique(groups)
 
     # Get color for each group (first node of that group)
-    group_colors <- sapply(unique_groups, function(g) {
+    group_colors <- vapply(unique_groups, function(g) {
       idx <- which(groups == g)[1]
       node_colors[idx]
-    })
+    }, character(1))
 
     group_labels <- if (!is.null(node_names)) {
-      sapply(unique_groups, function(g) {
+      vapply(unique_groups, function(g) {
         idx <- which(groups == g)[1]
         if (length(node_names) >= idx) node_names[idx] else as.character(g)
-      })
+      }, character(1))
     } else {
       as.character(unique_groups)
     }
@@ -2124,8 +2334,9 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
       paste0("Large (", round(size_range[2], 1), ")")
     )
 
-    # Scale for legend display
-    scale_factor <- 15  # Adjust for visual appearance
+    # Semantic point-size multiplier for the node-size legend swatches. Device
+    # compensation is applied inside .render_legend_base via visual_scale$point.
+    scale_factor <- 15
     size_cex <- size_vals * scale_factor
 
     legend_labels <- c(legend_labels, size_labels)
@@ -2150,9 +2361,17 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
   has_points <- any(!is.na(legend_pch) & legend_pch > 0)
   has_lines <- any(!is.na(legend_lty) & legend_lty > 0)
 
-  # Build legend
-  graphics::legend(
-    position,
+  # The legend lands in the native whitespace we reserved via xlim
+  # expansion (see splot.R where xlim[2] is widened for right-positioned
+  # legends). A small positive inset keeps the legend a comfortable
+  # distance from the inner plot edge. xpd = FALSE because the legend
+  # now sits inside the plot box, not in the margin.
+  inset_val <- c(0.02, 0.02)
+
+  # Delegate to the shared helper so cex/pt.cex/lwd pick up device compensation
+  # via visual_scale. Preserves the pt.bg = legend_colors pairing and the
+  # has_points / has_lines gates.
+  .render_legend_base(
     legend = legend_labels,
     col = legend_colors,
     pch = if (has_points) legend_pch else NULL,
@@ -2160,10 +2379,14 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
     lwd = if (has_lines) legend_lwd else NULL,
     pt.cex = if (has_points) legend_pt_cex else NULL,
     pt.bg = if (has_points) legend_colors else NULL,
+    position = position,
+    cex = cex,
     bty = "o",
     bg = "white",
-    cex = cex,
-    seg.len = 1.5
+    seg.len = 1.5,
+    inset = inset_val,
+    xpd = FALSE,
+    visual_scale = visual_scale
   )
 }
 

@@ -53,30 +53,21 @@ splot.group_tna_permutation <- function(x, ...) {
 #' }
 #'
 #' @examples
-#' \dontrun{
-#' # Create a mock tna_permutation object with synthetic data
-#' set.seed(42)
-#' diffs <- matrix(c(0, 0.15, -0.1, -0.2, 0, 0.05, 0.1, -0.05, 0), 3, 3)
+#' # Mock a tna_permutation object with synthetic data
+#' diffs <- matrix(c(0, .15, -.1, -.2, 0, .05, .1, -.05, 0), 3, 3)
 #' rownames(diffs) <- colnames(diffs) <- c("A", "B", "C")
-#' diffs_sig <- diffs
-#' diffs_sig[abs(diffs) < 0.1] <- 0
-#' perm <- list(
-#'   edges = list(
-#'     diffs_true = diffs,
-#'     diffs_sig = diffs_sig,
-#'     stats = data.frame(
-#'       edge_name = c("A -> B", "A -> C", "B -> A", "B -> C", "C -> A", "C -> B"),
-#'       diff_true = c(0.15, -0.1, -0.2, 0.05, 0.1, -0.05),
-#'       effect_size = c(2.1, -1.5, -2.8, 0.4, 1.2, -0.3),
-#'       p_value = c(0.01, 0.04, 0.001, 0.3, 0.02, 0.5)
-#'     )
-#'   )
-#' )
-#' attr(perm, "level") <- 0.05
+#' diffs_sig <- diffs; diffs_sig[abs(diffs) < 0.1] <- 0
+#' perm <- list(edges = list(
+#'   diffs_true = diffs, diffs_sig = diffs_sig,
+#'   stats = data.frame(
+#'     edge_name   = c("A -> B","A -> C","B -> A","B -> C","C -> A","C -> B"),
+#'     diff_true   = c(.15,-.1,-.2,.05,.1,-.05),
+#'     effect_size = c(2.1,-1.5,-2.8,.4,1.2,-.3),
+#'     p_value     = c(.01,.04,.001,.3,.02,.5))))
+#' attr(perm, "level")  <- 0.05
 #' attr(perm, "labels") <- c("A", "B", "C")
 #' class(perm) <- c("tna_permutation", "list")
 #' plot_permutation(perm)
-#' }
 #'
 #' @export
 plot_permutation <- function(x,
@@ -107,6 +98,10 @@ plot_permutation <- function(x,
 
   # Build args list
   args <- list(...)
+  edge_labels_user <- "edge_labels" %in% names(args)
+  labels_enabled <- !identical(args$edge_labels, FALSE)
+  template_labels <- !is.null(args$edge_label_template) ||
+    (!is.null(args$edge_label_style) && !identical(args$edge_label_style, "none"))
 
   # Translate qgraph-style vsize to node_size
   if (!is.null(args$vsize) && is.null(args$node_size)) {
@@ -224,8 +219,18 @@ plot_permutation <- function(x,
     args$edge_label_fontface <- 2  # bold
   }
 
-  # Build custom edge labels with optional effect size
-  if (n_edges > 0 && (show_stars || show_effect)) {
+  if (labels_enabled && n_edges > 0 && !is.null(p_matrix)) {
+    args$edge_label_p <- p_matrix[edge_idx]
+    if (template_labels && show_stars) {
+      args$edge_label_stars <- TRUE
+    }
+  }
+
+  # Build custom edge labels with optional effect size. Leave explicit label
+  # vectors/templates alone so users can show p-values or suppress labels.
+  if (labels_enabled && !template_labels && n_edges > 0 &&
+      (show_stars || show_effect) &&
+      (!edge_labels_user || isTRUE(args$edge_labels))) {
     edge_labels_custom <- character(n_edges)
 
     for (k in seq_len(n_edges)) {
@@ -287,28 +292,29 @@ plot_permutation <- function(x,
 #'
 #' @param x A group_tna_permutation object (from tna::permutation_test on group_tna).
 #' @param i Index or name of specific comparison to plot. NULL for all.
+#' @param combined Logical: when TRUE (default), lay out panels in an internal
+#'   grid via \code{graphics::par(mfrow=...)}. Set to FALSE to draw each panel
+#'   into a layout the caller has already configured (e.g. via
+#'   \code{\link{panel_layout}()}). Ignored when \code{i} selects a single panel.
 #' @param ... Additional arguments passed to plot_permutation().
 #'
-#' @return Invisibly returns NULL.
+#' @return When \code{i} is supplied, returns the selected permutation plot.
+#'   Otherwise invisibly returns \code{NULL} after drawing all panels.
 #'
 #' @examples
-#' \dontrun{
-#' # Create a mock group_tna_permutation object
-#' set.seed(42)
-#' d1 <- matrix(c(0, 0.2, -0.1, -0.2, 0, 0.1, 0.1, -0.1, 0), 3, 3)
+#' # Mock a group_tna_permutation object
+#' d1 <- matrix(c(0, .2, -.1, -.2, 0, .1, .1, -.1, 0), 3, 3)
 #' rownames(d1) <- colnames(d1) <- c("A", "B", "C")
-#' d1_sig <- d1
-#' d1_sig[abs(d1) < 0.15] <- 0
+#' d1_sig <- d1; d1_sig[abs(d1) < 0.15] <- 0
 #' perm1 <- list(edges = list(diffs_true = d1, diffs_sig = d1_sig, stats = NULL))
 #' attr(perm1, "labels") <- c("A", "B", "C")
 #' class(perm1) <- c("tna_permutation", "list")
 #' gperm <- list("G1 vs. G2" = perm1)
 #' class(gperm) <- c("group_tna_permutation", "list")
 #' plot_group_permutation(gperm)
-#' }
 #'
 #' @export
-plot_group_permutation <- function(x, i = NULL, ...) {
+plot_group_permutation <- function(x, i = NULL, combined = TRUE, ...) {
   # Strip `title` from `...` so we can re-inject a per-panel title without
   # R's argument matcher seeing `title` twice. If the user supplied one,
   # compose it as `"user_title - pair_name"` so both pieces of information
@@ -338,13 +344,15 @@ plot_group_permutation <- function(x, i = NULL, ...) {
     return(invisible(NULL))
   }
 
-  # Calculate grid layout
-  ncol <- ceiling(sqrt(n_pairs))
-  nrow <- ceiling(n_pairs / ncol)
+  if (combined) {
+    # Calculate grid layout
+    ncol <- ceiling(sqrt(n_pairs))
+    nrow <- ceiling(n_pairs / ncol)
 
-  # Set up multi-panel plot
-  old_par <- graphics::par(mfrow = c(nrow, ncol), mar = c(2, 2, 3, 1))
-  on.exit(graphics::par(old_par), add = TRUE)
+    # Set up multi-panel plot
+    old_par <- graphics::par(mfrow = c(nrow, ncol), mar = c(2, 2, 3, 1))
+    on.exit(graphics::par(old_par), add = TRUE)
+  }
 
   pair_names <- names(x)
   for (k in seq_len(n_pairs)) {
@@ -398,6 +406,10 @@ splot.net_permutation <- function(x,
 
   weights_display <- if (show_nonsig) diffs_true else diffs_sig
   args            <- list(...)
+  edge_labels_user <- "edge_labels" %in% names(args)
+  labels_enabled <- !identical(args$edge_labels, FALSE)
+  template_labels <- !is.null(args$edge_label_template) ||
+    (!is.null(args$edge_label_style) && !identical(args$edge_label_style, "none"))
 
   # Translate qgraph-style vsize to node_size
   if (!is.null(args$vsize) && is.null(args$node_size)) {
@@ -473,7 +485,16 @@ splot.net_permutation <- function(x,
     args$edge_label_fontface <- 2
   }
 
-  if (n_edges > 0 && (show_stars || show_effect)) {
+  if (labels_enabled && n_edges > 0 && !is.null(p_matrix)) {
+    args$edge_label_p <- p_matrix[edge_idx]
+    if (template_labels && show_stars) {
+      args$edge_label_stars <- TRUE
+    }
+  }
+
+  if (labels_enabled && !template_labels && n_edges > 0 &&
+      (show_stars || show_effect) &&
+      (!edge_labels_user || isTRUE(args$edge_labels))) {
     edge_labels_custom <- character(n_edges)
     for (k in seq_len(n_edges)) {
       i  <- edge_idx[k, 1]; j <- edge_idx[k, 2]

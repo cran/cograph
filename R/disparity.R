@@ -15,7 +15,7 @@ NULL
 #' fraction of a node's total weight, based on a null model where weights
 #' are distributed uniformly at random.
 #'
-#' @param x A weight matrix, tna object, or cograph_network.
+#' @param x A weight matrix, tna object, cograph_network, or igraph object.
 #' @param level Significance level (default 0.05). Lower values result in
 #'   a sparser backbone (fewer edges retained).
 #' @param ... Additional arguments (currently unused).
@@ -227,26 +227,26 @@ print.tna_disparity <- function(x, ...) {
 #'
 #' @param x A tna_disparity object.
 #' @param type Plot type: "backbone" (default) or "comparison".
+#' @param combined Logical: when \code{type = "comparison"}, controls whether
+#'   the original vs. backbone panels are arranged in an internal 1 x 2 grid
+#'   (TRUE, default) or drawn into a layout the caller has already
+#'   configured (FALSE — pair with \code{\link{panel_layout}()}). Ignored
+#'   for \code{type = "backbone"}.
 #' @param ... Additional arguments passed to splot.
 #'
-#' @return Invisibly returns \code{NULL}. Called for the side effect of producing a plot.
+#' @return Invisibly returns the value from the underlying \code{\link{splot}}
+#'   call. Called primarily for the side effect of producing a plot.
 #'
 #' @examples
-#' \dontrun{
-#' mat <- matrix(c(
-#'   0.0, 0.5, 0.1, 0.0,
-#'   0.3, 0.0, 0.4, 0.1,
-#'   0.1, 0.2, 0.0, 0.5,
-#'   0.0, 0.1, 0.3, 0.0
-#' ), nrow = 4, byrow = TRUE)
+#' mat <- matrix(c(0.0, 0.5, 0.1, 0.0, 0.3, 0.0, 0.4, 0.1,
+#'                 0.1, 0.2, 0.0, 0.5, 0.0, 0.1, 0.3, 0.0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("A", "B", "C", "D")
 #' disp <- disparity_filter(cograph(mat), level = 0.05)
 #' plot(disp)
-#' plot(disp, type = "comparison")
-#' }
 #'
 #' @export
-plot.tna_disparity <- function(x, type = c("backbone", "comparison"), ...) {
+plot.tna_disparity <- function(x, type = c("backbone", "comparison"),
+                               combined = TRUE, ...) {
   type <- match.arg(type)
 
   if (type == "backbone") {
@@ -254,8 +254,10 @@ plot.tna_disparity <- function(x, type = c("backbone", "comparison"), ...) {
     splot(x$weights_filtered, ...)
   } else {
     # Side-by-side comparison
-    oldpar <- par(mfrow = c(1, 2))
-    on.exit(par(oldpar))
+    if (combined) {
+      oldpar <- par(mfrow = c(1, 2))
+      on.exit(par(oldpar))
+    }
 
     splot(x$weights_orig, title = "Original", ...)
     splot(x$weights_filtered, title = "Backbone", ...)
@@ -275,21 +277,16 @@ plot.tna_disparity <- function(x, type = c("backbone", "comparison"), ...) {
 #' @param alpha_nonsig Alpha for non-backbone edges. Default 0.3.
 #' @param ... Additional arguments passed to splot.
 #'
-#' @return Invisibly returns \code{NULL}. Called for the side effect of producing a plot.
+#' @return Invisibly returns the value from the underlying \code{\link{splot}}
+#'   call. Called primarily for the side effect of producing a plot.
 #'
-#' @examplesIf requireNamespace("tna", quietly = TRUE)
-#' \dontrun{
-#' mat <- matrix(c(
-#'   0.0, 0.5, 0.1, 0.0,
-#'   0.3, 0.0, 0.4, 0.1,
-#'   0.1, 0.2, 0.0, 0.5,
-#'   0.0, 0.1, 0.3, 0.0
-#' ), nrow = 4, byrow = TRUE)
+#' @examples
+#' mat <- matrix(c(0.0, 0.5, 0.1, 0.0, 0.3, 0.0, 0.4, 0.1,
+#'                 0.1, 0.2, 0.0, 0.5, 0.0, 0.1, 0.3, 0.0), 4, 4, byrow = TRUE)
 #' rownames(mat) <- colnames(mat) <- c("A", "B", "C", "D")
 #' disp <- disparity_filter(cograph(mat), level = 0.05)
-#' splot.tna_disparity(disp)
-#' splot.tna_disparity(disp, show = "backbone")
-#' }
+#' splot(disp)
+#' splot(disp, show = "backbone")
 #'
 #' @export
 splot.tna_disparity <- function(x, show = c("styled", "backbone", "full"),

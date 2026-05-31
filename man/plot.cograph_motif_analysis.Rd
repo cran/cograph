@@ -18,6 +18,7 @@
   legend = TRUE,
   color = "#800020",
   spacing = 1,
+  combined = TRUE,
   ...
 )
 }
@@ -37,9 +38,15 @@ structure of each triad type without specific node labels.}
 
 \item{n}{Number of triads/patterns to show. Default 20.}
 
-\item{colors}{Two-element color vector for the types/significance plots:
-first color for over-represented, second for under-represented.
-Default \code{c("#2166AC", "#B2182B")} (blue/red).}
+\item{colors}{Two-element color vector mapped to a three-tone significance
+scale (used by \code{type = "significance"} and by \code{type = "patterns"}
+node fills): \code{colors[1]} fills items that are significantly
+under-represented (\code{p < .05} and \code{z < 0}); \code{colors[2]}
+fills items that are significantly over-represented (\code{p < .05} and
+\code{z > 0}); everything else is filled neutral grey (\code{"#9E9E9E"}).
+When significance was not run, patterns nodes use \code{colors[1]} as a
+single fill. Default \code{c("#2166AC", "#B2182B")} (blue for under, red
+for over).}
 
 \item{res}{Resolution for scaling (kept for backwards compatibility). Default 72.}
 
@@ -60,11 +67,16 @@ Default \code{"#800020"} (maroon).}
 
 \item{spacing}{Spacing multiplier between grid cells (0.5-2). Default 1.}
 
+\item{combined}{Logical: when TRUE (default) and \code{type = "patterns"},
+arrange the per-motif panels in an internal grid via
+\code{graphics::par(mfrow=...)}. Set to FALSE to draw into a layout the
+caller has already configured (e.g. via \code{\link{panel_layout}()}).}
+
 \item{...}{Additional arguments (unused).}
 }
 \value{
-Invisibly returns NULL for triad plots, or a ggplot2 object for
-types/significance/patterns plots.
+Invisibly returns NULL for triad and pattern plots, or a ggplot2
+object for types and significance plots.
 }
 \description{
 Create visualizations for motif analysis results including network diagrams
@@ -75,9 +87,7 @@ mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
 m <- extract_motifs(mat, significance = FALSE)
 plot(m)
-\dontrun{
-  plot(m, type = "types")
-}
+plot(m, type = "types")
 
 }
 \seealso{

@@ -2,8 +2,9 @@
 #'
 #' Plots a TNA model with nodes arranged in multiple groups using geometric layouts:
 #' \itemize{
-#'   \item 2 groups: Bipartite (two vertical columns or horizontal rows)
-#'   \item 3+ groups: Polygon (nodes along edges of a regular polygon)
+#'   \item Circular: default for \code{layout = "auto"}, with groups on arcs
+#'   \item Bipartite: two vertical columns or horizontal rows for exactly 2 groups
+#'   \item Polygon: nodes along edges of a regular polygon for 3+ groups
 #' }
 #' Supports triangle (3), rectangle (4), pentagon (5), hexagon (6), and beyond.
 #'
@@ -20,7 +21,7 @@
 #'   for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
 #'   "infomap", "leiden".
 #' @param layout Layout type: "auto" (default), "bipartite", "polygon", or "circular".
-#'   When "auto", uses bipartite for 2 groups and polygon for 3+ groups.
+#'   When "auto", uses the circular layout for any valid group count.
 #'   "circular" places groups along arcs of a circle.
 #'   Legacy values "triangle" and "rectangle" are supported as aliases for "polygon".
 #' @param use_list_order Logical. Use node_list order (TRUE) or weight-based order (FALSE).
@@ -34,7 +35,7 @@
 #'     \item Numeric vector of length n: Direct x-offsets for each node
 #'   }
 #'   Only applies to bipartite layout.
-#' @param jitter_amount Base jitter amount when jitter=TRUE. Default 0.5.
+#' @param jitter_amount Base jitter amount when jitter=TRUE. Default 0.8.
 #'   Higher values spread nodes more toward the center. Only applies to bipartite layout.
 #' @param jitter_side Which side(s) to apply jitter: "first", "second", "both", or "none".
 #'   Default "first" (only first group nodes are jittered toward center).
@@ -42,7 +43,7 @@
 #' @param orientation Layout orientation for bipartite: "vertical" (two columns, default),
 #'   "horizontal" (two rows), "facing" (both groups on same horizontal line,
 #'   group1 left, group2 right, tip-to-tip), or "circular" (two facing semicircles
-#'   with a gap between them). Ignored for triangle/rectangle layouts.
+#'   with a gap between them). Ignored for non-bipartite layouts.
 #' @param group1_pos Position for first group in bipartite layout. Default -2.
 #'   Overridden by \code{group_spacing} if specified.
 #' @param group2_pos Position for second group in bipartite layout. Default 2.
@@ -67,20 +68,29 @@
 #' @param group1_shape Shape for first group nodes. Default "circle".
 #' @param group2_shape Shape for second group nodes. Default "square".
 #' @param group_colors Vector of colors for each group. Overrides group1_color/group2_color.
-#'   Required for 3+ groups if not using defaults.
+#'   If NULL, two-group layouts use group1_color/group2_color and 3+ group
+#'   layouts use the built-in group color palette.
 #' @param group_shapes Vector of shapes for each group. Overrides group1_shape/group2_shape.
-#'   Required for 3+ groups if not using defaults.
+#'   If NULL, two-group layouts use group1_shape/group2_shape and 3+ group
+#'   layouts use the built-in group shape palette.
 #' @param angle_spacing Controls empty space at corners (0-1). Default 0.15.
-#'   Higher values create larger empty angles at vertices. Only applies to triangle/rectangle layouts.
+#'   Higher values create larger gaps in polygon and circular layouts. For
+#'   circular auto layout, the default is increased to 0.35 unless explicitly set.
 #' @param edge_colors Vector of colors for edges by source group. If NULL (default),
 #'   uses darker versions of group_colors. Set to FALSE to use default edge color.
 #' @param intra_curvature Numeric. Curvature amount for intra-group edges (edges
 #'   between nodes in the same group). When set, intra-group edges are drawn
 #'   separately with curves that arc away from the opposing group. Default NULL
 #'   (intra-group edges drawn normally by splot). Typical values: 0.3 to 1.0.
-#' @param legend Logical. Whether to show a legend. Default TRUE for polygon layouts.
+#' @param legend Logical. Whether to show a legend. Default TRUE.
+#' @param legend_horiz Logical. Force horizontal (TRUE) or vertical (FALSE)
+#'   legend. NULL (default) auto-selects: horizontal for "top"/"bottom"
+#'   positions, vertical otherwise.
+#' @param legend_ncol Integer. Number of columns when the legend is vertical.
+#'   NULL (default) lets \code{graphics::legend} pick. Ignored when the legend
+#'   is horizontal.
 #' @param legend_position Position for legend: "topright", "topleft", "bottomright",
-#'   "bottomleft", "right", "left", "top", "bottom". Default "bottomright".
+#'   "bottomleft", "right", "left", "top", "bottom". Default "bottom".
 #' @param extend_lines Logical or numeric. Draw extension lines from nodes.
 #'   Only applies to bipartite layout.
 #'   \itemize{
@@ -89,9 +99,10 @@
 #'     \item Numeric: Length of extension lines
 #'   }
 #' @param scale Scaling factor for spacing parameters. Use scale > 1 for
-#'   high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
-#'   group positions and polygon/circular radius to maintain proper proportions
-#'   at higher resolutions. Default 1.
+#'   high-resolution output (e.g., scale = 4 for 300 dpi). This scales
+#'   polygon/circular radius and legend sizing; bipartite group positions are
+#'   controlled by \code{group1_pos}, \code{group2_pos}, and \code{group_spacing}.
+#'   Default 1.
 #' @param nodes Node metadata. Can be:
 #'   \itemize{
 #'     \item NULL (default): Use existing nodes data from cograph_network
@@ -148,13 +159,17 @@ plot_htna <- function(
     edge_colors = NULL,
     intra_curvature = NULL,
     legend = TRUE,
-    legend_position = "bottomright",
+    legend_position = "bottom",
+    legend_horiz = NULL,
+    legend_ncol = NULL,
     extend_lines = FALSE,
     scale = 1,
     nodes = NULL,
     label_abbrev = NULL,
     ...
 ) {
+  explicit_args <- names(as.list(match.call())[-1])
+
   # Apply scale: use sqrt(scale) for gentler compensation at high-resolution
   size_scale <- sqrt(scale)
 
@@ -253,9 +268,17 @@ plot_htna <- function(
     idx
   })
 
-  # Determine layout type
+  # Default layout is circular for any group count: actor types / clusters
+  # read as peers around a ring. Use layout = "bipartite" explicitly for the
+  # older 2-group default, or layout = "polygon" for vertex-on-edge geometry.
   if (layout == "auto") {
-    layout <- if (n_groups == 2) "bipartite" else "polygon"
+    layout <- "circular"
+  }
+
+  # Circular layout reads better with a clearly visible inter-group gap than
+  # the polygon default. Bump angle_spacing only when user didn't pass it.
+  if (layout == "circular" && !"angle_spacing" %in% explicit_args) {
+    angle_spacing <- 0.35
   }
 
 
@@ -536,11 +559,8 @@ plot_htna <- function(
 
   # Determine edge colors
   if (is.null(edge_colors)) {
-    # Use darker/more saturated versions of group colors for edges
-    edge_color_palette <- c("#0288D1", "#E09800", "#4a90b8", "#5cb85c",
-                            "#d9534f", "#5bc0de", "#9b59b6", "#8bc34a",
-                            "#ff7043", "#78909c", "#ab47bc", "#aed581")
-    edge_colors <- rep_len(edge_color_palette, n_groups)
+    # Derive from group_colors so user-supplied palettes flow through to edges.
+    edge_colors <- .darken_colors(group_colors, amount = 0.25)
   } else if (isFALSE(edge_colors)) {
     edge_colors <- NULL
   }
@@ -614,8 +634,24 @@ plot_htna <- function(
     }
   }
 
-  # Set minimal margins for tighter layout
-  old_par <- graphics::par(mar = c(0.5, 0.5, 0.5, 0.5))
+  # Reserve extra margin on the side where the legend will land so it sits as
+  # a clear band outside the plot region rather than flush against it. Corner
+  # positions (e.g. "topright", "bottomleft") draw inside the plot box and
+  # don't need extra margin.
+  legend_outside_side <- if (isTRUE(legend) && n_groups >= 2 &&
+                             legend_position %in%
+                               c("top", "bottom", "left", "right")) {
+    legend_position
+  } else {
+    NA_character_
+  }
+  mar_vals <- c(0.5, 0.5, 0.5, 0.5)
+  if (!is.na(legend_outside_side)) {
+    side_idx <- switch(legend_outside_side,
+                       bottom = 1L, left = 2L, top = 3L, right = 4L)
+    mar_vals[side_idx] <- 6.5
+  }
+  old_par <- graphics::par(mar = mar_vals)
   on.exit(graphics::par(old_par), add = TRUE)
 
   tplot_base <- list(
@@ -651,26 +687,39 @@ plot_htna <- function(
       group_names <- paste0("Group ", seq_len(n_groups))
     }
 
-    # Map shape names to pch values
-    shape_to_pch <- c(
-      "circle" = 21, "square" = 22, "diamond" = 23, "triangle" = 24,
-      "pentagon" = 21, "hexagon" = 21, "star" = 8, "cross" = 3
-    )
-    pch_values <- sapply(group_shapes, function(s) {
-      if (s %in% names(shape_to_pch)) shape_to_pch[s] else 21
-    })
+    pch_values <- .shape_to_pch(group_shapes)
 
-    # Draw legend
-    graphics::legend(
-      legend_position,
-      legend = group_names,
-      pch = pch_values,
-      pt.bg = group_colors,
-      col = if (!is.null(edge_colors)) edge_colors else "black",
-      pt.cex = 2.5 / size_scale,
-      cex = 1.4 / size_scale,
-      bty = "n",
-      title = "Groups"
+    horiz_legend <- if (!is.null(legend_horiz)) {
+      isTRUE(legend_horiz)
+    } else {
+      legend_position %in% c("top", "bottom")
+    }
+    # Push the legend out of the plot region for single-side positions so it
+    # reads as a separate band; corner positions stay inside with a small inset.
+    # Inset is a fraction of the plot region — keep it within the reserved
+    # margin (mar_vals above) so xpd = TRUE doesn't clip it.
+    legend_inset <- switch(legend_position,
+                           bottom = c(0, -0.05),
+                           top    = c(0, -0.05),
+                           left   = c(-0.05, 0),
+                           right  = c(-0.05, 0),
+                           c(0.02, 0.02))
+    .render_legend_base(
+      legend   = group_names,
+      pch      = pch_values,
+      pt.bg    = group_colors,
+      col      = if (!is.null(edge_colors)) edge_colors else "black",
+      pt.cex   = 2.5 / size_scale,
+      cex      = 1.4 / size_scale,
+      bty      = "n",
+      title    = "Groups",
+      position = legend_position,
+      horiz    = horiz_legend,
+      inset    = legend_inset,
+      xpd      = TRUE,
+      # graphics::legend ignores ncol when horiz = TRUE; pass it anyway only
+      # when meaningful so callers get the expected layout.
+      ncol     = if (!horiz_legend && !is.null(legend_ncol)) legend_ncol else 1
     )
   }
 
@@ -1111,11 +1160,9 @@ compute_circular_layout <- function(node_list, lab, group_indices, n_groups, ang
 #' @rdname plot_htna
 #' @export
 #' @examples
-#' \dontrun{
-#' mat <- matrix(runif(36, 0, 0.3), 6, 6)
-#' diag(mat) <- 0
-#' colnames(mat) <- rownames(mat) <- c("A", "B", "C", "D", "E", "F")
-#' groups <- list(Group1 = c("A", "B", "C"), Group2 = c("D", "E", "F"))
+#' set.seed(1)
+#' mat <- matrix(runif(36, 0, 0.3), 6, 6); diag(mat) <- 0
+#' colnames(mat) <- rownames(mat) <- LETTERS[1:6]
+#' groups <- list(G1 = LETTERS[1:3], G2 = LETTERS[4:6])
 #' htna(mat, groups)
-#' }
 htna <- plot_htna

@@ -184,7 +184,12 @@ detect_communities <- function(x, method = "louvain", directed = NULL,
       # fast_greedy requires undirected graph
       g_undirected <- igraph::as_undirected(g, mode = "collapse",
                                              edge.attr.comb = "mean")
-      igraph::cluster_fast_greedy(g_undirected, weights = edge_weights)
+      fg_weights <- if (weights && !is.null(igraph::E(g_undirected)$weight)) {
+        igraph::E(g_undirected)$weight
+      } else {
+        NULL
+      }
+      igraph::cluster_fast_greedy(g_undirected, weights = fg_weights)
     },
     "label_prop" = igraph::cluster_label_prop(g, weights = edge_weights),
     "infomap" = igraph::cluster_infomap(g, e.weights = edge_weights),
@@ -206,7 +211,7 @@ detect_communities <- function(x, method = "louvain", directed = NULL,
 #' Color Nodes by Community
 #'
 #' Generate colors for nodes based on community membership. Designed for
-#' direct use with \code{splot()} node.color parameter.
+#' direct use with \code{splot()} \code{node_fill} parameter.
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object.
 #' @param method Community detection algorithm. See \code{\link{detect_communities}}
@@ -221,7 +226,7 @@ detect_communities <- function(x, method = "louvain", directed = NULL,
 #' @param ... Additional arguments passed to \code{\link{detect_communities}}.
 #'
 #' @return A named character vector of colors (one per node), suitable for
-#'   use with \code{splot()} node.color parameter.
+#'   use with \code{splot()} \code{node_fill} parameter.
 #'
 #' @seealso \code{\link{detect_communities}}, \code{\link{splot}}
 #'
@@ -292,57 +297,43 @@ color_communities <- function(x, method = "louvain", palette = NULL, ...) {
 #' Filter Edges by Metadata
 #'
 #' Filter edges using dplyr-style expressions on any edge column. Returns a
-#' cograph_network object by default (universal format), or optionally the
-#' same format as input when \code{keep_format = TRUE}.
+#' cograph_network object by default (universal format), or optionally a
+#' matrix, igraph, or statnet network object when \code{keep_format = TRUE}
+#' and the input used one of those formats.
 #'
 #' @param x Network input: cograph_network, matrix, igraph, network, or tna object.
 #' @param ... Filter expressions using any edge column (e.g., \code{weight > 0.5},
 #'   \code{weight > mean(weight)}, \code{abs(weight) > 0.3}).
 #' @param .keep_isolates Logical. Keep nodes with no remaining edges? Default FALSE.
-#' @param keep_format Logical. If TRUE, return the same format as input
-#'   (matrix returns matrix, igraph returns igraph, etc.). Default FALSE
+#' @param keep_format Logical. If TRUE, matrix, igraph, and statnet network
+#'   inputs are returned in that format. Default FALSE
 #'   returns cograph_network (universal format).
 #' @param directed Logical or NULL. If NULL (default), auto-detect from matrix
 #'   symmetry. Set TRUE to force directed, FALSE to force undirected.
 #'   Only used for non-cograph_network inputs.
 #'
 #' @return A cograph_network object with filtered edges. If \code{keep_format = TRUE},
-#'   returns the same type as input (matrix, igraph, network, etc.).
+#'   matrix, igraph, and statnet network inputs are converted back to that type.
 #'
 #' @seealso \code{\link{filter_nodes}}, \code{\link{splot}}, \code{\link{subset_edges}}
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, .5, .8, 0,
-#'                 .5, 0, .3, .6,
-#'                 .8, .3, 0, .4,
-#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
+#' adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+#'                 .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 #' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 #'
-#' # Keep only strong edges (returns cograph_network)
+#' # Keep only strong edges
 #' filter_edges(adj, weight > 0.5)
 #'
-#' # Keep format: matrix in, matrix out
+#' # Matrix in, matrix out
 #' filter_edges(adj, weight > 0.5, keep_format = TRUE)
 #'
-#' # Keep edges above mean weight
-#' splot(filter_edges(adj, weight >= mean(weight)))
-#'
-#' # With cograph_network (pipe-friendly)
-#' net <- as_cograph(adj)
-#' net |>
+#' # Pipe-friendly with cograph_network
+#' as_cograph(adj) |>
 #'   filter_edges(weight > 0.3) |>
 #'   filter_nodes(degree >= 2) |>
 #'   splot()
-#'
-#' # Keep isolated nodes
-#' filter_edges(net, weight > 0.7, .keep_isolates = TRUE)
-#'
-#' # With igraph (keep_format = TRUE returns igraph)
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::make_ring(5)
-#'   filter_edges(g, weight > 0, keep_format = TRUE)  # Returns igraph
-#' }
 filter_edges <- function(x, ..., .keep_isolates = FALSE, keep_format = FALSE,
                          directed = NULL) {
   # Detect input format for keep_format option
@@ -401,7 +392,8 @@ filter_edges <- function(x, ..., .keep_isolates = FALSE, keep_format = FALSE,
 #'
 #' Filter nodes using dplyr-style expressions on any node column or centrality
 #' measure. Returns a cograph_network object by default (universal format), or
-#' optionally the same format as input when \code{keep_format = TRUE}.
+#' optionally a matrix, igraph, or statnet network object when
+#' \code{keep_format = TRUE} and the input used one of those formats.
 #'
 #' @param x Network input: cograph_network, matrix, igraph, network, or tna object.
 #' @param ... Filter expressions using any node column or centrality measure.
@@ -420,50 +412,29 @@ filter_edges <- function(x, ..., .keep_isolates = FALSE, keep_format = FALSE,
 #'     \item{\code{"internal"}}{(default) Keep only edges between remaining nodes}
 #'     \item{\code{"none"}}{Remove all edges}
 #'   }
-#' @param keep_format Logical. If TRUE, return the same format as input
-#'   (matrix returns matrix, igraph returns igraph, etc.). Default FALSE
+#' @param keep_format Logical. If TRUE, matrix, igraph, and statnet network
+#'   inputs are returned in that format. Default FALSE
 #'   returns cograph_network (universal format).
 #' @param directed Logical or NULL. If NULL (default), auto-detect from matrix
 #'   symmetry. Set TRUE to force directed, FALSE to force undirected.
 #'   Only used for non-cograph_network inputs.
 #'
 #' @return A cograph_network object with filtered nodes. If \code{keep_format = TRUE},
-#'   returns the same type as input (matrix, igraph, network, etc.).
+#'   matrix, igraph, and statnet network inputs are converted back to that type.
 #'
 #' @seealso \code{\link{filter_edges}}, \code{\link{splot}}, \code{\link{subset_nodes}}
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, .5, .8, 0,
-#'                 .5, 0, .3, .6,
-#'                 .8, .3, 0, .4,
-#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
+#' adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+#'                 .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 #' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 #'
-#' # Keep only high-degree nodes (returns cograph_network)
+#' # Keep only high-degree nodes
 #' filter_nodes(adj, degree >= 3)
 #'
-#' # Keep format: matrix in, matrix out
-#' filter_nodes(adj, degree >= 3, keep_format = TRUE)
-#'
-#' # Filter by node label
-#' splot(filter_nodes(adj, label %in% c("A", "C")))
-#'
-#' # Combine centrality and metadata filters
-#' splot(filter_nodes(adj, degree >= 2 & label != "D"))
-#'
-#' # With cograph_network (pipe-friendly)
-#' net <- as_cograph(adj)
-#' net |>
-#'   filter_edges(weight > 0.3) |>
-#'   filter_nodes(degree >= 2) |>
-#'   splot()
-#'
-#' # With igraph (keep_format = TRUE returns igraph)
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::make_ring(5)
-#'   filter_nodes(g, degree >= 2, keep_format = TRUE)  # Returns igraph
-#' }
+#' # Filter by label, combined with degree
+#' filter_nodes(adj, degree >= 2 & label != "D")
 filter_nodes <- function(x, ..., .keep_edges = c("internal", "none"),
                          keep_format = FALSE, directed = NULL) {
   .keep_edges <- match.arg(.keep_edges)
@@ -595,6 +566,15 @@ subset_edges <- filter_edges
   # Evaluate each condition and combine with AND
   masks <- lapply(dots, function(expr) {
     result <- eval(expr, envir = env)
+    if (!is.logical(result)) {
+      stop("Filter expressions must evaluate to logical vectors", call. = FALSE)
+    }
+    if (length(result) == 1L) {
+      result <- rep(result, n)
+    } else if (length(result) != n) {
+      stop("Filter expressions must return length 1 or ", n,
+           ", not ", length(result), call. = FALSE)
+    }
     result[is.na(result)] <- FALSE
     result
   })
@@ -847,7 +827,8 @@ to_df <- function(x, directed = NULL) {
 #' @param x Network input: matrix, cograph_network, igraph, network, tna, etc.
 #' @param directed Logical or NULL. If NULL (default), auto-detect from input.
 #'
-#' @return A square numeric adjacency matrix with row/column names.
+#' @return A square numeric adjacency matrix, preserving row/column names when
+#'   available.
 #'
 #' @seealso \code{\link{to_igraph}}, \code{\link{to_df}}, \code{\link{as_cograph}},
 #'   \code{\link{to_network}}
@@ -1003,8 +984,8 @@ to_network <- function(x, directed = NULL) {
 #'     \item{\code{"internal"}}{(default) Keep only edges between remaining nodes}
 #'     \item{\code{"none"}}{Remove all edges}
 #'   }
-#' @param keep_format Logical. If TRUE, return the same format as input.
-#'   Default FALSE returns cograph_network.
+#' @param keep_format Logical. If TRUE, matrix, igraph, and statnet network
+#'   inputs are returned in that format. Default FALSE returns cograph_network.
 #' @param directed Logical or NULL. If NULL (default), auto-detect.
 #'
 #' @details
@@ -1024,42 +1005,21 @@ to_network <- function(x, directed = NULL) {
 #' will return NA with a warning (igraph cannot compute these with negative weights).
 #'
 #' @return A cograph_network object with selected nodes. If \code{keep_format = TRUE},
-#'   returns the same type as input.
+#'   matrix, igraph, and statnet network inputs are converted back to that type.
 #'
 #' @seealso \code{\link{filter_nodes}}, \code{\link{select_neighbors}},
 #'   \code{\link{select_component}}, \code{\link{select_top}}
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, .5, .8, 0,
-#'                 .5, 0, .3, .6,
-#'                 .8, .3, 0, .4,
-#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
+#' adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+#'                 .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 #' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 #'
-#' # Lazy - only computes degree
 #' select_nodes(adj, degree >= 3)
-#'
-#' # Global context - computes component info
-#' select_nodes(adj, is_largest_component & degree >= 2)
-#'
-#' # By name
-#' select_nodes(adj, name = c("A", "B", "C"))
-#'
-#' # Top 2 by PageRank
 #' select_nodes(adj, top = 2, by = "pagerank")
-#'
-#' # Neighborhood of "A" up to 2 hops
 #' select_nodes(adj, neighbors_of = "A", order = 2)
-#'
-#' # Largest connected component
 #' select_nodes(adj, component = "largest")
-#'
-#' # Combined: top 2 in largest component
-#' select_nodes(adj, component = "largest", top = 2, by = "degree")
-#'
-#' # Articulation points with high degree
-#' # select_nodes(adj, is_articulation & degree >= 2)
 select_nodes <- function(x, ...,
                          name = NULL,
                          index = NULL,
@@ -1596,7 +1556,8 @@ select_top <- function(x, n, by = "degree", ...,
 #'     \item{Edge columns}{\code{from}, \code{to}, \code{weight}, plus any custom}
 #'     \item{Computed metrics}{\code{abs_weight}, \code{from_degree}, \code{to_degree},
 #'       \code{from_strength}, \code{to_strength}, \code{edge_betweenness},
-#'       \code{is_bridge}, \code{is_mutual}, \code{same_community}}
+#'       \code{is_bridge}, \code{is_mutual}, \code{same_community},
+#'       \code{from_label}, \code{to_label}}
 #'   }
 #' @param top Integer. Select top N edges by a metric.
 #' @param by Character. Metric for top selection. Default \code{"weight"}.
@@ -1613,8 +1574,8 @@ select_top <- function(x, n, by = "degree", ...,
 #'   variable. One of \code{"louvain"}, \code{"walktrap"}, \code{"fast_greedy"},
 #'   \code{"label_prop"}, \code{"infomap"}, \code{"leiden"}. Default \code{"louvain"}.
 #' @param .keep_isolates Logical. Keep nodes with no remaining edges? Default FALSE.
-#' @param keep_format Logical. If TRUE, return the same format as input.
-#'   Default FALSE returns cograph_network.
+#' @param keep_format Logical. If TRUE, matrix, igraph, and statnet network
+#'   inputs are returned in that format. Default FALSE returns cograph_network.
 #' @param directed Logical or NULL. If NULL (default), auto-detect.
 #'
 #' @details
@@ -1629,45 +1590,21 @@ select_top <- function(x, n, by = "degree", ...,
 #' expressions or required by selection modes are computed.
 #'
 #' @return A cograph_network object with selected edges. If \code{keep_format = TRUE},
-#'   returns the same type as input.
+#'   matrix, igraph, and statnet network inputs are converted back to that type.
 #'
 #' @seealso \code{\link{filter_edges}}, \code{\link{select_nodes}},
 #'   \code{\link{select_bridges}}, \code{\link{select_top_edges}}
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, .5, .8, 0,
-#'                 .5, 0, .3, .6,
-#'                 .8, .3, 0, .4,
-#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
+#' adj <- matrix(c(0, .5, .8, 0, .5, 0, .3, .6,
+#'                 .8, .3, 0, .4, 0, .6, .4, 0), 4, 4, byrow = TRUE)
 #' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
 #'
-#' # Expression-based (lazy - only computes what's needed)
 #' select_edges(adj, weight > 0.5)
-#' select_edges(adj, abs_weight > 0.4)
-#'
-#' # Top N edges by weight
 #' select_edges(adj, top = 3)
-#' select_edges(adj, top = 3, by = "edge_betweenness")
-#'
-#' # Edges involving specific nodes
 #' select_edges(adj, involving = "A")
-#' select_edges(adj, involving = c("A", "B"))
-#'
-#' # Edges between two node sets
 #' select_edges(adj, between = list(c("A", "B"), c("C", "D")))
-#'
-#' # Bridge edges only
-#' select_edges(adj, bridges_only = TRUE)
-#'
-#' # Combined: top 3 edges involving A
-#' select_edges(adj, involving = "A", top = 3)
-#'
-#' # Using endpoint degrees
-#' select_edges(adj, from_degree >= 3 | to_degree >= 3)
-#'
-#' # Within-community edges
-#' select_edges(adj, same_community)
 select_edges <- function(x, ...,
                          top = NULL,
                          by = "weight",

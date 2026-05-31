@@ -26,7 +26,7 @@ splot.tna_communities(x, ...)
 
 splot.cograph_communities(x, ...)
 
-splot.net_mlvar(x, type = "temporal", ...)
+splot.net_mlvar(x, type = "temporal", combined = TRUE, ...)
 
 splot.netobject(x, ...)
 
@@ -142,6 +142,7 @@ splot(
   show_arrows = TRUE,
   bidirectional = FALSE,
   loop_rotation = NULL,
+  show = NULL,
   edge_start_style = "solid",
   edge_start_length = 0.15,
   edge_start_dot_density = "12",
@@ -184,6 +185,7 @@ splot(
   use_pch = FALSE,
   usePCH = NULL,
   scaling = "default",
+  align_panels = FALSE,
   legend = FALSE,
   legend_position = "topright",
   legend_size = 0.8,
@@ -208,7 +210,7 @@ splot(
 \item A square numeric matrix (adjacency/weight matrix)
 \item A data frame with edge list (from, to, optional weight columns)
 \item An igraph object
-\item A cograph_network object
+\item A CographNetwork or cograph_network object
 \item A tna object (from tna package)
 \item A group_tna object (list of tna objects from tna package).
 Use parameter \code{i} to select a specific group, or omit to plot all groups.
@@ -222,12 +224,29 @@ Use parameter \code{i} to select a specific group, or omit to plot all groups.
 
 \item{inherit_style}{Logical: inherit labels/layout/colors from network? Default TRUE.}
 
-\item{...}{Additional arguments passed to layout functions.}
+\item{...}{Additional arguments passed to layout functions.
+One ride-along worth calling out: \code{combined} (default
+\code{TRUE}). When \code{x} is a multi-panel input (a
+\code{group_tna}, \code{group_tna_bootstrap},
+\code{group_tna_permutation}, \code{net_permutation_group}, or any
+class routed to a \code{splot.*} method that draws multiple panels
+such as \code{splot.net_mlvar} with \code{type = "all"}),
+\code{combined = FALSE} skips the internal
+\code{graphics::par(mfrow = ...)} grid so the caller can drive
+layout explicitly via \code{\link{panel_layout}()} or
+\code{graphics::layout()}. For single-network inputs (a single
+\code{tna}, \code{netobject}, matrix, etc.) \code{combined} has no
+effect — there is no panel grid to gate.}
 
 \item{type}{Character. \code{"overlay"} (default) renders both networks on a
 single canvas via \code{\link{plot_mixed_network}} — co-occurrence as straight
 undirected edges, transitions as curved directed arrows.
 \code{"group"} plots each component as a separate panel.}
+
+\item{combined}{Logical: when \code{type = "all"}, controls whether the
+three panels are arranged in an internal 1 x 3 grid (TRUE, default) or
+drawn into a layout the caller has already configured (FALSE — pair
+with \code{\link{panel_layout}()}). Ignored for single-network types.}
 
 \item{use_thresholded}{Logical: use \code{$thresholded_pcor}? If FALSE, uses
 \code{$original_pcor}. Default TRUE.}
@@ -250,9 +269,10 @@ Default \code{1 - x$alpha} (i.e. the complement of the alpha level).}
 
 \item{edge_nonsig_style}{Line style for non-significant edges. Default 2L.}
 
-\item{layout}{Layout algorithm: "circle", "spring", "groups", or a matrix
-of x,y coordinates, or an igraph layout function. Also supports igraph
-two-letter codes: "kk", "fr", "drl", "mds", "ni", etc.}
+\item{layout}{Layout algorithm: "oval" (default), "circle", "spring",
+"groups", or a matrix of x,y coordinates, or an igraph layout function.
+Also supports igraph two-letter codes: "kk", "fr", "drl", "mds", "ni",
+etc.}
 
 \item{directed}{Logical. Force directed interpretation. NULL for auto-detect.}
 
@@ -260,7 +280,8 @@ two-letter codes: "kk", "fr", "drl", "mds", "ni", etc.}
 
 \item{theme}{Theme name: "classic", "dark", "minimal", "colorblind", etc.}
 
-\item{node_size}{Node size(s). Single value or vector. Default 3.}
+\item{node_size}{Node size(s). Single value or vector. Default NULL, which
+resolves to 7 with default scaling.}
 
 \item{node_size2}{Secondary node size for ellipse/rectangle height.}
 
@@ -361,7 +382,7 @@ numeric (1=solid, 2=dashed, 3=dotted). Can be scalar or per-node vector.}
 
 \item{donut_border_lty}{Deprecated. Use \code{donut_line_type} instead.}
 
-\item{donut_inner_ratio}{Inner radius ratio for donut (0-1). Default 0.5.}
+\item{donut_inner_ratio}{Inner radius ratio for donut (0-1). Default 0.8.}
 
 \item{donut_bg_color}{Background color for unfilled donut portion.}
 
@@ -399,22 +420,23 @@ on all nodes regardless of node_shape).}
 
 \item{edge_width}{Edge width(s). If NULL, scales by weight using edge_size and edge_width_range.}
 
-\item{edge_size}{Base edge size for weight scaling. NULL (default) uses adaptive sizing
-based on network size: \code{15 * exp(-n_nodes/90) + 1}. For directed networks, this
-is halved. Larger values = thicker edges overall.}
+\item{edge_size}{Maximum edge size for weight scaling. NULL (default) uses
+the upper bound of \code{edge_width_range}. Larger values = thicker edges
+overall.}
 
 \item{esize}{Deprecated. Use \code{edge_size} instead.}
 
 \item{edge_width_range}{Output width range as c(min, max) for weight-based scaling.
-Default c(0.5, 4). Edges are scaled to fit within this range.}
+Default c(0.1, 4). Edges are scaled to fit within this range unless
+\code{edge_size} supplies the maximum.}
 
 \item{edge_scale_mode}{Scaling mode for edge weights: "linear" (default, qgraph-style),
 "log" (logarithmic for wide weight ranges), "sqrt" (moderate compression),
 or "rank" (equal visual spacing regardless of weight distribution).}
 
-\item{edge_cutoff}{Two-tier cutoff for edge width scaling. NULL (default) = auto-calculate
-as 75th percentile of weights (qgraph behavior). 0 = disabled (continuous scaling).
-Positive number = manual threshold. Edges below cutoff get minimal width variation.}
+\item{edge_cutoff}{Optional cutoff for edge emphasis. NULL (default) or 0
+disables cutoff fading. Positive values fade edges whose absolute weights
+are below the cutoff; width scaling remains continuous.}
 
 \item{cut}{Deprecated. Use \code{edge_cutoff} instead.}
 
@@ -444,13 +466,13 @@ or character vector.}
 \item{edge_label_shadow_alpha}{Transparency for shadow (0-1). Default 0.5.}
 
 \item{edge_label_halo}{Logical: enable white halo/outline around edge labels for
-readability over dark edges? Default FALSE. When TRUE, overrides shadow settings.}
+readability over dark edges? Default TRUE. When TRUE, overrides shadow settings.}
 
 \item{edge_style}{Line type(s): 1=solid, 2=dashed, 3=dotted, etc.}
 
 \item{curvature}{Edge curvature. 0 for straight, positive/negative for curves.}
 
-\item{curve_scale}{Logical: auto-curve reciprocal edges?}
+\item{curve_scale}{Reserved for future curve scaling; currently not used.}
 
 \item{curve_shape}{Spline tension (-1 to 1). Default 0.}
 
@@ -468,6 +490,9 @@ curve as ellipse (two opposing curves); FALSE = all straight; "force" = all curv
 \item{bidirectional}{Logical or vector: show arrows at both ends?}
 
 \item{loop_rotation}{Angle(s) in radians for self-loop direction.}
+
+\item{show}{Dispatch-only placeholder used by method dispatch (e.g.,
+\code{splot.tna_disparity}). Not intended for direct use.}
 
 \item{edge_start_style}{Style for the start segment of edges: "solid" (default),
 "dashed", or "dotted". Use dashed/dotted to indicate edge direction (source node).}
@@ -565,6 +590,18 @@ Set to 0 for no extra margin (tighter fit). Affects white space around nodes.}
 
 \item{scaling}{Scaling mode: "default" for qgraph-matched scaling where node_size=6
 looks similar to qgraph vsize=6, or "legacy" to preserve pre-v2.0 behavior.}
+
+\item{align_panels}{Logical. If \code{TRUE}, forces a uniform symmetric
+plot box (\code{c(-layout_scale, layout_scale)} on each axis) so two
+networks plotted side-by-side in a \code{par(mfrow)} grid render at
+identical absolute scales — useful for bootstrap panels, comparison
+grids with networks of different node counts, or any case where
+visual-size parity across panels matters more than canvas fill.
+Default \code{FALSE} uses dynamic, layout-driven bounds (the
+pre-2.1.x behaviour) which renders tighter on the canvas. The
+per-node loop-reservation pad in \code{compute_plot_limits} runs
+regardless, so networks with different self-loop patterns stay
+centered consistently in either mode.}
 
 \item{legend}{Logical: show legend?}
 
@@ -746,28 +783,15 @@ for significance stars.}
 }
 }
 \examples{
-# Basic network from adjacency matrix
-adj <- matrix(c(0, 1, 1, 0,
-                0, 0, 1, 1,
-                0, 0, 0, 1,
-                0, 0, 0, 0), 4, 4, byrow = TRUE)
-splot(adj)
-
-# With curved edges
-splot(adj, curvature = 0.2)
-
-# Weighted network with colors
-w_adj <- matrix(c(0, 0.5, -0.3, 0,
-                  0.8, 0, 0.4, -0.2,
-                  0, 0, 0, 0.6,
-                  0, 0, 0, 0), 4, 4, byrow = TRUE)
-splot(w_adj, edge_positive_color = "darkgreen", edge_negative_color = "red")
-
-# Pie chart nodes
-splot(adj, pie_values = list(c(1,2,3), c(2,2), c(1,1,1,1), c(3,1)))
-
-# Circle layout with labels
+# Basic directed network
+adj <- matrix(c(0, 1, 1, 0, 0, 0, 1, 1,
+                0, 0, 0, 1, 0, 0, 0, 0), 4, 4, byrow = TRUE)
 splot(adj, layout = "circle", labels = c("A", "B", "C", "D"))
+
+# Weighted network with signed edges
+w_adj <- matrix(c(0, .5, -.3, 0, .8, 0, .4, -.2,
+                  0, 0, 0, .6, 0, 0, 0, 0), 4, 4, byrow = TRUE)
+splot(w_adj, edge_positive_color = "darkgreen", edge_negative_color = "red")
 
 }
 \seealso{

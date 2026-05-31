@@ -175,7 +175,7 @@ Getters and setters:
 
 ## Centrality
 
-`centrality()` computes up to 25 measures and returns a data frame.
+`centrality()` computes a broad set of node centrality measures and returns a data frame.
 
 ```{r}
 centrality(mat, measures = c("degree", "betweenness", "pagerank"))
@@ -188,7 +188,7 @@ centrality_degree(mat)
 centrality_pagerank(mat)
 ```
 
-All 25 measures:
+Selected measures:
 
 | Category | Functions |
 |----------|-----------|
@@ -327,7 +327,7 @@ plot_mtna(mat, clusters)
 | `plot_htna()` | Multi-group heterogeneous TNA |
 | `cluster_summary()` / `build_mcml()` | Pre-compute cluster aggregation |
 | `as_tna()` / `as_mcml()` | Convert cluster summaries to tna objects |
-| `cluster_network()` | Extract cluster-level network |
+| `summarize_network()` / `cnet()` | Extract cluster-level network (matrix aggregation) |
 
 ## Multilayer networks
 

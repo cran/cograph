@@ -23,7 +23,9 @@ plot_comparison_heatmap(
 )
 }
 \arguments{
-\item{x}{First network: matrix, CographNetwork, tna, or igraph object.}
+\item{x}{First network: matrix, \code{cograph_network},
+\code{CographNetwork}, \code{tna}, \code{igraph}, or list-like object
+with \code{$weights}.}
 
 \item{y}{Second network: same type as x. NULL to plot just x.}
 
@@ -60,18 +62,12 @@ A ggplot2 object.
 Creates a heatmap visualization comparing two networks.
 }
 \examples{
-\dontrun{
 set.seed(42)
 m1 <- matrix(runif(25), 5, 5)
 m2 <- matrix(runif(25), 5, 5)
 rownames(m1) <- colnames(m1) <- LETTERS[1:5]
 rownames(m2) <- colnames(m2) <- LETTERS[1:5]
-
-# Difference heatmap
 plot_comparison_heatmap(m1, m2)
-
-# Show just one network
 plot_comparison_heatmap(m1, type = "x")
-}
 
 }

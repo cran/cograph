@@ -567,7 +567,146 @@ test_that("subgraphs min_count too high yields no results", {
   Mod <- tna::tna(coding)
   expect_message(
     subgraphs(Mod, significance = FALSE, min_count = 99999, pattern = "all"),
-    "No motifs with count"
+    "No motifs with count >= 99999"
+  )
+})
+
+# Regression: Nestimate::build_tna() returns a c("netobject","cograph_network")
+# whose $data is the raw sequence frame (rows = subjects, cols = time steps),
+# structurally identical to what tna::tna() consumes. motifs() must route this
+# through the individual-level tna path so observed counts subjects, not edge
+# weights. Pre-fix it fell to to_matrix() and became aggregate.
+test_that("motifs routes Nestimate netobject with sequence data to individual level", {
+  skip_if_not_installed("tna")
+  skip_if_not_installed("Nestimate")
+  data("group_regulation", package = "tna", envir = environment())
+
+  fit <- Nestimate::build_tna(group_regulation)
+  ref <- tna::tna(group_regulation)
+
+  sg_fit <- motifs(fit, named_nodes = TRUE, min_count = 10,
+                   n_perm = 5, seed = 42)
+  sg_ref <- motifs(ref, named_nodes = TRUE, min_count = 10,
+                   n_perm = 5, seed = 42)
+
+  expect_equal(sg_fit$level, "individual")
+  expect_equal(sg_fit$n_units, sg_ref$n_units)
+
+  fit_sorted <- sg_fit$results[order(sg_fit$results$triad),
+                               c("triad", "type", "observed")]
+  ref_sorted <- sg_ref$results[order(sg_ref$results$triad),
+                               c("triad", "type", "observed")]
+  rownames(fit_sorted) <- NULL
+  rownames(ref_sorted) <- NULL
+  expect_equal(fit_sorted, ref_sorted)
+})
+
+# Regression: a netobject whose $data is continuous (e.g. build_pcor on a
+# numeric matrix) must NOT be mistaken for sequence data — cell values are
+# not state labels, so .is_tna_sequence_data returns FALSE and we fall to
+# the aggregate path.
+test_that(".is_tna_sequence_data distinguishes sequences from numeric data", {
+  labels <- c("A", "B", "C", "D")
+
+  # Wide-format sequence frame whose values are all in `labels` -> TRUE
+  seq_df <- data.frame(
+    t1 = c("A", "B", "C"),
+    t2 = c("B", "C", "D"),
+    t3 = c("C", "A", "B"),
+    stringsAsFactors = FALSE
+  )
+  expect_true(.is_tna_sequence_data(seq_df, labels))
+
+  # Numeric continuous data (e.g. raw input to pcor) -> FALSE
+  expect_false(.is_tna_sequence_data(matrix(rnorm(20), 5, 4), labels))
+
+  # Edge list with from/to -> FALSE (handled by the dedicated edgelist path)
+  expect_false(.is_tna_sequence_data(
+    data.frame(from = "A", to = "B", stringsAsFactors = FALSE),
+    labels
+  ))
+
+  # Single-column data -> FALSE (no transitions possible)
+  expect_false(.is_tna_sequence_data(data.frame(t1 = c("A", "B")), labels))
+
+  # NULL / missing labels -> FALSE
+  expect_false(.is_tna_sequence_data(NULL, labels))
+  expect_false(.is_tna_sequence_data(seq_df, NULL))
+
+  # Sequence values not in labels -> FALSE
+  expect_false(.is_tna_sequence_data(
+    data.frame(t1 = c("X", "Y"), t2 = c("Y", "Z"), stringsAsFactors = FALSE),
+    labels
+  ))
+})
+
+# Regression: $type_summary must hold the real MAN-type counts in census
+# mode. Pre-fix it was built via table(results$type), which counts rows
+# in `results` — and in census mode each type collapses to one row, so
+# every entry came out as 1. That broke the printed "Type distribution"
+# block and the per-panel "n = N" labels in plot(., type = "patterns")
+# and plot(., type = "types"), all of which uniformly showed 1.
+test_that("type_summary holds true counts in census mode", {
+  skip_if_not_installed("tna")
+  Mod <- tna::tna(coding)
+  res <- motifs(Mod, significance = FALSE)
+  expect_true(all(res$type_summary >= 1L))
+  expect_true(any(res$type_summary > 1L))
+  expect_equal(as.integer(res$type_summary),
+               as.integer(res$results$count[match(names(res$type_summary),
+                                                  res$results$type)]))
+})
+
+# Regression: min_count must filter census-mode results too. Pre-fix the
+# filter only ran in instance mode (named_nodes = TRUE), so a user calling
+# motifs(model, min_count = 20) on the default census output got an
+# unfiltered table — the parameter was silently ignored despite there
+# being a count column right there to filter on.
+test_that("min_count filters MAN-type counts in census mode (inclusive >=)", {
+  skip_if_not_installed("tna")
+  Mod <- tna::tna(coding)
+
+  full <- motifs(Mod, n_perm = 5, seed = 42)
+  threshold <- stats::median(full$results$count)
+  expect_true(any(full$results$count < threshold))
+
+  filtered <- motifs(Mod, n_perm = 5, seed = 42, min_count = threshold)
+  expect_true(all(filtered$results$count >= threshold))
+  expect_true(nrow(filtered$results) < nrow(full$results))
+
+  # Equality at the boundary is kept (inclusive)
+  boundary <- min(full$results$count)
+  kept <- motifs(Mod, n_perm = 5, seed = 42, min_count = boundary)
+  expect_equal(nrow(kept$results), nrow(full$results))
+
+  expect_message(
+    motifs(Mod, n_perm = 5, seed = 42, min_count = 99999),
+    "No motif types with count >= 99999"
+  )
+})
+
+# Regression: min_count must be honored at aggregate level even when
+# significance = TRUE (default). Pre-fix, the filter was gated on
+# !significance and the aggregate observed was hardcoded to 1L, so
+# min_count was silently ignored for matrix / cograph_network input.
+test_that("min_count filters at aggregate level (inclusive >=) with default sig", {
+  set.seed(1)
+  mat <- matrix(sample(0:5, 49, replace = TRUE), 7, 7)
+  rownames(mat) <- colnames(mat) <- LETTERS[1:7]
+
+  unfiltered <- motifs(mat, named_nodes = TRUE, min_count = 1,
+                       significance = FALSE, pattern = "all")
+  expect_true(nrow(unfiltered$results) > 0)
+  expect_true(any(unfiltered$results$observed > 1))
+
+  filtered <- motifs(mat, named_nodes = TRUE, min_count = 10,
+                     pattern = "all")
+  expect_true(all(filtered$results$observed >= 10))
+  expect_true(nrow(filtered$results) < nrow(unfiltered$results))
+
+  expect_message(
+    motifs(mat, named_nodes = TRUE, min_count = 99999, pattern = "all"),
+    "No motifs with count >= 99999"
   )
 })
 

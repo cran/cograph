@@ -33,7 +33,9 @@ plot_htna(
   edge_colors = NULL,
   intra_curvature = NULL,
   legend = TRUE,
-  legend_position = "bottomright",
+  legend_position = "bottom",
+  legend_horiz = NULL,
+  legend_ncol = NULL,
   extend_lines = FALSE,
   scale = 1,
   nodes = NULL,
@@ -69,7 +71,9 @@ htna(
   edge_colors = NULL,
   intra_curvature = NULL,
   legend = TRUE,
-  legend_position = "bottomright",
+  legend_position = "bottom",
+  legend_horiz = NULL,
+  legend_ncol = NULL,
   extend_lines = FALSE,
   scale = 1,
   nodes = NULL,
@@ -94,7 +98,7 @@ for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
 "infomap", "leiden".}
 
 \item{layout}{Layout type: "auto" (default), "bipartite", "polygon", or "circular".
-When "auto", uses bipartite for 2 groups and polygon for 3+ groups.
+When "auto", uses the circular layout for any valid group count.
 "circular" places groups along arcs of a circle.
 Legacy values "triangle" and "rectangle" are supported as aliases for "polygon".}
 
@@ -111,7 +115,7 @@ Only applies to bipartite layout.}
 }
 Only applies to bipartite layout.}
 
-\item{jitter_amount}{Base jitter amount when jitter=TRUE. Default 0.5.
+\item{jitter_amount}{Base jitter amount when jitter=TRUE. Default 0.8.
 Higher values spread nodes more toward the center. Only applies to bipartite layout.}
 
 \item{jitter_side}{Which side(s) to apply jitter: "first", "second", "both", or "none".
@@ -121,7 +125,7 @@ Only applies to bipartite layout.}
 \item{orientation}{Layout orientation for bipartite: "vertical" (two columns, default),
 "horizontal" (two rows), "facing" (both groups on same horizontal line,
 group1 left, group2 right, tip-to-tip), or "circular" (two facing semicircles
-with a gap between them). Ignored for triangle/rectangle layouts.}
+with a gap between them). Ignored for non-bipartite layouts.}
 
 \item{group1_pos}{Position for first group in bipartite layout. Default -2.
 Overridden by \code{group_spacing} if specified.}
@@ -159,13 +163,16 @@ labels or self-loops are clipped at the edges.}
 \item{group2_shape}{Shape for second group nodes. Default "square".}
 
 \item{group_colors}{Vector of colors for each group. Overrides group1_color/group2_color.
-Required for 3+ groups if not using defaults.}
+If NULL, two-group layouts use group1_color/group2_color and 3+ group
+layouts use the built-in group color palette.}
 
 \item{group_shapes}{Vector of shapes for each group. Overrides group1_shape/group2_shape.
-Required for 3+ groups if not using defaults.}
+If NULL, two-group layouts use group1_shape/group2_shape and 3+ group
+layouts use the built-in group shape palette.}
 
 \item{angle_spacing}{Controls empty space at corners (0-1). Default 0.15.
-Higher values create larger empty angles at vertices. Only applies to triangle/rectangle layouts.}
+Higher values create larger gaps in polygon and circular layouts. For
+circular auto layout, the default is increased to 0.35 unless explicitly set.}
 
 \item{edge_colors}{Vector of colors for edges by source group. If NULL (default),
 uses darker versions of group_colors. Set to FALSE to use default edge color.}
@@ -175,10 +182,18 @@ between nodes in the same group). When set, intra-group edges are drawn
 separately with curves that arc away from the opposing group. Default NULL
 (intra-group edges drawn normally by splot). Typical values: 0.3 to 1.0.}
 
-\item{legend}{Logical. Whether to show a legend. Default TRUE for polygon layouts.}
+\item{legend}{Logical. Whether to show a legend. Default TRUE.}
 
 \item{legend_position}{Position for legend: "topright", "topleft", "bottomright",
-"bottomleft", "right", "left", "top", "bottom". Default "bottomright".}
+"bottomleft", "right", "left", "top", "bottom". Default "bottom".}
+
+\item{legend_horiz}{Logical. Force horizontal (TRUE) or vertical (FALSE)
+legend. NULL (default) auto-selects: horizontal for "top"/"bottom"
+positions, vertical otherwise.}
+
+\item{legend_ncol}{Integer. Number of columns when the legend is vertical.
+NULL (default) lets \code{graphics::legend} pick. Ignored when the legend
+is horizontal.}
 
 \item{extend_lines}{Logical or numeric. Draw extension lines from nodes.
 Only applies to bipartite layout.
@@ -189,9 +204,10 @@ Only applies to bipartite layout.
 }}
 
 \item{scale}{Scaling factor for spacing parameters. Use scale > 1 for
-high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
-group positions and polygon/circular radius to maintain proper proportions
-at higher resolutions. Default 1.}
+high-resolution output (e.g., scale = 4 for 300 dpi). This scales
+polygon/circular radius and legend sizing; bipartite group positions are
+controlled by \code{group1_pos}, \code{group2_pos}, and \code{group_spacing}.
+Default 1.}
 
 \item{nodes}{Node metadata. Can be:
 \itemize{
@@ -212,8 +228,9 @@ Invisibly returns the result from tplot().
 \description{
 Plots a TNA model with nodes arranged in multiple groups using geometric layouts:
 \itemize{
-\item 2 groups: Bipartite (two vertical columns or horizontal rows)
-\item 3+ groups: Polygon (nodes along edges of a regular polygon)
+\item Circular: default for \code{layout = "auto"}, with groups on arcs
+\item Bipartite: two vertical columns or horizontal rows for exactly 2 groups
+\item Polygon: nodes along edges of a regular polygon for 3+ groups
 }
 Supports triangle (3), rectangle (4), pentagon (5), hexagon (6), and beyond.
 }
@@ -230,11 +247,9 @@ plot_htna(mat, groups)
 # Polygon layout (3 groups)
 groups3 <- list(X = c("A", "B"), Y = c("C", "D"), Z = c("E", "F"))
 plot_htna(mat, groups3)
-\dontrun{
-mat <- matrix(runif(36, 0, 0.3), 6, 6)
-diag(mat) <- 0
-colnames(mat) <- rownames(mat) <- c("A", "B", "C", "D", "E", "F")
-groups <- list(Group1 = c("A", "B", "C"), Group2 = c("D", "E", "F"))
+set.seed(1)
+mat <- matrix(runif(36, 0, 0.3), 6, 6); diag(mat) <- 0
+colnames(mat) <- rownames(mat) <- LETTERS[1:6]
+groups <- list(G1 = LETTERS[1:3], G2 = LETTERS[4:6])
 htna(mat, groups)
-}
 }

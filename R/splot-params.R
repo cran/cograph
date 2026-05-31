@@ -21,7 +21,13 @@ resolve_edge_colors <- function(edges, edge.color = NULL, posCol = "#2E7D32",
   if (m == 0) return(character(0))
 
   if (!is.null(edge.color)) {
-    # User-specified colors
+    # Matrix input: look up color per edge using from/to indices
+    if (is.matrix(edge.color) && "from" %in% names(edges) && "to" %in% names(edges)) {
+      return(vapply(seq_len(m), function(i) {
+        edge.color[edges$from[i], edges$to[i]]
+      }, character(1)))
+    }
+    # User-specified colors (vector or scalar)
     return(recycle_to_length(edge.color, m))
   }
 
@@ -42,16 +48,18 @@ resolve_edge_colors <- function(edges, edge.color = NULL, posCol = "#2E7D32",
 #' Resolve Edge Widths
 #'
 #' Determines edge widths based on weights or explicit values.
-#' Supports multiple scaling modes, two-tier cutoff, and output range specification.
+#' Supports multiple scaling modes and output range specification.
 #'
 #' @param edges Edge data frame.
 #' @param edge.width User-specified width(s) or NULL.
-#' @param esize Base edge size. NULL uses adaptive sizing based on n_nodes.
-#' @param n_nodes Number of nodes (for adaptive esize calculation).
+#' @param esize Optional maximum edge size. NULL uses \code{edge_width_range}.
+#' @param n_nodes Number of nodes, passed through to the scaler for
+#'   compatibility.
 #' @param directed Whether network is directed.
 #' @param maximum Maximum weight for scaling (NULL for auto).
 #' @param minimum Minimum weight threshold.
-#' @param cut Two-tier cutoff. NULL = auto (75th pct), 0 = disabled.
+#' @param cut Accepted for compatibility. Current width scaling is continuous;
+#'   cutoff effects are handled by callers for other aesthetics.
 #' @param edge_width_range Output width range c(min, max).
 #' @param edge_scale_mode Scaling mode: "linear", "log", "sqrt", "rank".
 #' @param scaling Scaling mode for constants: "default" or "legacy".
@@ -71,7 +79,8 @@ resolve_edge_widths <- function(edges,
                                 edge_scale_mode = NULL,
                                 scaling = "default",
                                 base_width = NULL,
-                                scale_factor = NULL) {
+                                scale_factor = NULL,
+                                visual_scale = NULL) {
   m <- nrow(edges)
   if (m == 0) return(numeric(0))
 
@@ -80,9 +89,17 @@ resolve_edge_widths <- function(edges,
     edge.width <- NULL
   }
 
-  # If explicit widths provided, use them directly
+  vs_mult <- if (!is.null(visual_scale) && is.finite(visual_scale$line %||% NA_real_)) {
+    visual_scale$line
+  } else {
+    1
+  }
+
+  # If explicit widths provided, use them directly (precedence rule — user wins
+  # on *mapping*), but still compensate for device so absolute lwd tracks the
+  # output canvas.
   if (!is.null(edge.width) && is.numeric(edge.width)) {
-    return(recycle_to_length(edge.width, m))
+    return(recycle_to_length(edge.width, m) * vs_mult)
   }
 
   # Get scale constants
@@ -96,7 +113,8 @@ resolve_edge_widths <- function(edges,
     edge_scale_mode <- scale$edge_scale_mode
   }
 
-  # Scale by weight if available
+  # Scale by weight if available — scale_edge_widths handles device compensation
+  # internally via its own `visual_scale` arg.
   if ("weight" %in% names(edges)) {
     return(scale_edge_widths(
       weights = edges$weight,
@@ -107,12 +125,13 @@ resolve_edge_widths <- function(edges,
       maximum = maximum,
       minimum = minimum,
       cut = cut,
-      range = edge_width_range
+      range = edge_width_range,
+      visual_scale = visual_scale
     ))
   }
 
   # Default width when no weights - use scale constants
-  rep(scale$edge_width_default, m)
+  rep(scale$edge_width_default * vs_mult, m)
 }
 
 #' Resolve Node Sizes
@@ -156,7 +175,8 @@ resolve_node_sizes <- function(vsize, n, default_size = NULL, scale_factor = NUL
 #' @param scale_by Centrality measure name or list with measure and parameters.
 #'   Valid measures: "degree", "strength", "betweenness", "closeness",
 #'   "eigenvector", "pagerank", "authority", "hub", "eccentricity",
-#'   "coreness", "constraint", "harmonic". Also accepts directional shorthands:
+#'   "coreness", "constraint", "transitivity", "harmonic", "diffusion",
+#'   "leverage", "kreach", and "resilience". Also accepts directional shorthands:
 #'   "indegree", "outdegree", "instrength", "outstrength", "incloseness",
 #'   "outcloseness", "inharmonic", "outharmonic", "ineccentricity",
 #'   "outeccentricity".
@@ -166,7 +186,8 @@ resolve_node_sizes <- function(vsize, n, default_size = NULL, scale_factor = NUL
 #' @param scaling Scaling mode: "default" or "legacy".
 #' @param scale_exp Dampening exponent applied to normalized centrality values
 #'   before mapping to size range. Default 1 (linear).
-#' @return Named list with 'sizes' (vector of node sizes) and 'values' (raw centrality values).
+#' @return Named list with \code{sizes} (vector of node sizes), \code{values}
+#'   (raw centrality values), \code{measure}, and \code{labels}.
 #' @keywords internal
 resolve_centrality_sizes <- function(x, scale_by, size_range = c(2, 8), n = NULL,
                                      scaling = "default", scale_exp = 1) {
@@ -262,30 +283,57 @@ resolve_centrality_sizes <- function(x, scale_by, size_range = c(2, 8), n = NULL
 
 #' Resolve Label Sizes
 #'
-#' Determines label sizes, either independent (new default) or coupled to node size (legacy).
+#' Determines label sizes. Default links label cex to node size (qgraph
+#' invariant: label.cex is a function of vsize so the node-to-label ratio is
+#' locked by construction, and device compensation applied uniformly to both
+#' keeps the ratio stable across canvases).
 #'
 #' @param label_size User-specified label size(s) or NULL.
+#' @param node_size Raw user-supplied node_size (pre-scale-factor). When
+#'   default (7), yields label cex 1.0 — backward-compatible. When the user
+#'   doubles node_size, labels double too; when they halve node_size, labels
+#'   halve. Falls back to the scale constant's `node_default` when NULL.
 #' @param node_size_usr Node sizes in user coordinates (for legacy coupled mode).
 #' @param n Number of nodes.
 #' @param scaling Scaling mode: "default" or "legacy".
+#' @param visual_scale Optional visual-scale list (from compute_visual_scale).
+#'   When non-NULL and the caller did not pass `label_size`, the default label
+#'   cex is multiplied by `visual_scale$scale` so label pixel size tracks the
+#'   output canvas. User-explicit `label_size` always wins and is returned
+#'   verbatim — the precedence rule.
 #' @return Vector of label sizes (cex values).
 #' @keywords internal
-resolve_label_sizes <- function(label_size, node_size_usr, n, scaling = "default") {
+resolve_label_sizes <- function(label_size, node_size_usr, n, scaling = "default",
+                                visual_scale = NULL, node_size = NULL) {
   scale <- get_scale_constants(scaling)
 
   if (!is.null(label_size)) {
-    # User explicitly specified - use as-is
+    # User explicitly specified - use as-is (precedence rule)
     return(recycle_to_length(label_size, n))
+  }
+
+  vs_mult <- if (!is.null(visual_scale) && is.finite(visual_scale$scale %||% visual_scale$text %||% NA_real_)) {
+    visual_scale$scale %||% visual_scale$text
+  } else {
+    1
   }
 
   if (scale$label_coupled) {
     # Legacy mode: couple to node size (original behavior)
-    # vsize_usr * 8, capped at 1
-    return(pmin(1, node_size_usr * 8))
+    # vsize_usr * 8, capped at 1. Device compensation multiplies the post-cap
+    # value so very high-DPI canvases can still read the label.
+    return(pmin(1, node_size_usr * 8) * vs_mult)
   }
 
- # New default: independent label size
-  rep(scale$label_default, n)
+  # qgraph-style invariant: label cex tracks node_size so their ratio is
+  # locked. At the defaults (node_size = 7, node_default = 7) this evaluates
+  # to 1.0 — backward-compatible with pre-fix behaviour. When a user doubles
+  # node_size, labels double too; when they shrink nodes, labels shrink.
+  ns <- if (is.null(node_size)) scale$node_default else node_size[1]
+  if (!is.numeric(ns) || !is.finite(ns) || ns <= 0) ns <- scale$node_default
+  node_factor <- ns / scale$node_default
+
+  rep(scale$label_default * node_factor * vs_mult, n)
 }
 
 #' Resolve Node Colors
@@ -540,32 +588,65 @@ check_duplicate_edges <- function(edges, directed, edge_duplicates) {
 #' @param edges Edge data frame.
 #' @param n_edges Number of edges.
 #' @param loop_rotations Per-edge loop rotation angles.
+#' @param fixed_bounds Optional numeric vector \code{c(xmin, xmax, ymin, ymax)}
+#'   for fixed plot bounds before node/loop padding.
 #' @return List with \code{xlim} and \code{ylim}.
 #' @keywords internal
 compute_plot_limits <- function(layout_mat, vsize_usr, layout_margin,
-                                edges, n_edges, loop_rotations) {
+                                edges, n_edges, loop_rotations,
+                                fixed_bounds = NULL) {
+  loop_extent <- 1.3
+  lr_factor <- 1.5
+
+  # Fixed-bounds path: when splot() anchors the layout to a canonical box
+  # (rescale = TRUE), return symmetric bounds padded by a per-graph-independent
+  # amount so a 2-node network and an N-node network end up with identical
+  # xlim/ylim. This keeps node pixel sizes stable in par(mfrow=...) grids.
+  if (is.numeric(fixed_bounds) && length(fixed_bounds) == 4L) {
+    max_v <- max(vsize_usr, na.rm = TRUE)
+    pad <- max_v * (loop_extent + lr_factor)
+    return(list(
+      xlim = c(fixed_bounds[1] - pad, fixed_bounds[2] + pad),
+      ylim = c(fixed_bounds[3] - pad, fixed_bounds[4] + pad)
+    ))
+  }
+
   x_range <- range(layout_mat[, 1], na.rm = TRUE)
   y_range <- range(layout_mat[, 2], na.rm = TRUE)
   x_margin <- diff(x_range) * layout_margin
   y_margin <- diff(y_range) * layout_margin
 
-  # Expand to encompass node radii at boundary nodes
+  # Expand to encompass node radii at boundary nodes.
   x_lo <- min(layout_mat[, 1] - vsize_usr, na.rm = TRUE)
   x_hi <- max(layout_mat[, 1] + vsize_usr, na.rm = TRUE)
   y_lo <- min(layout_mat[, 2] - vsize_usr, na.rm = TRUE)
   y_hi <- max(layout_mat[, 2] + vsize_usr, na.rm = TRUE)
 
-  # Expand for self-loops
+  # Always reserve space for self-loops on all nodes so that networks
+  # with and without self-loops have consistent sizing when shown side by side
+  center_x <- mean(layout_mat[, 1])
+  center_y <- mean(layout_mat[, 2])
+  # Default rotation: pointing away from network center
+  all_rot <- atan2(layout_mat[, 2] - center_y, layout_mat[, 1] - center_x)
+  all_r <- vsize_usr * loop_extent
+  all_lx <- layout_mat[, 1] + all_r * cos(all_rot)
+  all_ly <- layout_mat[, 2] + all_r * sin(all_rot)
+  all_lr <- vsize_usr * lr_factor
+  x_lo <- min(x_lo, all_lx - all_lr)
+  x_hi <- max(x_hi, all_lx + all_lr)
+  y_lo <- min(y_lo, all_ly - all_lr)
+  y_hi <- max(y_hi, all_ly + all_lr)
+
+  # Also expand for actual self-loops whose resolved rotation may differ
   if (n_edges > 0) {
     self_loop_idx <- which(edges$from == edges$to)
     if (length(self_loop_idx) > 0) {
-      loop_extent <- 2.52
       ni <- edges$from[self_loop_idx]
       r <- vsize_usr[ni] * loop_extent
       rot <- loop_rotations[self_loop_idx]
       lx <- layout_mat[ni, 1] + r * cos(rot)
       ly <- layout_mat[ni, 2] + r * sin(rot)
-      lr <- vsize_usr[ni] * 0.8
+      lr <- vsize_usr[ni] * lr_factor
       x_lo <- min(x_lo, lx - lr)
       x_hi <- max(x_hi, lx + lr)
       y_lo <- min(y_lo, ly - lr)

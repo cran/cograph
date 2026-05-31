@@ -83,11 +83,11 @@ for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
 horizontally, "circle" arranges nodes in an ellipse, "spring" uses
 force-directed placement based on within-layer connections.}
 
-\item{layer_spacing}{Vertical distance between layer centers. Default 2.5.}
+\item{layer_spacing}{Vertical distance between layer centers. Default 4.}
 
-\item{layer_width}{Horizontal width of each layer shell. Default 5.}
+\item{layer_width}{Horizontal width of each layer shell. Default 8.}
 
-\item{layer_depth}{Depth of each layer (for 3D effect). Default 2.5.}
+\item{layer_depth}{Depth of each layer (for 3D effect). Default 4.}
 
 \item{skew_angle}{Angle of perspective skew in degrees. Default 25.}
 
@@ -118,7 +118,7 @@ Use 1 for solid, 3 for dotted.}
 
 \item{curvature}{Edge curvature for within-layer edges. Default 0.15.}
 
-\item{node_size}{Size of nodes. Default 2.5.}
+\item{node_size}{Size of nodes. Default 3.}
 
 \item{minimum}{Minimum edge weight threshold. Edges below this are hidden.
 Default 0.}
@@ -156,40 +156,19 @@ in a 3D perspective view. Each layer contains nodes connected by solid edges
 a pseudo-3D appearance.
 }
 \examples{
-\dontrun{
-# Create multilevel network
 set.seed(42)
+m <- matrix(runif(225, 0, 0.3), 15, 15); diag(m) <- 0
 nodes <- paste0("N", 1:15)
-m <- matrix(runif(225, 0, 0.3), 15, 15)
-diag(m) <- 0
 colnames(m) <- rownames(m) <- nodes
-
-# Define 3 layers
-layers <- list(
-  Macro = paste0("N", 1:5),
-  Meso = paste0("N", 6:10),
-  Micro = paste0("N", 11:15)
-)
-
-# Basic usage
+layers <- list(Macro = nodes[1:5], Meso = nodes[6:10], Micro = nodes[11:15])
 plot_mlna(m, layers)
-
-# Customized
-plot_mlna(m, layers,
-     layer_spacing = 2.5,
-     layer_width = 5,
-     between_style = 2,  # dashed
-     minimum = 0.1)
-
-# Circle layout within layers
-plot_mlna(m, layers, layout = "circle")
+\donttest{
+plot_mlna(m, layers, layout = "circle", between_style = 2, minimum = 0.1)
 }
-\dontrun{
+set.seed(1)
 nodes <- paste0("N", 1:9)
-m <- matrix(runif(81, 0, 0.3), 9, 9)
-diag(m) <- 0
+m <- matrix(runif(81, 0, 0.3), 9, 9); diag(m) <- 0
 colnames(m) <- rownames(m) <- nodes
 layers <- list(L1 = nodes[1:3], L2 = nodes[4:6], L3 = nodes[7:9])
 mlna(m, layers)
-}
 }

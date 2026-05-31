@@ -30,8 +30,9 @@ Use \code{list_palettes()} to see all available palettes. Common options:
 \item{\strong{viridis}}{Perceptually uniform, colorblind-friendly.}
 \item{\strong{colorblind}}{Optimized for color vision deficiency.}
 \item{\strong{pastel}}{Soft, muted colors.}
-\item{\strong{bright}}{Saturated, vivid colors.}
-\item{\strong{grayscale}}{Shades of gray.}
+\item{\strong{blues}}{Blue sequential palette.}
+\item{\strong{reds}}{Red sequential palette.}
+\item{\strong{diverging}}{Blue-white-red diverging palette.}
 }
 
 You can also pass a custom palette function that takes \code{n} and returns
@@ -40,22 +41,10 @@ You can also pass a custom palette function that takes \code{n} and returns
 }
 \examples{
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-
-# Apply palette to nodes
 cograph(adj) |> sn_palette("viridis") |> splot()
 
 # Apply to edges
 cograph(adj) |> sn_palette("colorblind", target = "edges") |> splot()
-
-# Apply to both
-cograph(adj) |> sn_palette("pastel", target = "both") |> splot()
-
-# Custom palette function
-my_pal <- function(n) rainbow(n, s = 0.7)
-cograph(adj) |> sn_palette(my_pal) |> splot()
-
-# Direct matrix input
-adj |> sn_palette("viridis")
 }
 \seealso{
 \code{\link{cograph}} for network creation,

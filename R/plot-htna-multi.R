@@ -2,19 +2,19 @@
 #'
 #' Visualizes multiple network clusters with summary edges between clusters
 #' and individual edges within clusters. Each cluster is displayed as a
-#' shape (circle, square, diamond, triangle) containing its nodes.
+#' shell shape containing its nodes.
 #'
-#' @param x A tna object, weight matrix, cograph_network, or cluster_summary object.
+#' @param x A tna object, weight matrix, or cograph_network.
 #' @param cluster_list Clusters can be specified as:
 #'   \itemize{
 #'     \item A list of character vectors (node names per cluster)
 #'     \item A string column name from nodes data (e.g., "groups")
 #'     \item NULL with \code{community} specified for auto-detection
+#'     \item NULL with a cograph_network that has a common cluster/group column
 #'   }
 #' @param community Community detection method to use for auto-clustering.
 #'   If specified, overrides \code{cluster_list}. See \code{\link{detect_communities}}
-#'   for available methods: "louvain", "walktrap", "fast_greedy", "label_prop",
-#'   "infomap", "leiden".
+#'   for available methods.
 #' @param layout How to arrange the clusters: "circle" (default),
 #'   "grid", "horizontal", "vertical".
 #' @param spacing Distance between cluster centers. Default 4.
@@ -22,8 +22,10 @@
 #' @param node_spacing Radius for node placement within shapes (0-1 relative
 #'   to shape_size). Default 0.5.
 #' @param colors Vector of colors for each cluster. Default auto-generated.
-#' @param shapes Vector of shapes for each cluster: "circle", "square",
-#'   "diamond", "triangle". Default cycles through these.
+#' @param shapes Vector of shapes for each cluster. Defaults cycle through
+#'   "circle", "square", "diamond", "triangle", "pentagon", "hexagon",
+#'   "star", and "cross"; summary shells draw non-shell shapes with the
+#'   circular fallback.
 #' @param edge_colors Vector of edge colors by source cluster. Default auto-generated.
 #' @param bundle_edges Logical. Bundle inter-cluster edges through channels. Default TRUE.
 #' @param bundle_strength How tightly to bundle edges (0-1). Default 0.8.
@@ -41,10 +43,9 @@
 #' @param curvature Edge curvature. Default 0.3.
 #' @param node_size Size of nodes inside shapes. Default 3.
 #' @param layout_margin Margin around the layout as fraction of range. Default 0.15.
-#' @param scale Scaling factor for spacing parameters. Use scale > 1 for
-#'   high-resolution output (e.g., scale = 4 for 300 dpi). This multiplies
-#'   spacing and shape_size to maintain proper proportions at higher resolutions.
-#'   Default 1.
+#' @param scale Scaling factor for high-resolution output. Values greater than
+#'   1 reduce node, edge, label, and legend sizes by \code{sqrt(scale)} while
+#'   leaving cluster spacing and shape_size unchanged. Default 1.
 #' @param show_labels Logical. Show node labels inside clusters. Default FALSE.
 #' @param nodes Node metadata. Can be:
 #'   \itemize{
@@ -56,8 +57,8 @@
 #' @param label_size Label text size. Default NULL (auto-scaled).
 #' @param label_abbrev Label abbreviation: NULL (none), integer (max chars),
 #'   or "auto" (adaptive based on node count).
-#' @param cluster_shape Shape for cluster summary nodes when using summary view.
-#'   Can be single value or vector. Overrides \code{shapes}. Default NULL (use shapes).
+#' @param cluster_shape Accepted for compatibility; currently unused. Use
+#'   \code{shapes} to control cluster shell shapes.
 #' @param ... Additional parameters passed to plot_tna().
 #'
 #' @return Invisibly returns a cluster_summary object for summary mode, or the
@@ -67,29 +68,13 @@
 #' @seealso \code{\link{cluster_summary}}, \code{\link{plot_mcml}}
 #'
 #' @examples
-#' \dontrun{
-#' # Create network with 4 clusters
+#' set.seed(42)
 #' nodes <- paste0("N", 1:20)
-#' m <- matrix(runif(400, 0, 0.3), 20, 20)
-#' diag(m) <- 0
+#' m <- matrix(runif(400, 0, 0.3), 20, 20); diag(m) <- 0
 #' colnames(m) <- rownames(m) <- nodes
-#'
-#' clusters <- list(
-#'   North = paste0("N", 1:5),
-#'   East = paste0("N", 6:10),
-#'   South = paste0("N", 11:15),
-#'   West = paste0("N", 16:20)
-#' )
-#'
-#' # Summary edges between clusters + individual edges within
+#' clusters <- list(N = nodes[1:5], E = nodes[6:10],
+#'                  S = nodes[11:15], W = nodes[16:20])
 #' plot_mtna(m, clusters, summary_edges = TRUE)
-#'
-#' # With node labels
-#' plot_mtna(m, clusters, show_labels = TRUE, label_abbrev = 3)
-#'
-#' # Control spacing and sizes
-#' plot_mtna(m, clusters, spacing = 4, shape_size = 1.5, node_spacing = 0.6)
-#' }
 plot_mtna <- function(
     x,
     cluster_list = NULL,
@@ -410,15 +395,24 @@ plot_mtna <- function(
     dots <- list(...)
     edge_lwd_mult <- if (!is.null(dots$edge.lwd)) dots$edge.lwd else 1
 
+    # Self-loop sizing: fraction of shape_size (user-coord, device-independent).
+    # anchor_ratio < 0.5 gives a full-circle loop; 0.5-1.0 gives a partial
+    # arc. 0.6 produces a ~320 deg arc starting close to the node center.
+    loop_r_cluster <- shape_size * 0.15
+    loop_r_node    <- shape_size * 0.18
+    loop_anchor    <- 0.6
+
     # For summary view, we need to draw manually after setting up the plot
     # First create empty plot with correct dimensions
     all_x <- cluster_centers[, 1]
     all_y <- cluster_centers[, 2]
-    # Compute margin: use layout_margin fraction of range, but ensure at least shape_size*1.2
+    # Compute margin: ensure enough room for the shell + any self-loop
+    # that extends beyond the border.
     x_base <- range(all_x)
     y_base <- range(all_y)
-    x_margin <- max(diff(x_base) * layout_margin * 0.5, shape_size * 0.8)
-    y_margin <- max(diff(y_base) * layout_margin * 0.5, shape_size * 0.8)
+    loop_extent <- shape_size + loop_r_cluster * 2.5
+    x_margin <- max(diff(x_base) * layout_margin * 0.5, loop_extent)
+    y_margin <- max(diff(y_base) * layout_margin * 0.5, loop_extent)
     x_range <- c(x_base[1] - x_margin, x_base[2] + x_margin)
     y_range <- c(y_base[1] - y_margin, y_base[2] + y_margin)
 
@@ -543,11 +537,30 @@ plot_mtna <- function(
           lwd <- (1 + 5 * (weight / max_weight)) * edge_scale * edge_lwd_mult
 
           if (i == j) {
+            # Cluster self-loop: placed on the shell border, pointing
+            # outward from the layout center (away from other clusters).
+            cl_cx <- mean(cluster_centers[, 1])
+            cl_cy <- mean(cluster_centers[, 2])
+            cl_rot <- atan2(cluster_centers[i, 2] - cl_cy,
+                            cluster_centers[i, 1] - cl_cx)
+            # Use get_shell_edge_point so the loop sits on the actual
+            # shape border (matters for triangle/diamond where the border
+            # is closer than shell_radius in some directions).
+            far_x <- cluster_centers[i, 1] + 100 * cos(cl_rot)
+            far_y <- cluster_centers[i, 2] + 100 * sin(cl_rot)
+            border_pt <- get_shell_edge_point(
+              cluster_centers[i, 1], cluster_centers[i, 2],
+              far_x, far_y, shell_radius, cluster_shapes[i]
+            )
+            border_x <- border_pt[1]
+            border_y <- border_pt[2]
             draw_self_loop_base(
-              x = cluster_centers[i, 1], y = cluster_centers[i, 2],
-              node_size = shell_radius,
+              x = border_x, y = border_y,
+              node_size = loop_r_cluster,
               col = edge_colors[i], lwd = lwd,
-              arrow = TRUE, asize = 0.1
+              rotation = cl_rot,
+              arrow = TRUE, asize = loop_r_cluster * 0.3,
+              anchor_radius = loop_r_cluster * loop_anchor
             )
             next
           }
@@ -712,11 +725,16 @@ plot_mtna <- function(
                 } # nocov end
 
                 if (j == k) {
+                  # Loop pointing outward from cluster center.
+                  loop_rot <- atan2(inner_y[j] - center_y,
+                                    inner_x[j] - center_x)
                   draw_self_loop_base(
                     x = inner_x[j], y = inner_y[j],
-                    node_size = node_size * 0.03,
+                    node_size = loop_r_node,
                     col = edge_col, lwd = lwd,
-                    arrow = TRUE, asize = 0.04
+                    rotation = loop_rot,
+                    arrow = TRUE, asize = loop_r_node * 0.3,
+                    anchor_radius = loop_r_node * loop_anchor
                   )
                 } else {
                   x0 <- inner_x[j]
@@ -868,9 +886,9 @@ plot_mtna <- function(
       "circle" = 21, "square" = 22, "diamond" = 23, "triangle" = 24,
       "pentagon" = 21, "hexagon" = 21, "star" = 8, "cross" = 3
     )
-    pch_values <- sapply(cluster_shapes, function(s) {
-      if (s %in% names(shape_to_pch)) shape_to_pch[s] else 21
-    })
+    pch_values <- vapply(cluster_shapes, function(s) {
+      if (s %in% names(shape_to_pch)) shape_to_pch[[s]] else 21
+    }, numeric(1))
 
     graphics::legend(
       legend_position,
@@ -892,12 +910,10 @@ plot_mtna <- function(
 #' @return See \code{\link{plot_mtna}}.
 #' @export
 #' @examples
-#' \dontrun{
+#' set.seed(1)
 #' nodes <- paste0("N", 1:12)
-#' m <- matrix(runif(144, 0, 0.3), 12, 12)
-#' diag(m) <- 0
+#' m <- matrix(runif(144, 0, 0.3), 12, 12); diag(m) <- 0
 #' colnames(m) <- rownames(m) <- nodes
 #' clusters <- list(C1 = nodes[1:4], C2 = nodes[5:8], C3 = nodes[9:12])
 #' mtna(m, clusters)
-#' }
 mtna <- plot_mtna

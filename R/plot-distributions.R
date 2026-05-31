@@ -15,8 +15,9 @@
 #' @param type Character. \code{"histogram"} (default) or \code{"density"}.
 #' @param normalize Logical. Show proportions instead of counts. Default FALSE.
 #' @param bins Integer or NULL. Number of bins. Default NULL (auto).
-#' @param log Character. Log scaling: \code{""}, \code{"x"}, \code{"y"}, or
-#'   \code{"xy"}. Default \code{""}.
+#' @param log Character. Log scaling: \code{""}, \code{"y"}, or \code{"xy"}.
+#'   Values containing \code{"x"} are accepted for compatibility but only the
+#'   y-axis is log-scaled by this plotting implementation. Default \code{""}.
 #' @param col Fill color. Default \code{"steelblue"}.
 #' @param border Border color. Default \code{"white"}.
 #' @param main Plot title. Default auto-generated from measure name.
@@ -190,13 +191,9 @@ plot_edge_weights <- function(x,
 #' @seealso \code{\link{centrality}}, \code{\link{degree_distribution}},
 #'   \code{\link{network_summary}}
 #' @export
-#' @examples
-#' \dontrun{
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::sample_pa(100, m = 3, directed = FALSE)
-#'   cograph::plot_degree_correlation(g)
-#' }
-#' }
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
+#' g <- igraph::sample_pa(100, m = 3, directed = FALSE)
+#' cograph::plot_degree_correlation(g)
 plot_degree_correlation <- function(x,
                                     mode = "all",
                                     directed = NULL,
@@ -268,19 +265,22 @@ plot_degree_correlation <- function(x,
 #' @param ncol Integer. Grid columns. Default auto.
 #' @param node_size Numeric. Default 5.
 #' @param seed Integer or NULL. Default 42.
+#' @param combined Logical: when TRUE (default), arrange period panels in an
+#'   internal grid via \code{graphics::par(mfrow=...)}. Set to FALSE to draw
+#'   into a layout the caller has already configured (e.g. via
+#'   \code{\link{panel_layout}()}).
 #' @param ... Additional arguments passed to \code{\link{splot}}.
 #'
-#' @return Invisible list of edge-list data frames (one per panel).
+#' @return Invisible list of per-panel networks or edge-list data frames.
 #' @export
 #' @examples
-#' \dontrun{
-#' # Edge list with time column
-#' edges$week <- sample(1:4, nrow(edges), replace = TRUE)
+#' set.seed(1)
+#' edges <- data.frame(
+#'   from = sample(LETTERS[1:5], 30, replace = TRUE),
+#'   to   = sample(LETTERS[1:5], 30, replace = TRUE),
+#'   week = sample(1:4, 30, replace = TRUE))
 #' cograph::plot_network_evolution(edges, time = "week")
-#'
-#' # Cumulative: edges accumulate over time
 #' cograph::plot_network_evolution(edges, time = "week", cumulative = TRUE)
-#' }
 plot_network_evolution <- function(x,
                                    time = NULL,
                                    slices = NULL,
@@ -290,6 +290,7 @@ plot_network_evolution <- function(x,
                                    ncol = NULL,
                                    node_size = 5,
                                    seed = 42,
+                                   combined = TRUE,
                                    ...) {
 
   # Determine mode: cograph_network, edge list data frame, or pre-built list
@@ -367,8 +368,10 @@ plot_network_evolution <- function(x,
     shared_layout <- layout
   }
 
-  old_par <- graphics::par(mfrow = c(n_row, ncol), mar = c(1, 1, 2, 1))
-  on.exit(graphics::par(old_par), add = TRUE)
+  if (combined) {
+    old_par <- graphics::par(mfrow = c(n_row, ncol), mar = c(1, 1, 2, 1))
+    on.exit(graphics::par(old_par), add = TRUE)
+  }
 
   # Build adjacency matrices with ALL nodes (shared across panels)
   all_nodes <- node_names

@@ -350,7 +350,8 @@ print.cograph_degree_fit <- function(x, digits = 4, ...) {
 #' @param which Character vector of distribution names to display. Default
 #'   \code{NULL} shows all fitted distributions.
 #' @param log Character string for log-scale axes: \code{""} (default),
-#'   \code{"x"}, \code{"y"}, or \code{"xy"}.
+#'   \code{"y"}, or \code{"xy"}. Values containing \code{"x"} are accepted
+#'   for compatibility but only filter non-positive fitted curve values.
 #' @param cols Named or unnamed character vector of colors for distribution
 #'   curves. Default uses a built-in palette.
 #' @param lwd Line width for fitted curves. Default 2.
@@ -360,16 +361,11 @@ print.cograph_degree_fit <- function(x, digits = 4, ...) {
 #' @return Invisible \code{NULL}.
 #' @export
 #' @examples
-#' \dontrun{
-#' adj <- matrix(c(0, 1, 1, 0, 0,
-#'                 1, 0, 1, 1, 0,
-#'                 1, 1, 0, 1, 1,
-#'                 0, 1, 1, 0, 1,
+#' adj <- matrix(c(0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+#'                 1, 1, 0, 1, 1, 0, 1, 1, 0, 1,
 #'                 0, 0, 1, 1, 0), 5, 5, byrow = TRUE)
 #' fit <- cograph::fit_degree_distribution(adj)
 #' plot(fit)
-#' plot(fit, which = c("exponential", "poisson"), log = "y")
-#' }
 plot.cograph_degree_fit <- function(x,
                                     which = NULL,
                                     log = "",

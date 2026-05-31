@@ -28,8 +28,9 @@ Apply a visual theme to the network.
 \item{\strong{dark}}{Dark background with light nodes. Good for presentations.}
 \item{\strong{minimal}}{Subtle styling with thin edges and muted colors.}
 \item{\strong{colorblind}}{Optimized for color vision deficiency.}
-\item{\strong{grayscale}}{Black and white only.}
-\item{\strong{vibrant}}{Bold, saturated colors.}
+\item{\strong{gray}/\strong{grey}}{Black and white theme suitable for print.}
+\item{\strong{viridis}}{Perceptually uniform colors.}
+\item{\strong{nature}}{Nature-inspired colors.}
 }
 
 Use \code{list_themes()} to see all available themes.
@@ -37,16 +38,10 @@ Use \code{list_themes()} to see all available themes.
 }
 \examples{
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-
-# Apply different themes
 cograph(adj) |> sn_theme("dark") |> splot()
-cograph(adj) |> sn_theme("minimal") |> splot()
 
-# Override specific theme properties
+# Override a theme property
 cograph(adj) |> sn_theme("classic", background = "lightgray") |> splot()
-
-# Direct matrix input
-adj |> sn_theme("dark")
 }
 \seealso{
 \code{\link{cograph}} for network creation,

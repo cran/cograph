@@ -26,9 +26,14 @@ NULL
 #' @param title Optional plot title. Applied via ggplot2::labs(title = title).
 #' @param from_colors Colors for left-side nodes. Default uses palette.
 #' @param to_colors Colors for right-side nodes. Default uses palette.
-#' @param flow_fill Fill color for flows. Default "#888888" (grey). Ignored if flow_color_by is set.
+#' @param flow_fill Fill color for flows. Default "#888888" (grey). In
+#'   multi-step and individual-tracking plots, ignored when \code{flow_color_by}
+#'   is set; simple two-column aggregate plots use \code{flow_fill}.
 #' @param flow_alpha Alpha transparency for flows. Default 0.4.
-#' @param flow_color_by Color flows by "source", "destination", or NULL (use flow_fill). Default NULL.
+#' @param flow_color_by Color flows by state. For multi-step aggregate flows,
+#'   use \code{"source"} or \code{"destination"}; for individual trajectories,
+#'   \code{"first"} and \code{"last"} are also supported. Default NULL uses
+#'   \code{flow_fill}; simple two-column aggregate plots ignore this argument.
 #' @param flow_border Border color for flows. Default NA (no border).
 #' @param flow_border_width Line width for flow borders. Default 0.5.
 #' @param node_width Width of node rectangles (0-1 scale). Default 0.08.
@@ -37,17 +42,25 @@ NULL
 #' @param label_size Size of node labels. Default 3.5.
 #' @param label_position Position of node labels: "beside" (default), "inside", "above", "below", "outside".
 #'   Applied to first and last columns. See \code{mid_label_position} for middle columns.
-#' @param mid_label_position Position of labels for intermediate (middle) columns.
-#'   Same options as \code{label_position}. Default NULL uses \code{label_position} value.
+#' @param mid_label_position Position of labels for intermediate (middle)
+#'   columns in individual-tracking plots. Same options as
+#'   \code{label_position}. Default NULL uses \code{label_position} value.
 #' @param label_halo Logical: add white halo around labels for readability? Default TRUE.
-#' @param label_color Color of state name labels. Default "black".
+#' @param label_color Color of state name labels. Default "black". Applied to
+#'   multi-step and individual-tracking plots; simple two-column aggregate plots
+#'   use black external labels and white inside labels.
 #' @param label_fontface Font face of state name labels ("plain", "bold", "italic",
-#'   "bold.italic"). Default "plain".
+#'   "bold.italic"). Default "plain". Applied to multi-step and
+#'   individual-tracking plots; simple two-column aggregate plots use fixed
+#'   label font faces.
 #' @param label_nudge Distance between node edge and label (in plot units).
-#'   Default 0.02. Increase for more spacing.
+#'   Default 0.02. Used by multi-step and individual-tracking plots.
 #' @param title_size Size of column titles. Default 5.
-#' @param title_color Color of column title text. Default "black".
-#' @param title_fontface Font face of column titles. Default "bold".
+#' @param title_color Color of column title text. Default "black". Applied to
+#'   multi-step and individual-tracking plots; simple two-column aggregate plots
+#'   use black titles.
+#' @param title_fontface Font face of column titles. Default "bold". Applied to
+#'   multi-step and individual-tracking plots.
 #' @param curve_strength Controls bezier curve shape (0-1). Default 0.6.
 #' @param show_values Logical: show transition counts on flows? Default FALSE.
 #' @param value_position Position of flow values: "center", "origin", "destination",
@@ -55,12 +68,15 @@ NULL
 #' @param value_size Size of value labels on flows. Default 3.
 #' @param value_color Color of value labels. Default "black".
 #' @param value_halo Logical: add halo around flow value labels? Default NULL
-#'   (inherits from \code{label_halo}).
+#'   (inherits from \code{label_halo}). Applied to multi-step and
+#'   individual-tracking plots.
 #' @param value_fontface Font face of flow value labels. Default "bold".
+#'   Applied to multi-step and individual-tracking plots.
 #' @param value_nudge Distance of value labels from node edge when using
 #'   "origin" or "destination" positions. Default 0.03.
-#' @param value_min Minimum count to show a flow value label. Default 0 (show all).
-#'   Use to hide small flows (e.g., \code{value_min = 100}).
+#' @param value_min Minimum count to show a flow value label in multi-step and
+#'   individual-tracking plots. Default 0 (show all). Simple two-column
+#'   aggregate plots show all nonzero value labels when \code{show_values = TRUE}.
 #' @param show_totals Logical: show total counts on nodes? Default FALSE.
 #' @param total_size Size of total labels. Default 4.
 #' @param total_color Color of total labels. Default "white".
@@ -73,16 +89,19 @@ NULL
 #'   \code{max(threshold, min_flow)}. Default 0.
 #' @param value_digits Number of decimal places for flow value labels and node
 #'   totals. Default 2.
-#' @param column_gap Horizontal spread of columns (0-1). Default 1 uses full width.
-#'   Use smaller values (e.g., 0.6) to bring columns closer together.
+#' @param column_gap Horizontal spread of columns (0-1) for multi-step and
+#'   individual-tracking plots. Default 1 uses full width. Use smaller values
+#'   (e.g., 0.6) to bring columns closer together.
 #' @param track_individuals Logical: draw individual lines instead of aggregated flows?
 #'   Default FALSE. When TRUE, each row in the data frame becomes a separate line.
 #' @param line_alpha Alpha for individual tracking lines. Default 0.3.
 #' @param line_width Width of individual tracking lines. Default 0.5.
 #' @param jitter_amount Vertical jitter for individual lines (0-1). Default 0.8.
-#' @param proportional_nodes Logical: size nodes proportionally to counts? Default TRUE.
+#' @param proportional_nodes Logical: size nodes proportionally to counts in
+#'   individual-tracking plots? Default TRUE.
 #' @param node_label_format Format string for node labels with \code{{state}} and
-#'   \code{{count}} placeholders. Default NULL (plain state name).
+#'   \code{{count}} placeholders in individual-tracking plots. Default NULL
+#'   (plain state name).
 #'   Example: \code{"{state} (n={count})"}.
 #' @param bundle_size Controls line bundling for large datasets. Default NULL (no bundling).
 #'   Integer >= 2: each drawn line represents that many cases.
@@ -105,39 +124,16 @@ NULL
 #' count. Nodes are sized proportionally to their total flow.
 #'
 #' @examples
-#' \dontrun{
 #' # From a transition matrix
-#' mat <- matrix(c(50, 10, 5, 15, 40, 10, 5, 20, 30), 3, 3, byrow = TRUE)
-#' rownames(mat) <- c("Light", "Resource", "Intense")
-#' colnames(mat) <- c("Light", "PBL", "Resource")
+#' mat <- matrix(c(50, 10, 5, 15, 40, 10, 5, 20, 30), 3, 3, byrow = TRUE,
+#'               dimnames = list(c("Light","Resource","Intense"),
+#'                               c("Light","PBL","Resource")))
 #' plot_transitions(mat, from_title = "Time 1", to_title = "Time 2")
 #'
-#' # From a 2-column data frame - auto-computes contingency table
-#' before <- c("A", "A", "B", "B", "A", "C", "B", "C")
-#' after <- c("X", "Y", "X", "Z", "X", "Y", "Z", "X")
-#' df <- data.frame(time1 = before, time2 = after)
-#' plot_transitions(df, from_title = "Time 1", to_title = "Time 2")
-#'
-#' # Custom colors
-#' plot_transitions(mat,
-#'   from_colors = c("#FFD166", "#06D6A0", "#9D4EDD"),
-#'   to_colors = c("#FFD166", "#EF476F", "#06D6A0")
-#' )
-#' }
-#'
-#' \dontrun{
-#' # Multi-step transitions (list of matrices)
-#' mat1 <- matrix(c(40, 10, 5, 15, 35, 5, 5, 15, 25), 3, 3, byrow = TRUE,
-#'                dimnames = list(c("A","B","C"), c("A","B","C")))
-#' mat2 <- matrix(c(35, 15, 5, 10, 30, 10, 10, 10, 30), 3, 3, byrow = TRUE,
-#'                dimnames = list(c("A","B","C"), c("A","B","C")))
-#' mat3 <- matrix(c(30, 20, 5, 5, 25, 15, 15, 5, 35), 3, 3, byrow = TRUE,
-#'                dimnames = list(c("A","B","C"), c("A","B","C")))
-#' plot_transitions(list(mat1, mat2, mat3),
-#'   from_title = c("T1", "T2", "T3", "T4"),
-#'   show_totals = TRUE
-#' )
-#' }
+#' # From a 2-column data frame (auto-contingency)
+#' df <- data.frame(time1 = c("A","A","B","B","C"),
+#'                  time2 = c("X","Y","X","Z","Y"))
+#' plot_transitions(df)
 #'
 #' @import ggplot2
 #' @export
@@ -206,8 +202,9 @@ plot_transitions <- function(x,
     if (!is.null(x$data) && is.matrix(x$data)) {
       # Sequence data available: convert integer indices to labeled data.frame
       labs <- x$labels %||% as.character(seq_len(max(x$data, na.rm = TRUE)))
-      x <- as.data.frame(apply(x$data, 2, function(col) labs[col]),
-                          stringsAsFactors = FALSE)
+      mapped <- matrix(labs[x$data], nrow = nrow(x$data),
+                       ncol = ncol(x$data), dimnames = dimnames(x$data))
+      x <- as.data.frame(mapped, stringsAsFactors = FALSE)
       # Drop rows with any NA (ragged sequences padded with NA)
       x <- x[stats::complete.cases(x), , drop = FALSE]
     } else {
@@ -887,7 +884,7 @@ plot_transitions <- function(x,
   column_totals[[n_columns]] <- colSums(matrices[[n_steps]])
 
   # Calculate heights for each column
-  max_total <- max(sapply(column_totals, sum))
+  max_total <- max(vapply(column_totals, sum, numeric(1)))
 
   column_nodes <- list()
   for (col in seq_len(n_columns)) {
@@ -1156,7 +1153,7 @@ plot_transitions <- function(x,
   }
 
   # Calculate node heights
-  max_total <- max(sapply(column_totals, sum))
+  max_total <- max(vapply(column_totals, sum, numeric(1)))
   column_nodes <- list()
 
   for (col in seq_len(n_columns)) {
@@ -1238,18 +1235,27 @@ plot_transitions <- function(x,
     n_individuals <- length(trajectories)
   }
 
+  # Build a single n_individuals x n_columns matrix of trajectory states.
+  # Each element of `trajectories` has length n_columns by construction, so
+  # rbind produces a regular matrix and column indexing replaces the
+  # 4 * (n_columns - 1) sapply calls the segment loop used to run.
+  traj_mat <- do.call(rbind, trajectories)
+  first_states <- traj_mat[, 1L]
+  last_states <- traj_mat[, n_columns]
+
   # For each segment, compute proper alluvial ordering
   for (seg in seq_len(n_columns - 1)) {
     from_nodes <- column_nodes[[seg]]
     to_nodes <- column_nodes[[seg + 1]]
 
-    # Get from/to states for all individuals in this segment
+    # Get from/to states for all individuals in this segment (matrix column
+    # access, not list-per-element sapply).
     seg_data <- data.frame(
       individual = seq_len(n_individuals),
-      from_state = sapply(trajectories, `[`, seg),
-      to_state = sapply(trajectories, `[`, seg + 1),
-      first_state = sapply(trajectories, `[`, 1),
-      last_state = sapply(trajectories, `[`, n_columns),
+      from_state = traj_mat[, seg],
+      to_state = traj_mat[, seg + 1L],
+      first_state = first_states,
+      last_state = last_states,
       stringsAsFactors = FALSE
     )
 
@@ -1654,16 +1660,15 @@ plot_transitions <- function(x,
 #' This is an alias for \code{plot_transitions()} with aggregated flows (default).
 #'
 #' @inheritParams plot_transitions
+#' @param label_position Position of node labels: "beside" (default),
+#'   "inside", "above", "below", or "outside".
 #' @return A ggplot2 object.
 #'
 #' @examples
-#' \dontrun{
-#' # From a transition matrix
 #' mat <- matrix(c(50, 10, 5, 15, 40, 10), 2, 3)
 #' rownames(mat) <- c("A", "B")
 #' colnames(mat) <- c("X", "Y", "Z")
 #' plot_alluvial(mat)
-#' }
 #'
 #' @seealso \code{\link{plot_transitions}}, \code{\link{plot_trajectories}}
 #' @export
@@ -1763,18 +1768,21 @@ plot_alluvial <- function(x,
 #' \code{track_individuals = TRUE}.
 #'
 #' @inheritParams plot_transitions
+#' @param x Data frame with one column per time point and one row per
+#'   individual trajectory.
+#' @param flow_color_by Color trajectory lines by state. Supports
+#'   \code{"source"}, \code{"destination"}, \code{"first"}, \code{"last"}, or
+#'   NULL. Default \code{"first"}.
+#' @param value_position Position of trajectory value labels: \code{"center"},
+#'   \code{"origin"}, or \code{"destination"}. Default \code{"center"}.
 #' @return A ggplot2 object.
 #'
 #' @examples
-#' \dontrun{
-#' # Track individual trajectories across time points
 #' df <- data.frame(
 #'   Baseline = c("Light", "Light", "Intense", "Resource"),
-#'   Week4 = c("Light", "Intense", "Intense", "Light"),
-#'   Week8 = c("Resource", "Intense", "Light", "Light")
-#' )
+#'   Week4    = c("Light", "Intense", "Intense", "Light"),
+#'   Week8    = c("Resource", "Intense", "Light", "Light"))
 #' plot_trajectories(df, flow_color_by = "first")
-#' }
 #'
 #' @seealso \code{\link{plot_transitions}}, \code{\link{plot_alluvial}}
 #' @export

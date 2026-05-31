@@ -4,6 +4,31 @@
 #' @keywords internal
 NULL
 
+# Unwrap a saved layout list (from splot's $meta$layout) back to its coord
+# matrix so downstream dispatches treat it as user-supplied coordinates.
+.unwrap_saved_layout <- function(layout) {
+  if (is.list(layout) && !inherits(layout, "CographLayout") &&
+      !is.null(layout$coords) &&
+      (is.matrix(layout$coords) || is.data.frame(layout$coords))) {
+    return(layout$coords)
+  }
+  layout
+}
+
+.validate_layout_coords <- function(coords, n_nodes, arg = "layout") {
+  if (!is.data.frame(coords)) coords <- as.data.frame(coords)
+  if (ncol(coords) < 2) {
+    stop(arg, " must have at least two columns for x and y coordinates",
+         call. = FALSE)
+  }
+  names(coords)[1:2] <- c("x", "y")
+  if (nrow(coords) != n_nodes) {
+    stop(arg, " must have one row per node (expected ", n_nodes,
+         ", got ", nrow(coords), ")", call. = FALSE)
+  }
+  coords
+}
+
 #' Auto-convert input to cograph_network
 #'
 #' Internal helper that converts matrices, data frames, igraph, network,
@@ -18,6 +43,7 @@ NULL
 #' @return A cograph_network object (unified format).
 #' @noRd
 ensure_cograph_network <- function(x, layout = "spring", seed = 42, directed = NULL, ...) {
+  layout <- .unwrap_saved_layout(layout)
 
   if (inherits(x, "cograph_network")) {
     # Check if layout needs to be computed
@@ -78,6 +104,8 @@ compute_layout_for_cograph <- function(net, layout = "spring", seed = 42, ...) {
   temp_net$set_edges(edges)
   temp_net$set_directed(net_directed)
 
+  layout <- .unwrap_saved_layout(layout)
+
   # Compute layout
   if (is.function(layout)) {
     coords <- apply_igraph_layout(temp_net, layout, ...)
@@ -86,10 +114,7 @@ compute_layout_for_cograph <- function(net, layout = "spring", seed = 42, ...) {
   )) {
     coords <- apply_igraph_layout_by_name(temp_net, layout, seed = seed, ...)
   } else if (is.matrix(layout) || is.data.frame(layout)) {
-    coords <- as.data.frame(layout)
-    if (ncol(coords) >= 2) {
-      names(coords)[1:2] <- c("x", "y")
-    }
+    coords <- .validate_layout_coords(layout, nrow(nodes), "layout")
   } else if (inherits(layout, "CographLayout")) {
     coords <- layout$compute(temp_net, ...)
   } else {
@@ -130,9 +155,11 @@ compute_layout_for_cograph <- function(net, layout = "spring", seed = 42, ...) {
 #'   - A statnet network object
 #'   - A qgraph object
 #'   - A tna object
-#' @param layout Layout algorithm: "circle", "spring", "groups", "grid",
-#'   "random", "star", "bipartite", or "custom". Default NULL (no layout computed).
-#'   Set to a layout name to compute immediately, or use sn_layout() later.
+#' @param layout Layout algorithm name such as "circle", "oval", "spring",
+#'   "groups", "grid", "random", "star", "bipartite", "gephi", or "custom";
+#'   a coordinate matrix/data frame; a CographLayout; or an igraph layout
+#'   function/name. Default NULL (no layout computed). Set to a layout to
+#'   compute immediately, or use sn_layout() later.
 #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
 #' @param nodes Node metadata. Can be NULL or a data frame with node attributes.
 #'   If data frame has a `label` or `labels` column, those are used for display.
@@ -157,40 +184,26 @@ compute_layout_for_cograph <- function(net, layout = "spring", seed = 42, ...) {
 #' @export
 #'
 #' @examples
-#' # From adjacency matrix (no layout computed yet - fast!)
+#' # From adjacency matrix (layout computed lazily on first plot)
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-#' net <- cograph(adj)
-#'
-#' # Layout computed automatically when plotting
-#' splot(net)  # Uses spring layout by default
+#' cograph(adj) |> splot()
 #'
 #' # From edge list
 #' edges <- data.frame(from = c(1, 1, 2), to = c(2, 3, 3))
-#' cograph(edges)
+#' cograph(edges) |> splot(layout = "circle")
 #'
-#' # Compute layout immediately if needed
-#' cograph(adj, layout = "circle") |> splot()
-#'
-#' # With customization (pipe-friendly workflow)
-#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
+#' # Pipe-friendly customization
 #' cograph(adj) |>
 #'   sn_nodes(fill = "steelblue") |>
 #'   sn_edges(color = "gray50") |>
 #'   splot(layout = "circle")
-#'
-#' # Weighted network with automatic styling
-#' w_adj <- matrix(c(0, 0.5, -0.3, 0.5, 0, 0.4, -0.3, 0.4, 0), nrow = 3)
-#' cograph(w_adj) |>
-#'   sn_edges(color = "weight", width = "weight") |>
-#'   splot()
-#'
-#' # With igraph (if installed)
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   g <- igraph::make_ring(10)
-#'   cograph(g) |> splot()
-#' }
 cograph <- function(input, layout = NULL, directed = NULL,
                    nodes = NULL, seed = 42, simplify = FALSE, ...) {
+
+  # Accept a saved-layout list (from another splot's $meta$layout) as
+  # layout =; unwrap to the raw coord matrix so downstream branches treat
+  # it as user-supplied coordinates.
+  layout <- .unwrap_saved_layout(layout)
 
   # Parse input first to get TNA metadata if applicable
   parsed <- parse_input(input, directed = directed, simplify = simplify)
@@ -259,10 +272,7 @@ cograph <- function(input, layout = NULL, directed = NULL,
       coords <- apply_igraph_layout_by_name(network, layout, seed = seed, ...)
     } else if (is.matrix(layout) || is.data.frame(layout)) {
       # Custom coordinates passed directly
-      coords <- as.data.frame(layout)
-      if (ncol(coords) >= 2) {
-        names(coords)[1:2] <- c("x", "y")
-      }
+      coords <- .validate_layout_coords(layout, nrow(network$get_nodes()), "layout")
     } else {
       # Built-in cograph layout
       layout_obj <- CographLayout$new(layout, ...)
@@ -325,6 +335,7 @@ cograph <- function(input, layout = NULL, directed = NULL,
 #' \describe{
 #'   \item{\strong{spring}}{Force-directed layout (Fruchterman-Reingold style).
 #'     Good general-purpose layout. Default.}
+#'   \item{\strong{oval}/\strong{ellipse}}{Nodes arranged around an ellipse.}
 #'   \item{\strong{circle}}{Nodes arranged in a circle. Good for small networks
 #'     or when structure is less important.}
 #'   \item{\strong{groups}}{Circular layout with grouped nodes clustered together.}
@@ -332,6 +343,7 @@ cograph <- function(input, layout = NULL, directed = NULL,
 #'   \item{\strong{random}}{Random positions. Useful as starting point.}
 #'   \item{\strong{star}}{Central node with others arranged around it.}
 #'   \item{\strong{bipartite}}{Two-column layout for bipartite networks.}
+#'   \item{\strong{gephi}/\strong{gephi_fr}}{Gephi-style force-directed layout.}
 #' }
 #'
 #' ## igraph Layouts
@@ -354,23 +366,11 @@ cograph <- function(input, layout = NULL, directed = NULL,
 #'
 #' @examples
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-#'
-#' # Built-in layouts
 #' cograph(adj) |> sn_layout("circle") |> splot()
-#' cograph(adj) |> sn_layout("spring") |> splot()
-#'
-#' # igraph layouts (if igraph installed)
-#' if (requireNamespace("igraph", quietly = TRUE)) {
-#'   cograph(adj) |> sn_layout("kk") |> splot()
-#'   cograph(adj) |> sn_layout("fr") |> splot()
-#' }
 #'
 #' # Custom coordinates
 #' coords <- matrix(c(0, 0, 1, 0, 0.5, 1), ncol = 2, byrow = TRUE)
 #' cograph(adj) |> sn_layout(coords) |> splot()
-#'
-#' # Direct matrix input (auto-converts)
-#' adj |> sn_layout("circle")
 sn_layout <- function(network, layout, seed = 42, ...) {
   # Auto-convert matrix/data.frame/igraph to cograph_network
   network <- ensure_cograph_network(network, layout = layout, seed = seed, ...)
@@ -409,10 +409,7 @@ sn_layout <- function(network, layout, seed = 42, ...) {
     coords <- layout$compute(temp_net, ...)
     layout_info <- list(name = "custom", seed = seed, coords = coords)
   } else if (is.matrix(layout) || is.data.frame(layout)) {
-    coords <- as.data.frame(layout)
-    if (ncol(coords) >= 2) {
-      names(coords)[1:2] <- c("x", "y")
-    }
+    coords <- .validate_layout_coords(layout, nrow(get_nodes(network)), "layout")
     layout_info <- list(name = "custom", seed = seed, coords = coords)
   } else {
     stop("layout must be a string, CographLayout object, igraph layout function, or coordinate matrix",
@@ -447,8 +444,9 @@ sn_layout <- function(network, layout, seed = 42, ...) {
 #'   \item{\strong{dark}}{Dark background with light nodes. Good for presentations.}
 #'   \item{\strong{minimal}}{Subtle styling with thin edges and muted colors.}
 #'   \item{\strong{colorblind}}{Optimized for color vision deficiency.}
-#'   \item{\strong{grayscale}}{Black and white only.}
-#'   \item{\strong{vibrant}}{Bold, saturated colors.}
+#'   \item{\strong{gray}/\strong{grey}}{Black and white theme suitable for print.}
+#'   \item{\strong{viridis}}{Perceptually uniform colors.}
+#'   \item{\strong{nature}}{Nature-inspired colors.}
 #' }
 #'
 #' Use \code{list_themes()} to see all available themes.
@@ -467,16 +465,10 @@ sn_layout <- function(network, layout, seed = 42, ...) {
 #'
 #' @examples
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-#'
-#' # Apply different themes
 #' cograph(adj) |> sn_theme("dark") |> splot()
-#' cograph(adj) |> sn_theme("minimal") |> splot()
 #'
-#' # Override specific theme properties
+#' # Override a theme property
 #' cograph(adj) |> sn_theme("classic", background = "lightgray") |> splot()
-#'
-#' # Direct matrix input
-#' adj |> sn_theme("dark")
 sn_theme <- function(network, theme, ...) {
   # Auto-convert matrix/data.frame/igraph to cograph_network
   network <- ensure_cograph_network(network)
@@ -523,8 +515,9 @@ sn_theme <- function(network, theme, ...) {
 #'   \item{\strong{viridis}}{Perceptually uniform, colorblind-friendly.}
 #'   \item{\strong{colorblind}}{Optimized for color vision deficiency.}
 #'   \item{\strong{pastel}}{Soft, muted colors.}
-#'   \item{\strong{bright}}{Saturated, vivid colors.}
-#'   \item{\strong{grayscale}}{Shades of gray.}
+#'   \item{\strong{blues}}{Blue sequential palette.}
+#'   \item{\strong{reds}}{Red sequential palette.}
+#'   \item{\strong{diverging}}{Blue-white-red diverging palette.}
 #' }
 #'
 #' You can also pass a custom palette function that takes \code{n} and returns
@@ -543,22 +536,10 @@ sn_theme <- function(network, theme, ...) {
 #'
 #' @examples
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-#'
-#' # Apply palette to nodes
 #' cograph(adj) |> sn_palette("viridis") |> splot()
 #'
 #' # Apply to edges
 #' cograph(adj) |> sn_palette("colorblind", target = "edges") |> splot()
-#'
-#' # Apply to both
-#' cograph(adj) |> sn_palette("pastel", target = "both") |> splot()
-#'
-#' # Custom palette function
-#' my_pal <- function(n) rainbow(n, s = 0.7)
-#' cograph(adj) |> sn_palette(my_pal) |> splot()
-#'
-#' # Direct matrix input
-#' adj |> sn_palette("viridis")
 sn_palette <- function(network, palette, target = "nodes", by = NULL) {
   # Auto-convert matrix/data.frame/igraph to cograph_network
   network <- ensure_cograph_network(network)

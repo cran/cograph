@@ -27,24 +27,18 @@ splot.tna_disparity(
 \item{...}{Additional arguments passed to splot.}
 }
 \value{
-Invisibly returns \code{NULL}. Called for the side effect of producing a plot.
+Invisibly returns the value from the underlying \code{\link{splot}}
+call. Called primarily for the side effect of producing a plot.
 }
 \description{
 Plot Disparity Results with splot
 }
 \examples{
-\dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
-\dontrun{
-mat <- matrix(c(
-  0.0, 0.5, 0.1, 0.0,
-  0.3, 0.0, 0.4, 0.1,
-  0.1, 0.2, 0.0, 0.5,
-  0.0, 0.1, 0.3, 0.0
-), nrow = 4, byrow = TRUE)
+mat <- matrix(c(0.0, 0.5, 0.1, 0.0, 0.3, 0.0, 0.4, 0.1,
+                0.1, 0.2, 0.0, 0.5, 0.0, 0.1, 0.3, 0.0), 4, 4, byrow = TRUE)
 rownames(mat) <- colnames(mat) <- c("A", "B", "C", "D")
 disp <- disparity_filter(cograph(mat), level = 0.05)
-splot.tna_disparity(disp)
-splot.tna_disparity(disp, show = "backbone")
-}
-\dontshow{\}) # examplesIf}
+splot(disp)
+splot(disp, show = "backbone")
+
 }

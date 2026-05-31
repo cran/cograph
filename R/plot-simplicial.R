@@ -16,11 +16,19 @@
 #'   \code{NULL}, higher-order pathways are built automatically
 #'   using the \code{method} parameter.
 #' @param pathways Character vector of pathway strings, a list of
-#'   character vectors, or a \code{net_hon} / \code{net_hypa} object.
-#'   String separators: \code{"A B -> C"}, \code{"A, B, C"},
+#'   character vectors, a \code{net_hon} / \code{net_hypa} object, or
+#'   any data.frame with a \code{path} column (e.g., the output of
+#'   \code{Nestimate::mogen_transitions()}). If a data.frame with a
+#'   \code{path} column is passed as \code{x} and \code{pathways} is
+#'   \code{NULL}, it is auto-promoted to \code{pathways} and the state
+#'   set is derived from the path strings — \code{plot_simplicial(mgt)}
+#'   works directly. String separators:
+#'   \code{"A B -> C"}, \code{"A -> B -> C"}, \code{"A, B, C"},
 #'   \code{"A - B - C"}, \code{"A B C"}. Last state is the target.
-#'   When \code{NULL} and \code{x} is a model with sequence data,
-#'   pathways are built automatically.
+#'   When a data.frame is passed and a \code{count} column is present,
+#'   rows are sorted by count descending before \code{max_pathways} is
+#'   applied. When \code{NULL} and \code{x} is a model with sequence
+#'   data, pathways are built automatically.
 #' @param method Pathway source when auto-building from a
 #'   \code{tna}/\code{netobject}: \code{"hon"} (default, higher-order
 #'   network), \code{"hypa"} (anomalous paths via hypergeometric null),
@@ -30,6 +38,18 @@
 #' @param max_pathways Maximum number of pathways to display. HON
 #'   pathways are ranked by count, HYPA by anomaly ratio.
 #'   \code{NULL} shows all. Default \code{10}.
+#' @param pathway_index Optional positive integer vector selecting
+#'   ranked pathways after extraction and ranking, before
+#'   \code{max_pathways} is applied. For example, \code{2} plots the
+#'   second-ranked pathway and \code{2:4} plots pathways ranked second
+#'   through fourth.
+#' @param anomaly HYPA anomaly type to display when plotting a
+#'   \code{net_hypa} object or auto-building HYPA pathways via
+#'   \code{method = "hypa"}. One of \code{"all"}, \code{"over"}, or
+#'   \code{"under"}. Default \code{"all"}. Ignored (with a warning) for
+#'   non-HYPA inputs such as \code{net_hon}, \code{net_association_rules},
+#'   \code{net_link_prediction}, character pathway vectors, or
+#'   \code{method = "hon"} / \code{"rules"}, which have no anomaly concept.
 #' @param layout \code{"circle"} (default) or a coordinate matrix.
 #' @param labels Display labels. \code{NULL} uses state names.
 #' @param node_color Source node fill color.
@@ -37,6 +57,29 @@
 #' @param ring_color Donut ring color.
 #' @param node_size Node point size.
 #' @param label_size Label text size.
+#' @param label_color Label text color (default \code{"#e8e8e8"},
+#'   very light grey). Light grey reads on both white and dark fills
+#'   when the auto-contrast halo is enabled (it is by default).
+#'   Applied to both source and target labels unless
+#'   \code{target_label_color} overrides for targets.
+#' @param target_label_color Target-node label color. \code{NULL}
+#'   (default) reuses \code{label_color}.
+#' @param label_halo Logical. Draw a contrasting halo behind each
+#'   label so it stays readable on any fill — node disc, blob, or
+#'   the white canvas. Default \code{TRUE}. The halo is the only
+#'   reliable way to keep, e.g., white labels legible when
+#'   \code{node_color} is also light.
+#' @param label_halo_color Halo color. \code{NULL} (default)
+#'   auto-picks black or white based on the luminance of
+#'   \code{label_color}, so a white label gets a dark halo and vice
+#'   versa.
+#' @param label_halo_width Halo thickness in plot units. Default
+#'   \code{0.035}; raise for chunkier outlines, lower for subtler
+#'   ones, or set to \code{0} to disable without touching
+#'   \code{label_halo}.
+#' @param label_halo_alpha Halo opacity (0–1). Default \code{0.6}
+#'   reads as a soft glow rather than a hard outline; raise toward
+#'   \code{1} for sharper contrast on very busy backgrounds.
 #' @param blob_alpha Blob fill transparency.
 #' @param blob_colors Blob fill colors (recycled).
 #' @param blob_linetype Blob border line styles (recycled).
@@ -56,21 +99,11 @@
 #'   invisibly.
 #'
 #' @examples
-#' \dontrun{
+#' set.seed(1)
 #' mat <- matrix(runif(16), 4, 4,
 #'               dimnames = list(LETTERS[1:4], LETTERS[1:4]))
 #' diag(mat) <- 0
 #' plot_simplicial(mat, c("A B -> C", "B C -> D"))
-#'
-#' # Direct from tna model (requires Nestimate):
-#' # model <- tna::tna(tna::group_regulation)
-#' # plot_simplicial(model, dismantled = TRUE)
-#' # plot_simplicial(model, method = "hypa")
-#'
-#' # With pre-built HON + tna for label translation:
-#' # hon <- Nestimate::build_hon(as.data.frame(model$data))
-#' # plot_simplicial(model, hon, dismantled = TRUE)
-#' }
 #'
 #' @import ggplot2
 #' @export
@@ -78,6 +111,8 @@ plot_simplicial <- function(x = NULL,
                             pathways = NULL,
                             method = "hon",
                             max_pathways = 10L,
+                            pathway_index = NULL,
+                            anomaly = c("all", "over", "under"),
                             layout = "circle",
                             labels = NULL,
                             node_color = "#4A7FB5",
@@ -85,6 +120,12 @@ plot_simplicial <- function(x = NULL,
                             ring_color = "#F5A623",
                             node_size = 22,
                             label_size = 5,
+                            label_color = "#e8e8e8",
+                            target_label_color = NULL,
+                            label_halo = TRUE,
+                            label_halo_color = NULL,
+                            label_halo_width = 0.035,
+                            label_halo_alpha = 0.6,
                             blob_alpha = 0.25,
                             blob_colors = NULL,
                             blob_linetype = NULL,
@@ -95,6 +136,17 @@ plot_simplicial <- function(x = NULL,
                             dismantled = FALSE,
                             ncol = NULL,
                             ...) {
+  anomaly_explicit <- !missing(anomaly)
+  anomaly <- match.arg(anomaly)
+  hypa_used <- FALSE
+
+  # If x is a pathways data.frame (e.g. Nestimate::mogen_transitions() output),
+  # promote it to `pathways`. The path strings carry every state we need, so x
+  # is not required for layout — states are derived from the parsed pathways.
+  if (is.null(pathways) && is.data.frame(x) && "path" %in% names(x)) {
+    pathways <- x
+    x <- NULL
+  }
 
   # Build label map for numeric ID -> label translation
   label_map <- .build_hon_label_map(x)
@@ -108,7 +160,9 @@ plot_simplicial <- function(x = NULL,
       return(invisible(NULL))
     }
   } else if (inherits(pathways, "net_hypa")) {
-    pathways <- .extract_hypa_pathways(pathways, label_map = label_map)
+    hypa_used <- TRUE
+    pathways <- .extract_hypa_pathways(pathways, type = anomaly,
+                                       label_map = label_map)
     if (length(pathways) == 0L) {
       message("No anomalous pathways found in HYPA object.")
       return(invisible(NULL))
@@ -128,6 +182,13 @@ plot_simplicial <- function(x = NULL,
       message("No link predictions to plot.")
       return(invisible(NULL))
     }
+  } else if (is.data.frame(pathways) && "path" %in% names(pathways)) {
+    pathways <- .extract_mogen_transitions_pathways(pathways,
+                                                    label_map = label_map)
+    if (length(pathways) == 0L) {
+      message("No pathways to plot.")
+      return(invisible(NULL))
+    }
   }
 
   # 2. pathways still NULL — auto-extract or auto-build
@@ -140,7 +201,9 @@ plot_simplicial <- function(x = NULL,
       }
       x <- NULL
     } else if (inherits(x, "net_hypa")) {
-      pathways <- .extract_hypa_pathways(x, label_map = label_map)
+      hypa_used <- TRUE
+      pathways <- .extract_hypa_pathways(x, type = anomaly,
+                                         label_map = label_map)
       if (length(pathways) == 0L) {
         message("No anomalous pathways found in HYPA object.")
         return(invisible(NULL))
@@ -172,7 +235,8 @@ plot_simplicial <- function(x = NULL,
           return(invisible(NULL))
         }
       } else if (method == "hypa") {
-        pathways <- .extract_hypa_pathways(ho_obj)
+        hypa_used <- TRUE
+        pathways <- .extract_hypa_pathways(ho_obj, type = anomaly)
         if (length(pathways) == 0L) {
           message("No anomalous pathways found.")
           return(invisible(NULL))
@@ -191,6 +255,27 @@ plot_simplicial <- function(x = NULL,
            "net_hon, net_hypa, net_association_rules, or net_link_prediction ",
            "object.", call. = FALSE)
     }
+  }
+
+  if (anomaly_explicit && !hypa_used) {
+    warning("'anomaly' only applies to HYPA pathways; ignored for this input.",
+            call. = FALSE)
+  }
+
+  if (!is.null(pathway_index) && is.character(pathways)) {
+    if (!is.numeric(pathway_index) || anyNA(pathway_index) ||
+        any(pathway_index < 1L) ||
+        any(pathway_index != as.integer(pathway_index))) {
+      stop("'pathway_index' must be a positive integer vector.", call. = FALSE)
+    }
+    if (max(pathway_index) > length(pathways)) {
+      stop(sprintf(
+        "'pathway_index' requested rank %d, but only %d pathway%s available.",
+        max(pathway_index), length(pathways),
+        if (length(pathways) == 1L) "" else "s"
+      ), call. = FALSE)
+    }
+    pathways <- pathways[as.integer(pathway_index)]
   }
 
   # Limit number of pathways
@@ -252,15 +337,23 @@ plot_simplicial <- function(x = NULL,
         blob_colors[k], blob_borders[k], blob_linetype[k], blob_alpha,
         blob_linewidth, blob_line_alpha, shadow,
         grid_node_size, grid_label_size,
+        label_color = label_color,
+        target_label_color = target_label_color,
+        label_halo = label_halo,
+        label_halo_color = label_halo_color,
+        label_halo_width = label_halo_width,
+        label_halo_alpha = label_halo_alpha,
+        panel_pad = 1.5,
         show_title = FALSE
       )
-      p + ggplot2::theme(plot.margin = ggplot2::margin(2, 2, 2, 2))
+      p + ggplot2::theme(plot.margin = ggplot2::margin(0, 0, 0, 0))
     })
     nc <- ncol %||% ceiling(sqrt(length(plots)))
     if (requireNamespace("gridExtra", quietly = TRUE)) {
       combined <- do.call(gridExtra::arrangeGrob,
                           c(plots, list(ncol = nc,
-                                        padding = grid::unit(0, "line"))))
+                                        padding = grid::unit(0, "line"),
+                                        respect = TRUE)))
       grid::grid.newpage()
       grid::grid.draw(combined)
       return(invisible(combined))
@@ -273,7 +366,13 @@ plot_simplicial <- function(x = NULL,
     pw_list, pos, states, label_map,
     node_color, target_color, ring_color, ring_border,
     blob_colors, blob_borders, blob_linetype, blob_alpha,
-    blob_linewidth, blob_line_alpha, shadow, node_size, label_size, title
+    blob_linewidth, blob_line_alpha, shadow, node_size, label_size, title,
+    label_color = label_color,
+    target_label_color = target_label_color,
+    label_halo = label_halo,
+    label_halo_color = label_halo_color,
+    label_halo_width = label_halo_width,
+    label_halo_alpha = label_halo_alpha
   )
   print(p)
   invisible(p)
@@ -351,6 +450,13 @@ plot_simplicial <- function(x = NULL,
                                   blob_color, blob_border, blob_lty, blob_alpha,
                                   blob_linewidth, blob_line_alpha,
                                   shadow, node_size, label_size,
+                                  label_color = "#e8e8e8",
+                                  target_label_color = NULL,
+                                  label_halo = TRUE,
+                                  label_halo_color = NULL,
+                                  label_halo_width = 0.035,
+                                  label_halo_alpha = 0.6,
+                                  panel_pad = 3.5,
                                   show_title = TRUE) {
   name_to_idx <- setNames(seq_along(states), states)
   all_st <- unique(c(pw$source, pw$target))
@@ -359,7 +465,7 @@ plot_simplicial <- function(x = NULL,
   blob <- .smooth_blob(ndf$x, ndf$y)
 
   cx <- mean(ndf$x); cy <- mean(ndf$y)
-  half <- max(max(ndf$x) - min(ndf$x), max(ndf$y) - min(ndf$y)) / 2 + 3.5
+  half <- max(max(ndf$x) - min(ndf$x), max(ndf$y) - min(ndf$y)) / 2 + panel_pad
 
   p <- .blob_base_plot(c(cx - half, cx + half), c(cy - half, cy + half))
   if (shadow) p <- .add_shadow(p, blob)
@@ -369,7 +475,13 @@ plot_simplicial <- function(x = NULL,
                          linetype = blob_lty, linewidth = blob_linewidth,
                          alpha = blob_alpha)
   p <- .add_pathway_nodes(p, ndf, is_target, node_color, target_color,
-                           ring_color, ring_border, node_size, label_size)
+                           ring_color, ring_border, node_size, label_size,
+                           label_color = label_color,
+                           target_label_color = target_label_color,
+                           label_halo = label_halo,
+                           label_halo_color = label_halo_color,
+                           label_halo_width = label_halo_width,
+                           label_halo_alpha = label_halo_alpha)
   if (show_title) {
     src_lab <- vapply(pw$source, function(s) label_map[s], character(1),
                        USE.NAMES = FALSE)
@@ -388,7 +500,13 @@ plot_simplicial <- function(x = NULL,
                                      blob_colors, blob_borders,
                                      blob_linetypes, blob_alpha,
                                      blob_linewidth, blob_line_alpha,
-                                     shadow, node_size, label_size, title) {
+                                     shadow, node_size, label_size, title,
+                                     label_color = "#e8e8e8",
+                                     target_label_color = NULL,
+                                     label_halo = TRUE,
+                                     label_halo_color = NULL,
+                                     label_halo_width = 0.035,
+                                     label_halo_alpha = 0.6) {
   name_to_idx <- setNames(seq_along(states), states)
   p <- .blob_base_plot()
 
@@ -412,7 +530,13 @@ plot_simplicial <- function(x = NULL,
   all_targets <- unique(vapply(pw_list, `[[`, character(1), "target"))
   is_target <- pos$state %in% all_targets
   p <- .add_pathway_nodes(p, pos, is_target, node_color, target_color,
-                           ring_color, ring_border, node_size, label_size)
+                           ring_color, ring_border, node_size, label_size,
+                           label_color = label_color,
+                           target_label_color = target_label_color,
+                           label_halo = label_halo,
+                           label_halo_color = label_halo_color,
+                           label_halo_width = label_halo_width,
+                           label_halo_alpha = label_halo_alpha)
 
   # Suppress the source/target legend when the caller has collapsed the
   # two-tone (e.g., net_association_rules, which has no source/target).

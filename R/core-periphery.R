@@ -15,16 +15,9 @@
 #'   places. Default NULL (no rounding).
 #' @param ... Additional arguments passed to \code{\link{to_igraph}}
 #'
-#' @return A list with class "cograph_core_periphery" containing:
-#' \describe{
-#'   \item{scores}{Named numeric vector of continuous coreness scores (0 =
-#'     periphery, 1 = core)}
-#'   \item{assignment}{Named character vector of "core" or "periphery" labels}
-#'   \item{fitness}{Correlation between adjacency matrix and ideal core-periphery
-#'     pattern}
-#'   \item{core_density}{Edge density within the core subgraph}
-#'   \item{periphery_density}{Edge density within the periphery subgraph}
-#' }
+#' @return A data frame with class \code{"cograph_core_periphery"} and columns
+#'   \code{node}, \code{role}, and \code{coreness}. Fitness, core density,
+#'   periphery density, and the original network are stored as attributes.
 #'
 #' @details
 #' \strong{Continuous method (Borgatti-Everett):}
@@ -294,6 +287,12 @@ core_periphery <- function(x,
 #' @return Invisible \code{x}.
 #' @method plot cograph_core_periphery
 #' @export
+#' @examples
+#' adj <- matrix(c(0,1,1,1,0, 1,0,1,1,0, 1,1,0,1,1,
+#'                 1,1,1,0,1, 0,0,1,1,0), 5, 5)
+#' rownames(adj) <- colnames(adj) <- LETTERS[1:5]
+#' cp <- cograph::core_periphery(adj)
+#' plot(cp)
 plot.cograph_core_periphery <- function(x,
                                         core_color = "#E41A1C",
                                         periphery_color = "#377EB8",

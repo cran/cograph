@@ -28,6 +28,7 @@ Apply a layout algorithm to compute node positions.
 \describe{
 \item{\strong{spring}}{Force-directed layout (Fruchterman-Reingold style).
 Good general-purpose layout. Default.}
+\item{\strong{oval}/\strong{ellipse}}{Nodes arranged around an ellipse.}
 \item{\strong{circle}}{Nodes arranged in a circle. Good for small networks
 or when structure is less important.}
 \item{\strong{groups}}{Circular layout with grouped nodes clustered together.}
@@ -35,6 +36,7 @@ or when structure is less important.}
 \item{\strong{random}}{Random positions. Useful as starting point.}
 \item{\strong{star}}{Central node with others arranged around it.}
 \item{\strong{bipartite}}{Two-column layout for bipartite networks.}
+\item{\strong{gephi}/\strong{gephi_fr}}{Gephi-style force-directed layout.}
 }
 }
 
@@ -49,23 +51,11 @@ You can also pass igraph layout functions directly or use full names like
 }
 \examples{
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), nrow = 3)
-
-# Built-in layouts
 cograph(adj) |> sn_layout("circle") |> splot()
-cograph(adj) |> sn_layout("spring") |> splot()
-
-# igraph layouts (if igraph installed)
-if (requireNamespace("igraph", quietly = TRUE)) {
-  cograph(adj) |> sn_layout("kk") |> splot()
-  cograph(adj) |> sn_layout("fr") |> splot()
-}
 
 # Custom coordinates
 coords <- matrix(c(0, 0, 1, 0, 0.5, 1), ncol = 2, byrow = TRUE)
 cograph(adj) |> sn_layout(coords) |> splot()
-
-# Direct matrix input (auto-converts)
-adj |> sn_layout("circle")
 }
 \seealso{
 \code{\link{cograph}} for network creation,

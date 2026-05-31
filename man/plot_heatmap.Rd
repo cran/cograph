@@ -43,8 +43,8 @@ plot_heatmap(
 )
 }
 \arguments{
-\item{x}{Network input: matrix, CographNetwork, tna, igraph, group_tna,
-or any object cograph accepts.}
+\item{x}{Network input: matrix, CographNetwork, cograph_network, tna,
+igraph, group_tna, or a list-like object with a \code{$weights} matrix.}
 
 \item{cluster_list}{Optional list of character vectors defining node clusters.
 Creates a block-structured heatmap with clusters along diagonal.}
@@ -58,7 +58,8 @@ Creates a block-structured heatmap with clusters along diagonal.}
 \item{legend_title}{Title for legend. Default "Weight".}
 
 \item{colors}{Color palette: vector of colors for gradient, or a palette name
-("viridis", "heat", "blues", "reds", "diverging"). Default "viridis".}
+("viridis", "heat", "blues", "reds", "greens", "diverging").
+Default "viridis".}
 
 \item{limits}{Numeric vector c(min, max) for color scale. NULL for auto.}
 
@@ -86,7 +87,8 @@ disable.}
 
 \item{show_diagonal}{Logical: show diagonal values? Default TRUE.}
 
-\item{diagonal_color}{Optional color for diagonal cells. NULL uses scale.}
+\item{diagonal_color}{Accepted for API compatibility; diagonal cells currently
+use the active fill scale unless hidden with \code{show_diagonal = FALSE}.}
 
 \item{cluster_labels}{Logical: show cluster/layer labels? Default TRUE.}
 
@@ -135,30 +137,16 @@ each element is a vector of node names belonging to that cluster. The heatmap
 will be reordered to show clusters as blocks along the diagonal.
 
 For group_tna objects (multiple separate networks), each network becomes a
-diagonal block. Off-diagonal blocks are empty (no inter-layer edges) unless
-the networks share nodes.
+diagonal block. Off-diagonal blocks are empty (no inter-layer edges).
 }
 \examples{
-\dontrun{
-# Single network
+set.seed(1)
 m <- matrix(runif(25), 5, 5)
 rownames(m) <- colnames(m) <- LETTERS[1:5]
 plot_heatmap(m)
 
-# With clusters
-clusters <- list(Group1 = c("A", "B"), Group2 = c("C", "D", "E"))
-plot_heatmap(m, cluster_list = clusters)
-
-# Custom colors and legend
-plot_heatmap(m, colors = "heat", limits = c(0, 1), show_values = TRUE)
-}
-
-\dontrun{
-# Multi-layer (group_tna) — requires tna package and sequence data
-if (requireNamespace("tna", quietly = TRUE)) {
-  mod <- tna::tna(tna::group_regulation)
-  plot_heatmap(mod)
-}
-}
+# With clusters, values, and a different colour scale
+clusters <- list(G1 = c("A","B"), G2 = c("C","D","E"))
+plot_heatmap(m, cluster_list = clusters, colors = "heat", show_values = TRUE)
 
 }

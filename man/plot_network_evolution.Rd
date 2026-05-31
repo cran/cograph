@@ -14,6 +14,7 @@ plot_network_evolution(
   ncol = NULL,
   node_size = 5,
   seed = 42,
+  combined = TRUE,
   ...
 )
 }
@@ -42,10 +43,15 @@ time values).}
 
 \item{seed}{Integer or NULL. Default 42.}
 
+\item{combined}{Logical: when TRUE (default), arrange period panels in an
+internal grid via \code{graphics::par(mfrow=...)}. Set to FALSE to draw
+into a layout the caller has already configured (e.g. via
+\code{\link{panel_layout}()}).}
+
 \item{...}{Additional arguments passed to \code{\link{splot}}.}
 }
 \value{
-Invisible list of edge-list data frames (one per panel).
+Invisible list of per-panel networks or edge-list data frames.
 }
 \description{
 Displays a network at different time points side by side. Accepts an edge
@@ -53,12 +59,11 @@ list data frame with a time column, or a pre-built list of networks.
 All panels share the same node layout for visual comparison.
 }
 \examples{
-\dontrun{
-# Edge list with time column
-edges$week <- sample(1:4, nrow(edges), replace = TRUE)
+set.seed(1)
+edges <- data.frame(
+  from = sample(LETTERS[1:5], 30, replace = TRUE),
+  to   = sample(LETTERS[1:5], 30, replace = TRUE),
+  week = sample(1:4, 30, replace = TRUE))
 cograph::plot_network_evolution(edges, time = "week")
-
-# Cumulative: edges accumulate over time
 cograph::plot_network_evolution(edges, time = "week", cumulative = TRUE)
-}
 }

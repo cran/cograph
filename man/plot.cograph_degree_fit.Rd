@@ -22,7 +22,8 @@
 \code{NULL} shows all fitted distributions.}
 
 \item{log}{Character string for log-scale axes: \code{""} (default),
-\code{"x"}, \code{"y"}, or \code{"xy"}.}
+\code{"y"}, or \code{"xy"}. Values containing \code{"x"} are accepted
+for compatibility but only filter non-positive fitted curve values.}
 
 \item{cols}{Named or unnamed character vector of colors for distribution
 curves. Default uses a built-in palette.}
@@ -40,14 +41,9 @@ Invisible \code{NULL}.
 Overlays fitted distribution curves on a histogram of observed degrees.
 }
 \examples{
-\dontrun{
-adj <- matrix(c(0, 1, 1, 0, 0,
-                1, 0, 1, 1, 0,
-                1, 1, 0, 1, 1,
-                0, 1, 1, 0, 1,
+adj <- matrix(c(0, 1, 1, 0, 0, 1, 0, 1, 1, 0,
+                1, 1, 0, 1, 1, 0, 1, 1, 0, 1,
                 0, 0, 1, 1, 0), 5, 5, byrow = TRUE)
 fit <- cograph::fit_degree_distribution(adj)
 plot(fit)
-plot(fit, which = c("exponential", "poisson"), log = "y")
-}
 }

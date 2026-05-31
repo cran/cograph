@@ -101,7 +101,6 @@ A \code{cograph_motif_analysis} object (list) containing:
 (if significance=TRUE) expected, z-score, p-value}
 \item{type_summary}{Summary counts by motif type}
 \item{params}{List of parameters used}
-\item{level}{Analysis level used}
 }
 }
 \description{
@@ -138,25 +137,21 @@ plus all triangle patterns}
 }
 
 \examples{
-# Small aggregate example — no significance test for speed
+# Small aggregate example -- no significance test for speed
 mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)
 rownames(mat) <- colnames(mat) <- c("Plan","Execute","Monitor","Adapt")
 m <- extract_motifs(mat, significance = FALSE)
 print(m)
 
+\dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 \dontrun{
-if (requireNamespace("tna", quietly = TRUE)) {
-  Mod <- tna::tna(tna::group_regulation)
-
-  # Individual-level from tna — keep n_perm tiny for example speed
-  m <- extract_motifs(Mod, top = 10, significance = TRUE,
-                      n_perm = 10L, seed = 1)
-
-  # Filter to feed-forward loops only
-  m <- extract_motifs(Mod, include_types = "030T", significance = FALSE)
+Mod <- tna::tna(tna::group_regulation)
+# Individual-level from tna -- keep n_perm tiny for example speed
+extract_motifs(Mod, top = 10, significance = TRUE, n_perm = 10L, seed = 1)
+# Filter to feed-forward loops only
+extract_motifs(Mod, include_types = "030T", significance = FALSE)
 }
-}
-
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 \code{\link[=motifs]{motifs()}}, \code{\link[=subgraphs]{subgraphs()}}, \code{\link[=extract_triads]{extract_triads()}}, \code{\link[=motif_census]{motif_census()}}

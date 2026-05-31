@@ -20,7 +20,7 @@ matrix, \code{igraph}, or \code{cograph_network}.}
 
 \item{communities}{Community assignments in any format:
 a method name (e.g., \code{"walktrap"}, \code{"louvain"}),
-a numeric membership vector (e.g., \code{c(1, 1, 2, 2, 3)}),
+a numeric or factor membership vector (e.g., \code{c(1, 1, 2, 2, 3)}),
 a named list of character vectors,
 a \code{cograph_communities} object, or
 a \code{tna_communities} object.}
@@ -44,26 +44,15 @@ Render a network with \code{\link{splot}} and overlay smooth blob
 shapes highlighting node communities.
 }
 \examples{
-\dontrun{
+set.seed(1)
 mat <- matrix(runif(25), 5, 5,
               dimnames = list(LETTERS[1:5], LETTERS[1:5]))
 diag(mat) <- 0
-overlay_communities(mat, list(g1 = c("A", "B"), g2 = c("C", "D", "E")))
-}
+overlay_communities(mat, list(g1 = c("A","B"), g2 = c("C","D","E")))
 
-if (requireNamespace("tna", quietly = TRUE)) {
-  model <- tna::tna(tna::group_regulation)
-
-  # With a named list
-  overlay_communities(model, list(
-    Regulatory = c("plan", "monitor", "adapt"),
-    Social     = c("cohesion", "emotion", "consensus"),
-    Task       = c("discuss", "synthesis", "coregulate")
-  ))
-
-  # With a cograph_communities object (infomap supports directed graphs)
-  comm <- cograph::communities(model$weights, method = "infomap")
-  overlay_communities(model, comm)
-}
-
+\dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
+model <- tna::tna(tna::group_regulation)
+comm <- cograph::communities(model$weights, method = "infomap")
+overlay_communities(model, comm)
+\dontshow{\}) # examplesIf}
 }

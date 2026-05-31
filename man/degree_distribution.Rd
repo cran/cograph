@@ -59,8 +59,9 @@ degree range is \eqn{\le 50}{<= 50}, otherwise Freedman-Diaconis).}
 to 1) instead of counts. Default FALSE.}
 
 \item{log}{Character. Axis log-scaling: "" (none, default), "x", "y", or
-"xy". For cumulative plots, "xy" produces log-log CCDF (standard for
-power-law inspection).}
+"xy". Histogram plots apply y-axis log scaling for "y" or "xy";
+cumulative plots support x, y, and xy scaling, with "xy" producing a
+log-log CCDF (standard for power-law inspection).}
 
 \item{main}{Character. Plot title. Default "Degree Distribution".}
 
@@ -80,7 +81,7 @@ power-law inspection).}
 \value{
 Invisibly returns a list with components:
 \describe{
-\item{degree}{Named integer vector of per-node degrees.}
+\item{degree}{Named numeric vector of per-node degrees.}
 \item{table}{Table of degree frequencies.}
 \item{breaks}{Breakpoints used for the histogram (non-cumulative only).}
 \item{counts}{Bin counts (non-cumulative only).}
@@ -93,34 +94,14 @@ default, bins are integer-aligned (one bar per degree value) so each bar
 maps to an exact degree.
 }
 \examples{
-# Basic usage — integer-aligned bins by default
-adj <- matrix(c(0, 1, 1, 0,
-                1, 0, 1, 1,
-                1, 1, 0, 1,
-                0, 1, 1, 0), 4, 4, byrow = TRUE)
+# Undirected network
+adj <- matrix(c(0, 1, 1, 0, 1, 0, 1, 1,
+                1, 1, 0, 1, 0, 1, 1, 0), 4, 4, byrow = TRUE)
 cograph::degree_distribution(adj)
-
-# Cumulative (CCDF)
 cograph::degree_distribution(adj, cumulative = TRUE)
 
-# Control bins
-\dontrun{
-cograph::degree_distribution(large_net, bins = 15)
-cograph::degree_distribution(large_net, bin_width = 5)
-cograph::degree_distribution(large_net, breaks = c(0, 5, 10, 20, 50, 100))
-}
-
-# For directed networks
-directed_adj <- matrix(c(0, 1, 0, 0,
-                         0, 0, 1, 0,
-                         1, 0, 0, 1,
-                         0, 1, 0, 0), 4, 4, byrow = TRUE)
-cograph::degree_distribution(directed_adj, mode = "in",
-  main = "In-Degree Distribution")
-
-# With igraph
-if (requireNamespace("igraph", quietly = TRUE)) {
-  g <- igraph::sample_gnp(100, 0.1)
-  cograph::degree_distribution(g, col = "coral")
-}
+# Directed network, in-degree
+directed_adj <- matrix(c(0, 1, 0, 0, 0, 0, 1, 0,
+                         1, 0, 0, 1, 0, 1, 0, 0), 4, 4, byrow = TRUE)
+cograph::degree_distribution(directed_adj, mode = "in")
 }

@@ -57,7 +57,11 @@ tna_color_palette <- function(n_states) {
     edge_style              = 1,
     edge_label_style        = "estimate",
     edge_label_leading_zero = FALSE,
-    edge_label_size         = 0.6,
+    # Baseline calibrated against large canvases (10"+): 0.6 produced edge
+    # weight labels that looked outsized after device-scale multiplication.
+    # 0.4 scales down to readable-small at the reference and stays
+    # proportional after multiplication at posters.
+    edge_label_size         = 0.4,
     edge_label_position     = 0.5,
     node_size               = 7,
     minimum                 = 0.01,
@@ -87,9 +91,12 @@ tna_color_palette <- function(n_states) {
 .tna_style_defaults <- function(n_nodes = NULL, directed = TRUE) {
   defaults <- list(
     layout                 = "oval",
+    edge_labels            = TRUE,
     edge_label_style       = "estimate",
     edge_label_leading_zero = FALSE,
-    edge_label_size        = 0.6,
+    # See note on psych edge_label_size above — same calibration: 0.6 was
+    # too large after device-scale multiplication at larger canvases.
+    edge_label_size        = 0.4,
     edge_color             = COGRAPH_SCALE$tna_edge_color,
     edge_label_position    = 0.7,
     node_size              = 7,
@@ -129,8 +136,9 @@ tna_color_palette <- function(n_states) {
 #' node labels, and initial state probabilities (\code{inits}) are mapped to
 #' \code{donut_fill} values to visualize starting state distributions.
 #'
-#' TNA networks are always treated as directed because transition matrices
-#' represent directional state changes.
+#' Directedness is read from the tna object when available; otherwise it is
+#' inferred from matrix symmetry. Transition matrices are usually directed,
+#' while symmetric co-occurrence matrices are treated as undirected.
 #'
 #' The default \code{donut_inner_ratio} of 0.8 creates thin rings that
 #' effectively visualize probability values without obscuring node labels.
@@ -149,13 +157,15 @@ tna_color_palette <- function(n_states) {
 #'   \item \code{layout = "oval"}: Oval/elliptical node arrangement
 #'   \item \code{node_fill}: Colors from TNA palette (Accent/Set3 based on state count)
 #'   \item \code{node_size = 7}: Larger nodes for readability
-#'   \item \code{arrow_size = 0.61}: Prominent directional arrows
+#'   \item \code{arrow_size = 0.61}: Prominent directional arrows for directed
+#'     networks
 #'   \item \code{edge_color = "#003355"}: Dark blue edges
 #'   \item \code{edge_labels = TRUE}: Show transition weights on edges
-#'   \item \code{edge_label_size = 0.6}: Readable edge labels
+#'   \item \code{edge_label_size = 0.4}: Readable edge labels
 #'   \item \code{edge_label_position = 0.7}: Labels positioned toward target
-#'   \item \code{edge_start_style = "dotted"}: Dotted line at edge source
-#'   \item \code{edge_start_length = 0.2}: 20% of edge is dotted
+#'   \item \code{edge_start_style = "dotted"}: Dotted line at edge source for
+#'     directed networks
+#'   \item \code{edge_start_length = 0.2}: 20% of directed edges are dotted
 #' }
 #'
 #' @return Invisibly, a named list of cograph parameters that can be passed to
@@ -233,8 +243,11 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
   params <- c(params, tna_defaults)
 
   # --- Apply overrides ---
+  # Use single-bracket assignment with list() so a user passing
+  # `from_tna(model, donut_fill = NULL)` actually stores NULL instead of
+  # deleting the key (R list NULL trap; see CLAUDE.md).
   for (nm in names(overrides)) {
-    params[[nm]] <- overrides[[nm]]
+    params[nm] <- list(overrides[[nm]])
   }
 
   # --- Plot ---
@@ -269,6 +282,8 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
 #'   Edges that round to zero are removed unless \code{show_zero_edges = TRUE}.
 #' @param show_zero_edges Logical. If TRUE, keep edges even if their weight rounds to
 #'   zero. Default: FALSE.
+#' @param preserve_node_size Logical. If TRUE, use the node sizes extracted
+#'   from the qgraph object. Default FALSE uses cograph's standard sizing.
 #' @param ... Override any extracted parameter. Use qgraph-style names (e.g.,
 #'   \code{minimum}) or cograph names (e.g., \code{threshold}).
 #'
@@ -281,7 +296,8 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
 #' \itemize{
 #'   \item \code{labels}/\code{names} \code{->} \code{labels}
 #'   \item \code{color} \code{->} \code{node_fill}
-#'   \item \code{width} \code{->} \code{node_size} (scaled by 1.3x)
+#'   \item \code{width} \code{->} \code{node_size} (scaled by 1.3x) when
+#'     \code{preserve_node_size = TRUE}
 #'   \item \code{shape} \code{->} \code{node_shape} (mapped to cograph equivalents)
 #'   \item \code{border.color} \code{->} \code{node_border_color}
 #'   \item \code{border.width} \code{->} \code{node_border_width}
@@ -354,7 +370,8 @@ from_tna <- function(tna_object, engine = c("splot", "soplot"), plot = TRUE,
 #'
 #' @export
 from_qgraph <- function(qgraph_object, engine = c("splot", "soplot"), plot = TRUE,
-                         weight_digits = 2, show_zero_edges = FALSE, ...) {
+                         weight_digits = 2, show_zero_edges = FALSE,
+                         preserve_node_size = FALSE, ...) {
   engine <- match.arg(engine)
 
   if (!inherits(qgraph_object, "qgraph") && is.null(qgraph_object$Arguments)) {
@@ -394,7 +411,16 @@ from_qgraph <- function(qgraph_object, engine = c("splot", "soplot"), plot = TRU
   if (!is.null(ga_nodes$labels))       params$labels            <- ga_nodes$labels
   else if (!is.null(ga_nodes$names))   params$labels            <- ga_nodes$names # nocov
   if (!is.null(ga_nodes$color))        params$node_fill         <- ga_nodes$color
-  if (!is.null(ga_nodes$width))        params$node_size         <- ga_nodes$width * 1.3
+  # qgraph's per-node `width` values are only ported over when the caller
+  # explicitly opts in. Historically this override wrote the translated
+  # qgraph width into `node_size` unconditionally, which made identical
+  # data plotted through splot vs. from_qgraph render at visibly
+  # different sizes. With preserve_node_size = FALSE (new default),
+  # imported networks use cograph's standard default node size — for
+  # cross-package visual consistency.
+  if (isTRUE(preserve_node_size) && !is.null(ga_nodes$width)) {
+    params$node_size <- ga_nodes$width * 1.3
+  }
   if (!is.null(ga_nodes$shape))        params$node_shape        <- map_qgraph_shape(ga_nodes$shape)
   if (!is.null(ga_nodes$border.color)) params$node_border_color <- ga_nodes$border.color
   if (!is.null(ga_nodes$border.width)) params$node_border_width <- ga_nodes$border.width
@@ -474,9 +500,11 @@ from_qgraph <- function(qgraph_object, engine = c("splot", "soplot"), plot = TRU
   # --- Apply overrides (user can override anything) ---
   # Map qgraph-style parameter names to cograph equivalents
   qgraph_to_cograph <- c(minimum = "threshold", cut = "edge_cutoff")
+  # Single-bracket assignment with list() so explicit NULL overrides actually
+  # land as NULL instead of deleting the key (R list NULL trap; see CLAUDE.md).
   for (nm in names(overrides)) {
     cograph_nm <- if (nm %in% names(qgraph_to_cograph)) qgraph_to_cograph[[nm]] else nm
-    params[[cograph_nm]] <- overrides[[nm]]
+    params[cograph_nm] <- list(overrides[[nm]])
   }
   # If user overrides layout, remove rescale=FALSE so cograph rescales properly
   if ("layout" %in% names(overrides)) {
