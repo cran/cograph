@@ -52,11 +52,12 @@ top3 <- select_nodes(mat, top = 3, by = "betweenness")
 get_labels(top3)
 
 ## -----------------------------------------------------------------------------
-centrality(mat, measures = c("degree", "betweenness", "pagerank"))
+data(student_interactions)
+centrality(student_interactions)
 
 ## -----------------------------------------------------------------------------
-centrality_degree(mat)
-centrality_pagerank(mat)
+centrality_degree(student_interactions)
+centrality_pagerank(student_interactions)
 
 ## -----------------------------------------------------------------------------
 network_summary(mat)

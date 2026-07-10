@@ -1,0 +1,2156 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Centrality catalogue</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Centrality catalogue</h1>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#how-to-read-this-catalogue" id="toc-how-to-read-this-catalogue">How to read this catalogue</a></li>
+<li><a href="#catalogue-index" id="toc-catalogue-index">Catalogue
+index</a></li>
+<li><a href="#degree-strength-and-local-connectivity" id="toc-degree-strength-and-local-connectivity">Degree, strength and
+local connectivity</a></li>
+<li><a href="#distance-and-closeness" id="toc-distance-and-closeness">Distance and closeness</a></li>
+<li><a href="#shortest-path-brokerage-and-flow" id="toc-shortest-path-brokerage-and-flow">Shortest-path brokerage and
+flow</a></li>
+<li><a href="#spectral-walk-and-influence" id="toc-spectral-walk-and-influence">Spectral, walk and
+influence</a></li>
+<li><a href="#neighbourhood-structure-and-cohesion" id="toc-neighbourhood-structure-and-cohesion">Neighbourhood structure
+and cohesion</a></li>
+<li><a href="#directed-prestige-and-hierarchy" id="toc-directed-prestige-and-hierarchy">Directed prestige and
+hierarchy</a></li>
+<li><a href="#community-and-group-based" id="toc-community-and-group-based">Community and group-based</a></li>
+<li><a href="#argument-catalogue" id="toc-argument-catalogue">Argument
+catalogue</a></li>
+</ul>
+</div>
+
+<style type="text/css">
+.cg-fam-index { line-height: 1.7; }
+.cg-fam-index p { margin: 0.15em 0 0.9em 0; }
+h3 code { font-size: 0.92em; }
+table.cg-argtable td, table.cg-argtable th { padding: 4px 8px; }
+</style>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(cograph)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">data</span>(student_interactions)</span></code></pre></div>
+<p>A centrality is a <strong>node-level</strong> statistic: it assigns
+every node a single number that summarises some aspect of its position
+in the network — how many ties it has, how short its paths to others
+are, how often it sits between other nodes, or how it participates in
+the network’s global structure. Centralities describe
+<strong>nodes</strong>, not edges or whole graphs, and they are the most
+widely used way to compare the relative prominence of actors within a
+network.</p>
+<p><code>cograph</code> ships the <strong>widest collection of node
+centrality measures available in R — 99 in total</strong> — spanning
+degree and strength, distance and closeness, shortest-path brokerage,
+spectral and walk-based influence, neighbourhood cohesion, directed
+prestige, and community/group-based roles. Every measure is
+<strong>equivalence-validated</strong>: its output is checked
+numerically against an established reference implementation
+(<code>igraph</code>, <code>sna</code>, <code>centiserve</code>,
+<code>brainGraph</code>, <code>influenceR</code>,
+<code>tidygraph</code>, and NetworkX via <code>reticulate</code>), so
+values match the canonical definitions to within documented
+tolerances.</p>
+<p><code>student_interactions</code> is a built-in edge-list dataset of
+observed student interactions. It can be passed to
+<code>centrality()</code> directly. The single verb
+<code>centrality()</code> is the recommended entry point: it returns a
+tidy one-row-per-node <code>data.frame</code> and accepts an argument
+for every tuning knob (see the <a href="#argument-catalogue">argument
+catalogue</a> below).</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions)</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="co">#&gt;    node degree_all strength_all closeness_all betweenness  eigenvector</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a><span class="co">#&gt; 1    Ac         33          129    0.01754386   26.342857 1.000000e+00</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt; 2    Ad         20           36    0.01754386   42.541520 1.096110e-01</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; 3    Fi         24           51    0.01666667   35.721634 1.789565e-01</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; 4    Ik         14           24    0.01666667   25.844874 1.551369e-02</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt; 5    Vx         26           43    0.01960784   90.717124 7.238902e-02</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt; 6    Rt         20           37    0.01785714   63.135739 1.159931e-01</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="co">#&gt; 7    Km         11           16    0.01639344   18.175108 2.804725e-02</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a><span class="co">#&gt; 8    Gj         19           31    0.01818182  114.599049 3.265786e-02</span></span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a><span class="co">#&gt; 9    Bd         12           18    0.01612903   21.769264 9.607736e-03</span></span>
+<span id="cb2-12"><a href="#cb2-12" tabindex="-1"></a><span class="co">#&gt; 10   Ce         10           13    0.01612903   16.648629 4.473504e-03</span></span>
+<span id="cb2-13"><a href="#cb2-13" tabindex="-1"></a><span class="co">#&gt; 11   Oq         14           20    0.01754386   34.151726 2.293068e-02</span></span>
+<span id="cb2-14"><a href="#cb2-14" tabindex="-1"></a><span class="co">#&gt; 12   Ya         13           19    0.01612903   18.216122 1.758656e-02</span></span>
+<span id="cb2-15"><a href="#cb2-15" tabindex="-1"></a><span class="co">#&gt; 13   Mo         12           17    0.01587302   38.264502 1.003629e-01</span></span>
+<span id="cb2-16"><a href="#cb2-16" tabindex="-1"></a><span class="co">#&gt; 14   Hj         12           19    0.01754386   85.816522 2.013125e-02</span></span>
+<span id="cb2-17"><a href="#cb2-17" tabindex="-1"></a><span class="co">#&gt; 15   Tv         10           13    0.01666667   25.916306 1.320877e-02</span></span>
+<span id="cb2-18"><a href="#cb2-18" tabindex="-1"></a><span class="co">#&gt; 16   Eg         10           12    0.01639344   22.335171 5.783916e-03</span></span>
+<span id="cb2-19"><a href="#cb2-19" tabindex="-1"></a><span class="co">#&gt; 17   Pr         11           18    0.01666667   23.974060 7.602231e-02</span></span>
+<span id="cb2-20"><a href="#cb2-20" tabindex="-1"></a><span class="co">#&gt; 18   Qs         15           19    0.01785714   76.910851 1.511764e-02</span></span>
+<span id="cb2-21"><a href="#cb2-21" tabindex="-1"></a><span class="co">#&gt; 19   Xz         14           18    0.01639344   22.280159 8.533484e-03</span></span>
+<span id="cb2-22"><a href="#cb2-22" tabindex="-1"></a><span class="co">#&gt; 20   Np          8            8    0.01666667   12.044048 1.549052e-02</span></span>
+<span id="cb2-23"><a href="#cb2-23" tabindex="-1"></a><span class="co">#&gt; 21   Dg         13           13    0.01886792   29.240901 6.260099e-03</span></span>
+<span id="cb2-24"><a href="#cb2-24" tabindex="-1"></a><span class="co">#&gt; 22   Hk         16           25    0.01818182   72.176441 1.201845e-01</span></span>
+<span id="cb2-25"><a href="#cb2-25" tabindex="-1"></a><span class="co">#&gt; 23   Wy         11           16    0.01639344   34.014358 1.054705e-03</span></span>
+<span id="cb2-26"><a href="#cb2-26" tabindex="-1"></a><span class="co">#&gt; 24   Jl         15           18    0.01818182   67.359085 5.009801e-02</span></span>
+<span id="cb2-27"><a href="#cb2-27" tabindex="-1"></a><span class="co">#&gt; 25   Fh         21           55    0.01818182   78.588877 2.817489e-01</span></span>
+<span id="cb2-28"><a href="#cb2-28" tabindex="-1"></a><span class="co">#&gt; 26   Zb          7            8    0.01538462    9.583333 5.429715e-05</span></span>
+<span id="cb2-29"><a href="#cb2-29" tabindex="-1"></a><span class="co">#&gt; 27   Eh          7           13    0.01428571   34.325000 1.163185e-03</span></span>
+<span id="cb2-30"><a href="#cb2-30" tabindex="-1"></a><span class="co">#&gt; 28   Be         14           16    0.01851852  105.250898 2.203252e-03</span></span>
+<span id="cb2-31"><a href="#cb2-31" tabindex="-1"></a><span class="co">#&gt; 29   Df          8           10    0.01562500   11.026190 4.800876e-06</span></span>
+<span id="cb2-32"><a href="#cb2-32" tabindex="-1"></a><span class="co">#&gt; 30   Cf         12           15    0.01724138  119.109163 1.243207e-02</span></span>
+<span id="cb2-33"><a href="#cb2-33" tabindex="-1"></a><span class="co">#&gt; 31   Su          6            9    0.01369863   33.154401 1.028472e-04</span></span>
+<span id="cb2-34"><a href="#cb2-34" tabindex="-1"></a><span class="co">#&gt; 32   Ln          7            8    0.01408451    5.749708 1.376854e-02</span></span>
+<span id="cb2-35"><a href="#cb2-35" tabindex="-1"></a><span class="co">#&gt; 33   Gi          3            4    0.01351351    0.000000 0.000000e+00</span></span>
+<span id="cb2-36"><a href="#cb2-36" tabindex="-1"></a><span class="co">#&gt; 34   Uw          4            7    0.01250000    0.000000 0.000000e+00</span></span>
+<span id="cb2-37"><a href="#cb2-37" tabindex="-1"></a><span class="co">#&gt;       pagerank</span></span>
+<span id="cb2-38"><a href="#cb2-38" tabindex="-1"></a><span class="co">#&gt; 1  0.285861728</span></span>
+<span id="cb2-39"><a href="#cb2-39" tabindex="-1"></a><span class="co">#&gt; 2  0.052985644</span></span>
+<span id="cb2-40"><a href="#cb2-40" tabindex="-1"></a><span class="co">#&gt; 3  0.077591140</span></span>
+<span id="cb2-41"><a href="#cb2-41" tabindex="-1"></a><span class="co">#&gt; 4  0.024836857</span></span>
+<span id="cb2-42"><a href="#cb2-42" tabindex="-1"></a><span class="co">#&gt; 5  0.057364714</span></span>
+<span id="cb2-43"><a href="#cb2-43" tabindex="-1"></a><span class="co">#&gt; 6  0.042552472</span></span>
+<span id="cb2-44"><a href="#cb2-44" tabindex="-1"></a><span class="co">#&gt; 7  0.016655998</span></span>
+<span id="cb2-45"><a href="#cb2-45" tabindex="-1"></a><span class="co">#&gt; 8  0.025444498</span></span>
+<span id="cb2-46"><a href="#cb2-46" tabindex="-1"></a><span class="co">#&gt; 9  0.014321668</span></span>
+<span id="cb2-47"><a href="#cb2-47" tabindex="-1"></a><span class="co">#&gt; 10 0.010679742</span></span>
+<span id="cb2-48"><a href="#cb2-48" tabindex="-1"></a><span class="co">#&gt; 11 0.016087378</span></span>
+<span id="cb2-49"><a href="#cb2-49" tabindex="-1"></a><span class="co">#&gt; 12 0.016588876</span></span>
+<span id="cb2-50"><a href="#cb2-50" tabindex="-1"></a><span class="co">#&gt; 13 0.031180263</span></span>
+<span id="cb2-51"><a href="#cb2-51" tabindex="-1"></a><span class="co">#&gt; 14 0.019051413</span></span>
+<span id="cb2-52"><a href="#cb2-52" tabindex="-1"></a><span class="co">#&gt; 15 0.012644206</span></span>
+<span id="cb2-53"><a href="#cb2-53" tabindex="-1"></a><span class="co">#&gt; 16 0.010425091</span></span>
+<span id="cb2-54"><a href="#cb2-54" tabindex="-1"></a><span class="co">#&gt; 17 0.022794289</span></span>
+<span id="cb2-55"><a href="#cb2-55" tabindex="-1"></a><span class="co">#&gt; 18 0.019784870</span></span>
+<span id="cb2-56"><a href="#cb2-56" tabindex="-1"></a><span class="co">#&gt; 19 0.013229134</span></span>
+<span id="cb2-57"><a href="#cb2-57" tabindex="-1"></a><span class="co">#&gt; 20 0.008466679</span></span>
+<span id="cb2-58"><a href="#cb2-58" tabindex="-1"></a><span class="co">#&gt; 21 0.010345027</span></span>
+<span id="cb2-59"><a href="#cb2-59" tabindex="-1"></a><span class="co">#&gt; 22 0.040383192</span></span>
+<span id="cb2-60"><a href="#cb2-60" tabindex="-1"></a><span class="co">#&gt; 23 0.009067435</span></span>
+<span id="cb2-61"><a href="#cb2-61" tabindex="-1"></a><span class="co">#&gt; 24 0.020529375</span></span>
+<span id="cb2-62"><a href="#cb2-62" tabindex="-1"></a><span class="co">#&gt; 25 0.070538086</span></span>
+<span id="cb2-63"><a href="#cb2-63" tabindex="-1"></a><span class="co">#&gt; 26 0.005635780</span></span>
+<span id="cb2-64"><a href="#cb2-64" tabindex="-1"></a><span class="co">#&gt; 27 0.010080122</span></span>
+<span id="cb2-65"><a href="#cb2-65" tabindex="-1"></a><span class="co">#&gt; 28 0.009378924</span></span>
+<span id="cb2-66"><a href="#cb2-66" tabindex="-1"></a><span class="co">#&gt; 29 0.004957518</span></span>
+<span id="cb2-67"><a href="#cb2-67" tabindex="-1"></a><span class="co">#&gt; 30 0.017877547</span></span>
+<span id="cb2-68"><a href="#cb2-68" tabindex="-1"></a><span class="co">#&gt; 31 0.005136500</span></span>
+<span id="cb2-69"><a href="#cb2-69" tabindex="-1"></a><span class="co">#&gt; 32 0.007628879</span></span>
+<span id="cb2-70"><a href="#cb2-70" tabindex="-1"></a><span class="co">#&gt; 33 0.005483193</span></span>
+<span id="cb2-71"><a href="#cb2-71" tabindex="-1"></a><span class="co">#&gt; 34 0.004411765</span></span></code></pre></div>
+<p>Pass <code>type = &quot;all&quot;</code> to compute every measure at once,
+<code>measures = c(...)</code> to pick a subset, <code>digits =</code>
+to round, and <code>sort_by =</code> to order the result.</p>
+<div id="how-to-read-this-catalogue" class="section level2">
+<h2>How to read this catalogue</h2>
+<p>Every measure below is documented with four fields:</p>
+<ul>
+<li><strong>Concept</strong> — what the measure captures, in words.</li>
+<li><strong>Definition</strong> — the formula, faithful to what
+<code>cograph</code> actually computes (verified against the package
+source, which is occasionally normalised differently from a textbook
+statement).</li>
+<li><strong>Meaning</strong> — how to read a high (or low) value.</li>
+<li><strong>Example</strong> and <strong>Equivalence reference</strong>
+— a runnable call and the external implementation it is validated
+against.</li>
+</ul>
+<div id="notation" class="section level3">
+<h3>Notation</h3>
+<p>Throughout, <span class="math inline">\(G = (V, E)\)</span> is a
+graph with <span class="math inline">\(n = |V|\)</span> nodes and
+adjacency matrix <span class="math inline">\(A = (a_{ij})\)</span>;
+<span class="math inline">\(w_{ij}\)</span> are edge weights, <span class="math inline">\(N(v)\)</span> is the neighbour set of <span class="math inline">\(v\)</span>, <span class="math inline">\(k_v =
+|N(v)|\)</span> its degree, and <span class="math inline">\(s(v) =
+\sum_u w_{vu}\)</span> its strength. We write <span class="math inline">\(d(u, v)\)</span> for the shortest-path distance,
+<span class="math inline">\(\Delta\)</span> for the graph diameter, and
+<span class="math inline">\(\sigma_{st}\)</span> (resp. <span class="math inline">\(\sigma_{st}(v)\)</span>) for the number of
+shortest <span class="math inline">\(s\)</span>–<span class="math inline">\(t\)</span> paths (resp. those passing through
+<span class="math inline">\(v\)</span>). <span class="math inline">\(L =
+D - A\)</span> is the graph Laplacian and <span class="math inline">\(\mathbf{1}\)</span> the all-ones vector.</p>
+</div>
+</div>
+<div id="catalogue-index" class="section level2">
+<h2>Catalogue index</h2>
+<div class="cg-fam-index">
+<p><strong>Degree, strength and local connectivity</strong></p>
+<p><a href="#cent-degree">Degree Centrality</a> · <a href="#cent-indegree">Indegree Centrality</a> · <a href="#cent-outdegree">Outdegree Centrality</a> · <a href="#cent-strength">Strength Centrality</a> · <a href="#cent-instrength">Instrength Centrality</a> · <a href="#cent-outstrength">Outstrength Centrality</a> · <a href="#cent-expected">Expected Centrality</a> · <a href="#cent-leverage">Leverage Centrality</a> · <a href="#cent-lobby">Lobby Centrality</a> · <a href="#cent-hindex_strength">H-Index Strength Centrality</a> · <a href="#cent-local_hindex">Local H-Index Centrality</a> · <a href="#cent-semilocal">Semi-Local Centrality</a> · <a href="#cent-clusterrank">ClusterRank Centrality</a> · <a href="#cent-collective_influence">Collective Influence Centrality</a> ·
+<a href="#cent-mnc">MNC Centrality</a> · <a href="#cent-dmnc">DMNC
+Centrality</a> · <a href="#cent-lac">LAC Centrality</a> · <a href="#cent-gravity">Gravity Centrality</a></p>
+<p><strong>Distance and closeness</strong></p>
+<p><a href="#cent-closeness">Closeness Centrality</a> · <a href="#cent-incloseness">Incloseness Centrality</a> · <a href="#cent-outcloseness">Outcloseness Centrality</a> · <a href="#cent-harmonic">Harmonic Centrality</a> · <a href="#cent-inharmonic">Inharmonic Centrality</a> · <a href="#cent-outharmonic">Outharmonic Centrality</a> · <a href="#cent-residual_closeness">Residual Closeness Centrality</a> · <a href="#cent-dangalchev">Dangalchev Closeness Centrality</a> · <a href="#cent-generalized_closeness">Generalized Closeness Centrality</a>
+· <a href="#cent-harary">Harary Centrality</a> · <a href="#cent-average_distance">Average Distance Centrality</a> · <a href="#cent-barycenter">Barycenter Centrality</a> · <a href="#cent-wiener">Wiener Centrality</a> · <a href="#cent-lin">Lin
+Centrality</a> · <a href="#cent-decay">Decay Centrality</a> · <a href="#cent-radiality">Radiality Centrality</a> · <a href="#cent-gilschmidt">Gil-Schmidt Centrality</a> · <a href="#cent-integration">Integration Centrality</a> · <a href="#cent-eccentricity">Eccentricity Centrality</a> · <a href="#cent-ineccentricity">Ineccentricity Centrality</a> · <a href="#cent-outeccentricity">Outeccentricity Centrality</a> · <a href="#cent-closeness_vitality">Closeness Vitality</a> · <a href="#cent-entropy">Entropy Centrality</a> · <a href="#cent-centroid">Centroid Centrality</a></p>
+<p><strong>Shortest-path brokerage and flow</strong></p>
+<p><a href="#cent-betweenness">Betweenness Centrality</a> · <a href="#cent-stress">Stress Centrality</a> · <a href="#cent-load">Load
+Centrality</a> · <a href="#cent-bottleneck">Bottleneck Centrality</a> ·
+<a href="#cent-bridging">Bridging Centrality</a> · <a href="#cent-local_bridging">Local Bridging Centrality</a> · <a href="#cent-percolation">Percolation Centrality</a> · <a href="#cent-flow_betweenness">Flow Betweenness Centrality</a> · <a href="#cent-current_flow_betweenness">Current-Flow Betweenness
+Centrality</a> · <a href="#cent-current_flow_closeness">Current-Flow
+Closeness Centrality</a></p>
+<p><strong>Spectral, walk and influence</strong></p>
+<p><a href="#cent-eigenvector">Eigenvector Centrality</a> · <a href="#cent-pagerank">PageRank Centrality</a> · <a href="#cent-authority">Authority Centrality</a> · <a href="#cent-hub">Hub Centrality</a> · <a href="#cent-salsa">SALSA
+Centrality</a> · <a href="#cent-leaderrank">LeaderRank Centrality</a> ·
+<a href="#cent-alpha">Alpha Centrality</a> · <a href="#cent-power">Bonacich Power Centrality</a> · <a href="#cent-katz">Katz Centrality</a> · <a href="#cent-hubbell">Hubbell
+Centrality</a> · <a href="#cent-subgraph">Subgraph Centrality</a> · <a href="#cent-laplacian">Laplacian Centrality</a> · <a href="#cent-communicability">Communicability Centrality</a> · <a href="#cent-communicability_betweenness">Communicability Betweenness
+Centrality</a> · <a href="#cent-random_walk">Random Walk Centrality</a>
+· <a href="#cent-markov">Markov Centrality</a> · <a href="#cent-second_order">Second-Order Centrality</a> · <a href="#cent-information">Information Centrality</a> · <a href="#cent-nonbacktracking">Nonbacktracking Centrality</a> · <a href="#cent-diffusion">Diffusion Centrality</a> · <a href="#cent-infection">Infection Centrality</a> · <a href="#cent-voterank">VoteRank Centrality</a> · <a href="#cent-expected_influence_1">Expected Influence 1-Step</a> · <a href="#cent-expected_influence_2">Expected Influence 2-Step</a> · <a href="#cent-spanning_tree">Spanning Tree Centrality</a></p>
+<p><strong>Neighbourhood structure and cohesion</strong></p>
+<p><a href="#cent-transitivity">Transitivity Centrality</a> · <a href="#cent-constraint">Constraint Centrality</a> · <a href="#cent-effective_size">Effective Size Centrality</a> · <a href="#cent-topological_coefficient">Topological Coefficient
+Centrality</a> · <a href="#cent-diversity">Diversity Centrality</a> · <a href="#cent-cross_clique">Cross-Clique Centrality</a> · <a href="#cent-coreness">Coreness Centrality</a> · <a href="#cent-onion">Onion Centrality</a> · <a href="#cent-kreach">K-Reach
+Centrality</a></p>
+<p><strong>Directed prestige and hierarchy</strong></p>
+<p><a href="#cent-prestige_domain">Prestige Domain Centrality</a> · <a href="#cent-prestige_domain_proximity">Prestige Domain Proximity
+Centrality</a> · <a href="#cent-reaching_local">Local Reaching
+Centrality</a> · <a href="#cent-pairwisedis">Pairwise Disconnectivity
+Centrality</a> · <a href="#cent-trophic_level">Trophic Level
+Centrality</a></p>
+<p><strong>Community and group-based</strong></p>
+<p><a href="#cent-participation">Participation Coefficient</a> · <a href="#cent-within_module_z">Within-Module Z Centrality</a> · <a href="#cent-gateway">Gateway Centrality</a> · <a href="#cent-brokerage_coordinator">Brokerage Coordinator Centrality</a>
+· <a href="#cent-brokerage_itinerant">Brokerage Itinerant Centrality</a>
+· <a href="#cent-brokerage_representative">Brokerage Representative
+Centrality</a> · <a href="#cent-brokerage_gatekeeper">Brokerage
+Gatekeeper Centrality</a> · <a href="#cent-brokerage_liaison">Brokerage
+Liaison Centrality</a></p>
+</div>
+</div>
+<div id="degree-strength-and-local-connectivity" class="section level2">
+<h2>Degree, strength and local connectivity</h2>
+<div id="cent-degree" class="section level3">
+<h3>Degree Centrality</h3>
+<p>Degree centrality counts the number of direct ties incident on a
+node. In directed graphs, it can be separated into incoming and outgoing
+ties.</p>
+<p><span class="math display">\[
+C_D(v) = \sum_{u \in V} a_{vu} = k_v
+\]</span></p>
+<p><strong>Meaning.</strong> A high degree value indicates many direct
+observed connections. It is a local connectivity measure and does not
+imply brokerage or global reach.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">centrality_degree</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::degree()</code> under matching <code>mode</code> and loop
+settings.</p>
+</div>
+<div id="cent-indegree" class="section level3">
+<h3>Indegree Centrality</h3>
+<p>Indegree counts ties pointing into a node under a directed
+interpretation.</p>
+<p><span class="math display">\[
+k_v^{\mathrm{in}} = \sum_{u \in V} a_{uv}
+\]</span></p>
+<p><strong>Meaning.</strong> A high indegree value indicates many
+incoming observed ties. Its substantive meaning depends on what edge
+direction represents.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="fu">centrality_indegree</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::degree(mode = &quot;in&quot;)</code>.</p>
+</div>
+<div id="cent-outdegree" class="section level3">
+<h3>Outdegree Centrality</h3>
+<p>Outdegree counts ties leaving a node under a directed
+interpretation.</p>
+<p><span class="math display">\[
+k_v^{\mathrm{out}} = \sum_{u \in V} a_{vu}
+\]</span></p>
+<p><strong>Meaning.</strong> A high outdegree value indicates many
+outgoing observed ties. In transition networks, this can mean many
+possible next states.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">centrality_outdegree</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::degree(mode = &quot;out&quot;)</code>.</p>
+</div>
+<div id="cent-strength" class="section level3">
+<h3>Strength Centrality</h3>
+<p>Strength centrality is weighted degree: it sums edge weights instead
+of counting edges.</p>
+<p><span class="math display">\[
+s(v) = \sum_{u \in V} w_{vu}
+\]</span></p>
+<p><strong>Meaning.</strong> A high strength value indicates high total
+incident edge weight. This should be interpreted according to how
+weights were defined.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="fu">centrality_strength</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::strength()</code> when weights are supplied.</p>
+</div>
+<div id="cent-instrength" class="section level3">
+<h3>Instrength Centrality</h3>
+<p>Instrength sums incoming edge weights.</p>
+<p><span class="math display">\[
+s^{\mathrm{in}}(v) = \sum_{u \in V} w_{uv}
+\]</span></p>
+<p><strong>Meaning.</strong> A high instrength value indicates high
+total incoming weight. It is a weighted incoming-connectivity
+measure.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">centrality_instrength</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::strength(mode = &quot;in&quot;)</code>.</p>
+</div>
+<div id="cent-outstrength" class="section level3">
+<h3>Outstrength Centrality</h3>
+<p>Outstrength sums outgoing edge weights.</p>
+<p><span class="math display">\[
+s^{\mathrm{out}}(v) = \sum_{u \in V} w_{vu}
+\]</span></p>
+<p><strong>Meaning.</strong> A high outstrength value indicates high
+total outgoing weight. It does not show whether that weight is
+concentrated or distributed.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a><span class="fu">centrality_outstrength</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::strength(mode = &quot;out&quot;)</code>.</p>
+</div>
+<div id="cent-expected" class="section level3">
+<h3>Expected Centrality</h3>
+<p>Expected centrality sums the degrees of a node’s neighbours.</p>
+<p><span class="math display">\[
+C_{\mathrm{exp}}(v) = \sum_{u \in N(v)} k_u
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates adjacency to
+well-connected nodes.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">centrality_expected</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented as a native
+neighbourhood centrality in <code>cograph</code>.</p>
+</div>
+<div id="cent-leverage" class="section level3">
+<h3>Leverage Centrality</h3>
+<p>Leverage centrality compares a node’s degree with the degrees of its
+neighbours.</p>
+<p><span class="math display">\[
+\ell(v) = \frac{1}{k_v} \sum_{u \in N(v)} \frac{k_v - k_u}{k_v + k_u}
+\]</span></p>
+<p><strong>Meaning.</strong> A positive high value indicates that the
+node is more connected than its neighbours under this degree
+comparison.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a><span class="fu">centrality_leverage</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::leverage()</code>.</p>
+</div>
+<div id="cent-lobby" class="section level3">
+<h3>Lobby Centrality</h3>
+<p>Lobby centrality is the h-index of neighbour degrees.</p>
+<p><span class="math display">\[
+h(v) = \max\bigl\{ h : |\{ u \in \{v\} \cup N(v) : k_u \ge h \}| \ge h
+\bigr\}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates many neighbours that
+themselves have reasonably high degree.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">centrality_lobby</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::lobby()</code>.</p>
+</div>
+<div id="cent-hindex_strength" class="section level3">
+<h3>H-Index Strength Centrality</h3>
+<p>H-index strength is a weighted h-index-style neighbourhood
+measure.</p>
+<p><span class="math display">\[
+h_s(v) = \max\bigl\{ h : |\{ u \in \{v\} \cup N(v) : s(u) \ge h \}| \ge
+h \bigr\}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates strong ties to
+neighbours meeting a weighted connectivity threshold.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;hindex_strength&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to lobby
+centrality on unweighted graphs in package tests.</p>
+</div>
+<div id="cent-local_hindex" class="section level3">
+<h3>Local H-Index Centrality</h3>
+<p>Local h-index centrality iteratively applies h-index logic to local
+neighbourhoods.</p>
+<p><span class="math display">\[
+h^{(t+1)}(v) = \mathcal{H}\bigl(\{ h^{(t)}(u) : u \in N(v) \}\bigr),
+\quad h^{(0)}(v) = k_v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a locally robust
+neighbourhood position under the h-index updating rule.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;local_hindex&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented following local
+h-index centrality formulations and checked in package tests.</p>
+</div>
+<div id="cent-semilocal" class="section level3">
+<h3>Semi-Local Centrality</h3>
+<p>Semi-local centrality extends degree-like counting beyond immediate
+neighbours.</p>
+<p><span class="math display">\[
+C_{SL}(v) = \sum_{u \in N(v)} \sum_{w \in N(u)} \bigl| \{\, x : d(w, x)
+\le 2 \,\} \bigr|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates proximity to a
+locally well-connected neighbourhood.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">centrality_semilocal</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::semilocal()</code>.</p>
+</div>
+<div id="cent-clusterrank" class="section level3">
+<h3>ClusterRank Centrality</h3>
+<p>ClusterRank combines neighbour degree information with local
+clustering.</p>
+<p><span class="math display">\[
+C_{CR}(v) = c(v) \sum_{u \in N(v)} \bigl( k_u + 1 \bigr), \quad c(v) =
+\text{local clustering coefficient}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates local connectedness
+adjusted for clustering-related redundancy.</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">centrality_clusterrank</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::clusterrank()</code>.</p>
+</div>
+<div id="cent-collective_influence" class="section level3">
+<h3>Collective Influence Centrality</h3>
+<p>Collective influence combines a node’s excess degree with excess
+degree on a local boundary.</p>
+<p><span class="math display">\[
+\mathrm{CI}_\ell(v) = (k_v - 1) \sum_{u \,\in\, \partial B(v, \ell)}
+(k_u - 1), \quad \ell = 2
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates potential importance
+under the collective influence model.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;collective_influence&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Morone and Makse’s
+collective influence formulation.</p>
+</div>
+<div id="cent-mnc" class="section level3">
+<h3>MNC Centrality</h3>
+<p>Maximum neighbourhood component centrality is the size of the largest
+connected component in a node’s neighbourhood.</p>
+<p><span class="math display">\[
+\mathrm{MNC}(v) = \max_{C \,\in\, \mathcal{C}(G[N(v)])} |C|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that many neighbours
+belong to one connected local component.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="fu">centrality_mnc</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::mnc()</code>.</p>
+</div>
+<div id="cent-dmnc" class="section level3">
+<h3>DMNC Centrality</h3>
+<p>DMNC is a density-adjusted version of maximum neighbourhood component
+centrality.</p>
+<p><span class="math display">\[
+\mathrm{DMNC}(v) = \frac{E_c}{N_c^{\,\varepsilon}}, \quad \varepsilon =
+1.7
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a large and dense
+local neighbour component under the chosen density exponent. Here <span class="math inline">\(E_c\)</span> and <span class="math inline">\(N_c\)</span> are the edges and nodes of the
+largest component of <span class="math inline">\(G[N(v)]\)</span>.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" tabindex="-1"></a><span class="fu">centrality_dmnc</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::dmnc()</code>.</p>
+</div>
+<div id="cent-lac" class="section level3">
+<h3>LAC Centrality</h3>
+<p>LAC, or local average connectivity, measures connectivity in a node’s
+neighbourhood.</p>
+<p><span class="math display">\[
+\mathrm{LAC}(v) = \frac{1}{k_v} \sum_{u \in N(v)} \deg_{G[N(v)]}(u)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the node’s
+neighbours form a relatively connected local structure.</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="fu">centrality_lac</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to
+CytoHubba-style local average connectivity.</p>
+</div>
+<div id="cent-gravity" class="section level3">
+<h3>Gravity Centrality</h3>
+<p>Gravity centrality treats node degree or mass as attracting over
+graph distance.</p>
+<p><span class="math display">\[
+G(v) = \sum_{u \ne v,\; d(u,v) &lt; \infty} \frac{k_u \cdot ks(u)}{d(u,
+v)^2}, \quad ks = \text{k-shell}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates proximity to
+high-degree nodes under the gravity formula.</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;gravity&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Formula verified in package
+tests against the degree-mass-over-distance definition.</p>
+</div>
+</div>
+<div id="distance-and-closeness" class="section level2">
+<h2>Distance and closeness</h2>
+<div id="cent-closeness" class="section level3">
+<h3>Closeness Centrality</h3>
+<p>Closeness centrality summarises how short a node’s paths are to other
+reachable nodes.</p>
+<p><span class="math display">\[
+C_C(v) = \frac{1}{\sum_{u \ne v} d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates short graph
+distances to other nodes. In disconnected graphs, harmonic centrality
+may be easier to interpret.</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="fu">centrality_closeness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::closeness()</code> under matching <code>mode</code> and
+weight settings.</p>
+</div>
+<div id="cent-incloseness" class="section level3">
+<h3>Incloseness Centrality</h3>
+<p>Incloseness computes closeness over incoming directed paths.</p>
+<p><span class="math display">\[
+C_C^{\mathrm{in}}(v) = \frac{1}{\sum_{u \ne v} d(u, v)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that other nodes can
+reach the focal node through short directed paths.</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" tabindex="-1"></a><span class="fu">centrality_incloseness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::closeness(mode = &quot;in&quot;)</code>.</p>
+</div>
+<div id="cent-outcloseness" class="section level3">
+<h3>Outcloseness Centrality</h3>
+<p>Outcloseness computes closeness over outgoing directed paths.</p>
+<p><span class="math display">\[
+C_C^{\mathrm{out}}(v) = \frac{1}{\sum_{u \ne v} d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the focal node
+can reach other nodes through short directed paths.</p>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" tabindex="-1"></a><span class="fu">centrality_outcloseness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::closeness(mode = &quot;out&quot;)</code>.</p>
+</div>
+<div id="cent-harmonic" class="section level3">
+<h3>Harmonic Centrality</h3>
+<p>Harmonic centrality sums reciprocal shortest-path distances.
+Unreachable nodes contribute zero.</p>
+<p><span class="math display">\[
+C_H(v) = \sum_{u \ne v} \frac{1}{d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates broad reach through
+short paths while handling disconnected components more gracefully than
+classical closeness.</p>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" tabindex="-1"></a><span class="fu">centrality_harmonic</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::harmonic_centrality()</code> under matching settings.</p>
+</div>
+<div id="cent-inharmonic" class="section level3">
+<h3>Inharmonic Centrality</h3>
+<p>Inharmonic centrality computes harmonic centrality over incoming
+directed paths.</p>
+<p><span class="math display">\[
+C_H^{\mathrm{in}}(v) = \sum_{u \ne v} \frac{1}{d(u, v)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the node is
+reachable from many others through short directed paths.</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" tabindex="-1"></a><span class="fu">centrality_inharmonic</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::harmonic_centrality(mode = &quot;in&quot;)</code>.</p>
+</div>
+<div id="cent-outharmonic" class="section level3">
+<h3>Outharmonic Centrality</h3>
+<p>Outharmonic centrality computes harmonic centrality over outgoing
+directed paths.</p>
+<p><span class="math display">\[
+C_H^{\mathrm{out}}(v) = \sum_{u \ne v} \frac{1}{d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that many nodes can
+be reached from the focal node through short directed paths.</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" tabindex="-1"></a><span class="fu">centrality_outharmonic</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::harmonic_centrality(mode = &quot;out&quot;)</code>.</p>
+</div>
+<div id="cent-residual_closeness" class="section level3">
+<h3>Residual Closeness Centrality</h3>
+<p>Residual closeness sums <span class="math inline">\(1 / 2^d\)</span>
+over shortest-path distances (the focal node contributes <span class="math inline">\(1\)</span>).</p>
+<p><span class="math display">\[
+C_R(v) = \sum_{u \in V} 2^{-d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates many close reachable
+nodes with rapid distance decay.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" tabindex="-1"></a><span class="fu">centrality_residual_closeness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::closeness.residual()</code>.</p>
+</div>
+<div id="cent-dangalchev" class="section level3">
+<h3>Dangalchev Closeness Centrality</h3>
+<p>Dangalchev closeness is the residual-closeness distance-decay
+measure.</p>
+<p><span class="math display">\[
+C_D(v) = \sum_{u \in V} 2^{-d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates short-distance reach
+with distant nodes down-weighted.</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" tabindex="-1"></a><span class="fu">centrality_dangalchev</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented as the residual
+closeness equivalent used in <code>cograph</code>.</p>
+</div>
+<div id="cent-generalized_closeness" class="section level3">
+<h3>Generalized Closeness Centrality</h3>
+<p>Generalized closeness sums <span class="math inline">\(\alpha^d\)</span>, where <span class="math inline">\(d\)</span> is the shortest-path distance.</p>
+<p><span class="math display">\[
+C_G(v) = \sum_{u \in V} \alpha^{\,d(v, u)}, \quad \alpha = 0.5
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates reach under the
+chosen distance-decay parameter.</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1" tabindex="-1"></a><span class="fu">centrality_generalized_closeness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to generalized
+distance-decay closeness formulations.</p>
+</div>
+<div id="cent-harary" class="section level3">
+<h3>Harary Centrality</h3>
+<p>Harary centrality sums inverse squared shortest-path distances.</p>
+<p><span class="math display">\[
+C_{\mathrm{Har}}(v) = \sum_{u \ne v} \frac{1}{d(v, u)^2}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates many nearby
+reachable nodes, with distant nodes strongly down-weighted.</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" tabindex="-1"></a><span class="fu">centrality_harary</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on the Harary distance
+family.</p>
+</div>
+<div id="cent-average_distance" class="section level3">
+<h3>Average Distance Centrality</h3>
+<p>Average distance centrality summarises mean shortest-path distance
+from a node (the focal node’s <span class="math inline">\(d = 0\)</span>
+term is included; the centiserve convention divides by <span class="math inline">\(n + 1\)</span>).</p>
+<p><span class="math display">\[
+\bar{d}(v) = \frac{\sum_{u \in V} d(v, u)}{n + 1}
+\]</span></p>
+<p><strong>Meaning.</strong> Lower values indicate shorter average graph
+distance. The direction of interpretation should be checked because it
+is a distance quantity.</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1" tabindex="-1"></a><span class="fu">centrality_average_distance</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against the
+corresponding <code>centiserve</code> average-distance measure.</p>
+</div>
+<div id="cent-barycenter" class="section level3">
+<h3>Barycenter Centrality</h3>
+<p>Barycenter centrality is the inverse of the sum of shortest-path
+distances.</p>
+<p><span class="math display">\[
+C_{\mathrm{Bary}}(v) = \frac{1}{\sum_{u \ne v} d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a small total
+distance to other reachable nodes.</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" tabindex="-1"></a><span class="fu">centrality_barycenter</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::barycenter()</code>.</p>
+</div>
+<div id="cent-wiener" class="section level3">
+<h3>Wiener Centrality</h3>
+<p>Wiener centrality records total shortest-path distance from a node
+(unreachable pairs contribute zero).</p>
+<p><span class="math display">\[
+W(v) = \sum_{u \ne v} d(v, u)
+\]</span></p>
+<p><strong>Meaning.</strong> Lower values indicate shorter total
+distance. It is better read as distance burden than influence.</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1" tabindex="-1"></a><span class="fu">centrality_wiener</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on the Wiener index
+distance formulation.</p>
+</div>
+<div id="cent-lin" class="section level3">
+<h3>Lin Centrality</h3>
+<p>Lin centrality combines reachable nodes and total distance to those
+nodes.</p>
+<p><span class="math display">\[
+C_{\mathrm{Lin}}(v) = \frac{|R(v)|^2}{\sum_{u \in R(v)} d(v, u)}, \quad
+R(v) = \{ u \ne v : d(v,u) &lt; \infty \}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates many reachable nodes
+through relatively short paths.</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" tabindex="-1"></a><span class="fu">centrality_lin</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::lincent()</code>.</p>
+</div>
+<div id="cent-decay" class="section level3">
+<h3>Decay Centrality</h3>
+<p>Decay centrality sums reach discounted by distance (the focal node
+contributes <span class="math inline">\(1\)</span>).</p>
+<p><span class="math display">\[
+C_{\delta}(v) = \sum_{u \in V} \delta^{\,d(v, u)}, \quad \delta = 0.5
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates access to many
+nodes, especially nearby nodes. The value depends on the decay
+parameter.</p>
+<div class="sourceCode" id="cb35"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1" tabindex="-1"></a><span class="fu">centrality_decay</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::decay()</code>.</p>
+</div>
+<div id="cent-radiality" class="section level3">
+<h3>Radiality Centrality</h3>
+<p>Radiality compares node distances to the graph diameter.</p>
+<p><span class="math display">\[
+\mathrm{Rad}(v) = \frac{\sum_{u \ne v} \bigl( \Delta + 1 - d(v, u)
+\bigr)}{n - 1}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates short distances to
+others relative to overall graph diameter.</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" tabindex="-1"></a><span class="fu">centrality_radiality</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::radiality()</code>.</p>
+</div>
+<div id="cent-gilschmidt" class="section level3">
+<h3>Gil-Schmidt Centrality</h3>
+<p>Gil-Schmidt centrality sums reciprocal distances and normalises by
+graph size.</p>
+<p><span class="math display">\[
+C_{GS}(v) = \frac{1}{n - 1} \sum_{u \ne v} \frac{1}{d(v, u)}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates broad
+reciprocal-distance access to the network.</p>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1" tabindex="-1"></a><span class="fu">centrality_gilschmidt</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>sna</code> Gil-Schmidt style centrality.</p>
+</div>
+<div id="cent-integration" class="section level3">
+<h3>Integration Centrality</h3>
+<p>Integration centrality is a distance-based measure of how integrated
+a node is within the graph.</p>
+<p><span class="math display">\[
+\mathrm{Int}(v) = \sum_{u \ne v} \left( 1 - \frac{d(v, u) - 1}{d_{\max}}
+\right), \quad d(v,u) = d_{\max} + 1 \text{ if unreachable}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates broad distance-based
+access to the network.</p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" tabindex="-1"></a><span class="fu">centrality_integration</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented as a native
+distance-based centrality in <code>cograph</code>.</p>
+</div>
+<div id="cent-eccentricity" class="section level3">
+<h3>Eccentricity Centrality</h3>
+<p>Eccentricity is the maximum shortest-path distance from a node to any
+reachable node.</p>
+<p><span class="math display">\[
+\varepsilon(v) = \max_{u \in V} d(v, u)
+\]</span></p>
+<p><strong>Meaning.</strong> Lower eccentricity generally indicates
+smaller worst-case distance. A high value means at least one reachable
+node is far away.</p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1" tabindex="-1"></a><span class="fu">centrality_eccentricity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::eccentricity()</code>.</p>
+</div>
+<div id="cent-ineccentricity" class="section level3">
+<h3>Ineccentricity Centrality</h3>
+<p>Ineccentricity computes eccentricity over incoming directed
+paths.</p>
+<p><span class="math display">\[
+\varepsilon^{\mathrm{in}}(v) = \max_{u \in V} d(u, v)
+\]</span></p>
+<p><strong>Meaning.</strong> It summarises the largest directed distance
+from other nodes into the focal node.</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" tabindex="-1"></a><span class="fu">centrality_ineccentricity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::eccentricity(mode = &quot;in&quot;)</code>.</p>
+</div>
+<div id="cent-outeccentricity" class="section level3">
+<h3>Outeccentricity Centrality</h3>
+<p>Outeccentricity computes eccentricity over outgoing directed
+paths.</p>
+<p><span class="math display">\[
+\varepsilon^{\mathrm{out}}(v) = \max_{u \in V} d(v, u)
+\]</span></p>
+<p><strong>Meaning.</strong> It summarises the largest directed distance
+from the focal node to reachable others.</p>
+<div class="sourceCode" id="cb41"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1" tabindex="-1"></a><span class="fu">centrality_outeccentricity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::eccentricity(mode = &quot;out&quot;)</code>.</p>
+</div>
+<div id="cent-closeness_vitality" class="section level3">
+<h3>Closeness Vitality</h3>
+<p>Closeness vitality measures how total network distance changes when a
+node is removed, using the Wiener index <span class="math inline">\(W(G)
+= \sum_{s, t} d(s, t)\)</span>.</p>
+<p><span class="math display">\[
+\mathrm{CV}(v) = W(G) - W(G \setminus v)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that removing the
+node substantially changes shortest-path structure.</p>
+<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" tabindex="-1"></a><span class="fu">centrality_closeness_vitality</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to NetworkX
+closeness vitality conventions.</p>
+</div>
+<div id="cent-entropy" class="section level3">
+<h3>Entropy Centrality</h3>
+<p>Entropy centrality measures the change in graph entropy associated
+with a node, from the distribution of finite shortest-path distances
+after the node is removed.</p>
+<p><span class="math display">\[
+H(v) = -\sum_{w} Y_w \log_2 Y_w, \quad Y_w = \frac{|\{ x : d(w, x) &lt;
+\infty \}|}{\sum_{w&#39;} |\{ x : d(w&#39;, x) &lt; \infty \}|}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates strong contribution
+under the graph entropy definition being used.</p>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1" tabindex="-1"></a><span class="fu">centrality_entropy</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::entropy()</code>.</p>
+</div>
+<div id="cent-centroid" class="section level3">
+<h3>Centroid Centrality</h3>
+<p>Centroid centrality compares distance dominance between pairs of
+nodes.</p>
+<p><span class="math display">\[
+f(v, u) = \gamma(v, u) - \gamma(u, v), \quad \gamma(v, u) = |\{ w : d(v,
+w) &lt; d(u, w) \}|, \quad C_{\mathrm{cen}}(v) = \min_{u \ne v} f(v, u)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a favourable
+position in pairwise distance comparisons.</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" tabindex="-1"></a><span class="fu">centrality_centroid</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented natively because
+some reference implementations have known edge-case issues.</p>
+</div>
+</div>
+<div id="shortest-path-brokerage-and-flow" class="section level2">
+<h2>Shortest-path brokerage and flow</h2>
+<div id="cent-betweenness" class="section level3">
+<h3>Betweenness Centrality</h3>
+<p>Betweenness centrality measures how often a node lies on shortest
+paths between other pairs of nodes.</p>
+<p><span class="math display">\[
+C_B(v) = \sum_{s \ne v \ne t} \frac{\sigma_{st}(v)}{\sigma_{st}}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value is consistent with a bridge or
+brokerage position under the shortest-path model. It is not direct
+evidence of intentional mediation.</p>
+<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1" tabindex="-1"></a><span class="fu">centrality_betweenness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::betweenness()</code> under matching directedness, weights,
+and normalization conventions.</p>
+</div>
+<div id="cent-stress" class="section level3">
+<h3>Stress Centrality</h3>
+<p>Stress centrality counts shortest paths passing through a node
+without fractional normalization across tied paths.</p>
+<p><span class="math display">\[
+C_S(v) = \sum_{s \ne v \ne t} \sigma_{st}(v)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that many shortest
+paths include the node.</p>
+<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" tabindex="-1"></a><span class="fu">centrality_stress</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>sna::stresscent()</code>.</p>
+</div>
+<div id="cent-load" class="section level3">
+<h3>Load Centrality</h3>
+<p>Load centrality distributes shortest-path load across alternative
+shortest routes: at each branch point a unit packet is split evenly
+among next hops on shortest paths.</p>
+<p><span class="math display">\[
+C_L(v) = \sum_{s \ne v \ne t} \mathrm{load}_{st}(v)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that a node carries
+a large share of geodesic routing load.</p>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" tabindex="-1"></a><span class="fu">centrality_load</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>sna::loadcent()</code>.</p>
+</div>
+<div id="cent-bottleneck" class="section level3">
+<h3>Bottleneck Centrality</h3>
+<p>Bottleneck centrality counts cases where a node is critical in
+shortest-path tree structures.</p>
+<p><span class="math display">\[
+\mathrm{BN}(v) = \sum_{s \in V} p_s(v), \quad p_s(v) = 1 \text{ if } v
+\text{ carries} &gt; \tfrac{n}{4} \text{ of the shortest-path tree } T_s
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates frequent bottleneck
+position in local shortest-path trees.</p>
+<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" tabindex="-1"></a><span class="fu">centrality_bottleneck</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::bottleneck()</code>.</p>
+</div>
+<div id="cent-bridging" class="section level3">
+<h3>Bridging Centrality</h3>
+<p>Bridging centrality combines betweenness with a bridging
+coefficient.</p>
+<p><span class="math display">\[
+\mathrm{Br}(v) = C_B(v) \cdot \beta(v), \quad \beta(v) =
+\frac{1/k_v}{\sum_{u \in N(v)} 1/k_u}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a possible bridge
+position between locally distinct areas.</p>
+<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" tabindex="-1"></a><span class="fu">centrality_bridging</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on bridging centrality
+formulations by Hwang and colleagues.</p>
+</div>
+<div id="cent-local_bridging" class="section level3">
+<h3>Local Bridging Centrality</h3>
+<p>Local bridging centrality measures bridge-like position using local
+neighbourhood information.</p>
+<p><span class="math display">\[
+\mathrm{LBr}(v) = \frac{1}{k_v} \cdot \beta(v), \quad \beta(v) =
+\frac{1/k_v}{\sum_{u \in N(v)} 1/k_u}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the node
+connects neighbours that are not strongly connected through local
+alternatives.</p>
+<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" tabindex="-1"></a><span class="fu">centrality_local_bridging</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on local bridging
+coefficient formulations.</p>
+</div>
+<div id="cent-percolation" class="section level3">
+<h3>Percolation Centrality</h3>
+<p>Percolation centrality weights shortest-path brokerage by node states
+in a percolation process.</p>
+<p><span class="math display">\[
+\mathrm{PC}(v) = \frac{1}{n - 2} \sum_{s \ne v \ne t}
+\frac{\sigma_{st}(v)}{\sigma_{st}} \cdot \frac{x_s}{\sum_{i \ne v} x_i}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates state-dependent path
+importance under the supplied state vector <span class="math inline">\(x\)</span>.</p>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" tabindex="-1"></a><span class="fu">centrality_percolation</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Piraveenan,
+Prokopenko, and Hossain’s percolation centrality; equivalent to
+betweenness-like behavior when states are equal.</p>
+</div>
+<div id="cent-flow_betweenness" class="section level3">
+<h3>Flow Betweenness Centrality</h3>
+<p>Flow betweenness measures brokerage using maximum flow rather than
+only shortest paths.</p>
+<p><span class="math display">\[
+C_{FB}(v) = \sum_{s \ne v \ne t} f_{st}(v), \quad f_{st}(v) = \text{flow
+through } v \text{ in a max } s\text{-}t \text{ flow}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates importance for
+potential flow capacity between other nodes under the graph model.</p>
+<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" tabindex="-1"></a><span class="fu">centrality_flow_betweenness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>sna::flowbet()</code>.</p>
+</div>
+<div id="cent-current_flow_betweenness" class="section level3">
+<h3>Current-Flow Betweenness Centrality</h3>
+<p>Current-flow betweenness measures how much electrical current between
+node pairs passes through a node.</p>
+<p><span class="math display">\[
+C_{CFB}(v) = \frac{1}{(n - 1)(n - 2)} \sum_{s \ne t} \tau_{st}(v), \quad
+\tau_{st}(v) = \text{current through } v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates an intermediary
+position under an all-path current-flow model.</p>
+<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" tabindex="-1"></a><span class="fu">centrality_current_flow_betweenness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to NetworkX
+current-flow betweenness centrality.</p>
+</div>
+<div id="cent-current_flow_closeness" class="section level3">
+<h3>Current-Flow Closeness Centrality</h3>
+<p>Current-flow closeness uses electrical-network (effective-resistance)
+distances rather than only shortest paths.</p>
+<p><span class="math display">\[
+C_{CFC}(v) = \frac{n - 1}{\sum_{u \ne v} R_{vu}}, \quad R_{vu} =
+\text{effective resistance between } v \text{ and } u
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates closeness under an
+all-path flow model. It generally requires connected graphs.</p>
+<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" tabindex="-1"></a><span class="fu">centrality_current_flow_closeness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to NetworkX
+current-flow closeness centrality.</p>
+</div>
+</div>
+<div id="spectral-walk-and-influence" class="section level2">
+<h2>Spectral, walk and influence</h2>
+<div id="cent-eigenvector" class="section level3">
+<h3>Eigenvector Centrality</h3>
+<p>Eigenvector centrality gives high scores to nodes connected to other
+high-scored nodes.</p>
+<p><span class="math display">\[
+A\,\mathbf{x} = \lambda_{\max}\,\mathbf{x}, \quad C_E(v) = x_v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates embeddedness in a
+central neighbourhood. It should not be interpreted as influence unless
+the relation supports that interpretation.</p>
+<div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" tabindex="-1"></a><span class="fu">centrality_eigenvector</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::eigen_centrality()</code>.</p>
+</div>
+<div id="cent-pagerank" class="section level3">
+<h3>PageRank Centrality</h3>
+<p>PageRank is a damped random-walk centrality. Nodes score highly when
+a random walker reaches them often.</p>
+<p><span class="math display">\[
+\mathrm{PR}(v) = \frac{1 - \alpha}{n} + \alpha \sum_{u \,:\, u \to v}
+\frac{\mathrm{PR}(u)}{k_u^{\mathrm{out}}}, \quad \alpha = 0.85
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates random-walk
+prominence under the chosen damping, direction, and weight
+conventions.</p>
+<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" tabindex="-1"></a><span class="fu">centrality_pagerank</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::page_rank()</code> under matching parameters; original
+method by Page, Brin, Motwani, and Winograd.</p>
+</div>
+<div id="cent-authority" class="section level3">
+<h3>Authority Centrality</h3>
+<p>Authority centrality is part of HITS. Authorities are nodes pointed
+to by good hubs.</p>
+<p><span class="math display">\[
+\mathbf{a} = A^{\top} \mathbf{h}, \quad \mathbf{h} = A\,\mathbf{a}
+\;\Rightarrow\; \mathbf{a} = \text{principal eigenvector of } A^{\top} A
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates incoming support
+from nodes that point to good authorities.</p>
+<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1" tabindex="-1"></a><span class="fu">centrality_authority</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::authority_score()</code>; based on Kleinberg’s HITS
+algorithm.</p>
+</div>
+<div id="cent-hub" class="section level3">
+<h3>Hub Centrality</h3>
+<p>Hub centrality is the HITS counterpart to authority. Hubs point to
+good authorities.</p>
+<p><span class="math display">\[
+\mathbf{h} = \text{principal eigenvector of } A\,A^{\top}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates outgoing ties to
+high-authority nodes.</p>
+<div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" tabindex="-1"></a><span class="fu">centrality_hub</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::hub_score()</code>; based on Kleinberg’s HITS
+algorithm.</p>
+</div>
+<div id="cent-salsa" class="section level3">
+<h3>SALSA Centrality</h3>
+<p>SALSA is a stochastic link-analysis method related to HITS for
+directed graphs.</p>
+<p><span class="math display">\[
+\mathbf{a} = \text{principal eigenvector of } A_c^{\top} A_r, \quad A_r,
+A_c = \text{row- and column-normalised } A
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates directed authority
+under the SALSA random-walk model.</p>
+<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1" tabindex="-1"></a><span class="fu">centrality_salsa</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::salsa()</code> where applicable.</p>
+</div>
+<div id="cent-leaderrank" class="section level3">
+<h3>LeaderRank Centrality</h3>
+<p>LeaderRank is a PageRank-like directed ranking method that adds a
+ground node <span class="math inline">\(g\)</span> linked both ways to
+every node; the stationary random-walk mass on <span class="math inline">\(g\)</span> is then redistributed equally.</p>
+<p><span class="math display">\[
+\mathbf{s}^{*} = \text{stationary distribution of the walk on } G \cup
+\{g\}, \quad C(v) = s^{*}_v + \tfrac{1}{n} s^{*}_g
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates directed prestige
+under the LeaderRank model.</p>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" tabindex="-1"></a><span class="fu">centrality_leaderrank</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::leaderrank()</code> where applicable.</p>
+</div>
+<div id="cent-alpha" class="section level3">
+<h3>Alpha Centrality</h3>
+<p>Alpha centrality is an eigenvector-like measure that includes
+exogenous input.</p>
+<p><span class="math display">\[
+\mathbf{x} = (I - \alpha A^{\top})^{-1} \mathbf{e}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates recursive prominence
+under the chosen attenuation and exogenous assumptions.</p>
+<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1" tabindex="-1"></a><span class="fu">centrality_alpha</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::alpha_centrality()</code> under matching parameters.</p>
+</div>
+<div id="cent-power" class="section level3">
+<h3>Bonacich Power Centrality</h3>
+<p>Bonacich power centrality scores nodes using the centrality of their
+neighbours and a parameter <span class="math inline">\(\beta\)</span>
+controlling dependence.</p>
+<p><span class="math display">\[
+\mathbf{c}(\alpha, \beta) = \alpha (I - \beta A)^{-1} A\,\mathbf{1}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a favourable
+recursive position under the selected Bonacich parameterization.</p>
+<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" tabindex="-1"></a><span class="fu">centrality_power</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::power_centrality()</code> under matching parameters.</p>
+</div>
+<div id="cent-katz" class="section level3">
+<h3>Katz Centrality</h3>
+<p>Katz centrality counts walks from all nodes to a focal node,
+attenuating longer walks.</p>
+<p><span class="math display">\[
+\mathbf{x} = (I - \alpha A^{\top})^{-1} \mathbf{1}, \quad \alpha = 0.1
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that many short and
+longer walks reach the node. The attenuation parameter must be valid for
+the graph.</p>
+<div class="sourceCode" id="cb63"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb63-1"><a href="#cb63-1" tabindex="-1"></a><span class="fu">centrality_katz</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>igraph::alpha_centrality(exo = 1)</code> and NetworkX Katz
+centrality conventions.</p>
+</div>
+<div id="cent-hubbell" class="section level3">
+<h3>Hubbell Centrality</h3>
+<p>Hubbell centrality is an input-output centrality where status is
+recursively reinforced through ties.</p>
+<p><span class="math display">\[
+\mathbf{x} = (I - w W)^{-1} \mathbf{1}, \quad w = 0.5,\; W =
+\text{weighted adjacency}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates recursive prominence
+under the chosen weight factor. Some parameter settings are not
+solvable.</p>
+<div class="sourceCode" id="cb64"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" tabindex="-1"></a><span class="fu">centrality_hubbell</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Hubbell’s
+input-output centrality.</p>
+</div>
+<div id="cent-subgraph" class="section level3">
+<h3>Subgraph Centrality</h3>
+<p>Subgraph centrality measures participation in closed walks, with
+shorter closed walks weighted more strongly.</p>
+<p><span class="math display">\[
+\mathrm{SC}(v) = \sum_{k=0}^{\infty} \frac{(A^k)_{vv}}{k!} =
+(e^{A})_{vv}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates embeddedness in many
+closed walk structures.</p>
+<div class="sourceCode" id="cb65"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" tabindex="-1"></a><span class="fu">centrality_subgraph</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::subgraph_centrality()</code>; based on Estrada’s
+formulation.</p>
+</div>
+<div id="cent-laplacian" class="section level3">
+<h3>Laplacian Centrality</h3>
+<p>Laplacian centrality measures a node’s contribution to the graph’s
+Laplacian energy.</p>
+<p><span class="math display">\[
+C_L(v) = \frac{E_L(G) - E_L(G \setminus v)}{E_L(G)}, \quad E_L(G) =
+\sum_i \mu_i^2 \;\; (\mu_i = \text{Laplacian eigenvalues})
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a large local
+structural contribution under the Laplacian energy definition.</p>
+<div class="sourceCode" id="cb66"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1" tabindex="-1"></a><span class="fu">centrality_laplacian</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Matches NetworkX and
+<code>centiserve::laplacian()</code> conventions.</p>
+</div>
+<div id="cent-communicability" class="section level3">
+<h3>Communicability Centrality</h3>
+<p>Communicability centrality uses the matrix exponential to summarise
+walk-based communication potential.</p>
+<p><span class="math display">\[
+C_{\mathrm{Comm}}(v) = \sum_{u \in V} (e^{A})_{vu}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates many walk-based
+routes to other nodes, with shorter walks weighted more strongly.</p>
+<div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" tabindex="-1"></a><span class="fu">centrality_communicability</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Estrada
+communicability.</p>
+</div>
+<div id="cent-communicability_betweenness" class="section level3">
+<h3>Communicability Betweenness Centrality</h3>
+<p>Communicability betweenness measures walk-based communicability
+between other pairs through a node.</p>
+<p><span class="math display">\[
+C_{CB}(v) = \frac{1}{(n-1)(n-2)} \sum_{s \ne t \ne v} \frac{G_{st} -
+G_{st}^{(v)}}{G_{st}}, \quad G = e^{A}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates walk-based
+intermediary position, not limited to shortest paths. <span class="math inline">\(G^{(v)}\)</span> is computed with <span class="math inline">\(v\)</span> removed.</p>
+<div class="sourceCode" id="cb68"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1" tabindex="-1"></a><span class="fu">centrality_communicability_betweenness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Estrada, Higham, and
+Hatano’s communicability betweenness.</p>
+</div>
+<div id="cent-random_walk" class="section level3">
+<h3>Random Walk Centrality</h3>
+<p>Random walk centrality uses expected random-walk access times rather
+than shortest-path distances.</p>
+<p><span class="math display">\[
+C_{RW}(v) = \frac{1}{\sum_{u \ne v} \tilde{m}_{vu}}, \quad
+\tilde{m}_{vu} = \tfrac{1}{2}\bigl( m_{vu} + m_{uv} \bigr)
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the node is
+reached efficiently under a random-walk process. <span class="math inline">\(m_{uv}\)</span> is the mean first-passage
+time.</p>
+<div class="sourceCode" id="cb69"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" tabindex="-1"></a><span class="fu">centrality_random_walk</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to random-walk
+centrality based on mean first-passage or resistance-distance
+formulations.</p>
+</div>
+<div id="cent-markov" class="section level3">
+<h3>Markov Centrality</h3>
+<p>Markov centrality is based on mean first-passage times in a Markov
+process on the graph.</p>
+<p><span class="math display">\[
+C_{\mathrm{Mk}}(v) = \frac{1}{\frac{1}{n} \sum_{u} m_{uv}}, \quad m_{uv}
+= \text{mean first-passage time } u \to v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that the node is
+reached quickly on average under the Markov process.</p>
+<div class="sourceCode" id="cb70"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1" tabindex="-1"></a><span class="fu">centrality_markov</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::markovcent()</code>.</p>
+</div>
+<div id="cent-second_order" class="section level3">
+<h3>Second-Order Centrality</h3>
+<p>Second-order centrality summarises variability in random-walk return
+times.</p>
+<p><span class="math display">\[
+\mathrm{SO}(v) = \operatorname{sd}_{u}\bigl( m_{uv} \bigr)
+\]</span></p>
+<p><strong>Meaning.</strong> The statistic describes random-walk
+regularity rather than direct connectivity (lower is more central).</p>
+<div class="sourceCode" id="cb71"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;second_order&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Rank behavior is checked
+against NetworkX second-order centrality in package tests.</p>
+</div>
+<div id="cent-information" class="section level3">
+<h3>Information Centrality</h3>
+<p>Information centrality measures centrality through
+resistance-distance or information-flow ideas (Stephenson and
+Zelen).</p>
+<p><span class="math display">\[
+C_I(v) = \left( C_{vv} + \frac{T - 2 R_v}{n} \right)^{-1}, \quad C = (D
+- A + J)^{-1},\; T = \operatorname{tr} C,\; R_v = \textstyle\sum_j
+C_{vj}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a central position
+under the information-flow model.</p>
+<div class="sourceCode" id="cb72"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1" tabindex="-1"></a><span class="fu">centrality_information</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Stephenson and
+Zelen’s information centrality.</p>
+</div>
+<div id="cent-nonbacktracking" class="section level3">
+<h3>Nonbacktracking Centrality</h3>
+<p>Nonbacktracking centrality scores nodes using walks that do not
+immediately return along the edge just traversed (the Hashimoto matrix
+<span class="math inline">\(B\)</span>).</p>
+<p><span class="math display">\[
+B_{(i \to j),\,(k \to l)} = \delta_{jk}\,(1 - \delta_{il}), \quad C(v)
+\propto \text{aggregated leading eigenvector of } B
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates walk-based
+prominence after reducing immediate backtracking inflation.</p>
+<div class="sourceCode" id="cb73"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;nonbacktracking&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+NetworkX-style nonbacktracking behavior in package tests.</p>
+</div>
+<div id="cent-diffusion" class="section level3">
+<h3>Diffusion Centrality</h3>
+<p>Diffusion centrality estimates reach through a diffusion process over
+the graph.</p>
+<p><span class="math display">\[
+\mathbf{DC} = \sum_{t=1}^{T} (\lambda A)^{t}\,\mathbf{1}, \quad \lambda
+= 1
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a structurally
+favourable position for spreading under the selected diffusion
+model.</p>
+<div class="sourceCode" id="cb74"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" tabindex="-1"></a><span class="fu">centrality_diffusion</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::diffusion()</code> where applicable and TNA-style
+diffusion conventions for transition networks.</p>
+</div>
+<div id="cent-infection" class="section level3">
+<h3>Infection Centrality</h3>
+<p>Infection centrality estimates spreading potential through
+infection-style self-avoiding walks with attenuation.</p>
+<p><span class="math display">\[
+\mathrm{Inf}(v) = \sum_{d=1}^{L} \beta^{\,d+1} (1 - \mu)^{d}\, w_d(v),
+\quad \beta = 0.8,\; \mu = 0,\; L = 6
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a favourable
+position under the assumed infection process, not observed contagion.
+<span class="math inline">\(w_d(v)\)</span> counts length-<span class="math inline">\(d\)</span> self-avoiding walks from <span class="math inline">\(v\)</span>.</p>
+<div class="sourceCode" id="cb75"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;infection&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Implemented according to
+infection centrality formulas used in the network centrality
+literature.</p>
+</div>
+<div id="cent-voterank" class="section level3">
+<h3>VoteRank Centrality</h3>
+<p>VoteRank is an iterative voting algorithm for ranking spreader
+candidates: each round the highest-voted node is selected, its voting
+ability is zeroed, and its neighbours’ voting abilities are reduced.</p>
+<p><strong>Meaning.</strong> A high value indicates early selection by
+the VoteRank rule. It is a heuristic model result, not observed
+spread.</p>
+<div class="sourceCode" id="cb76"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb76-1"><a href="#cb76-1" tabindex="-1"></a><span class="fu">centrality_voterank</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Corresponds to NetworkX
+VoteRank behavior.</p>
+</div>
+<div id="cent-expected_influence_1" class="section level3">
+<h3>Expected Influence 1-Step</h3>
+<p>Expected influence 1-step sums signed edge weights adjacent to a
+node.</p>
+<p><span class="math display">\[
+\mathrm{EI}_1(v) = \sum_{u \in V} W_{vu}, \quad W = \text{signed weight
+matrix}
+\]</span></p>
+<p><strong>Meaning.</strong> A high positive value indicates strong
+positive immediate signed connectivity. This is mainly meaningful for
+signed networks.</p>
+<div class="sourceCode" id="cb77"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1" tabindex="-1"></a><span class="fu">centrality_expected_influence_1</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Robinaugh, Millner,
+and McNally’s expected influence measure.</p>
+</div>
+<div id="cent-expected_influence_2" class="section level3">
+<h3>Expected Influence 2-Step</h3>
+<p>Expected influence 2-step extends signed influence to one- and
+two-step paths.</p>
+<p><span class="math display">\[
+\mathrm{EI}_2(v) = \mathrm{EI}_1(v) + \sum_{u \in V}
+W_{vu}\,\mathrm{EI}_1(u)
+\]</span></p>
+<p><strong>Meaning.</strong> A high positive value indicates positive
+signed connectivity through direct and indirect paths. Interpretation
+requires a signed network.</p>
+<div class="sourceCode" id="cb78"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb78-1"><a href="#cb78-1" tabindex="-1"></a><span class="fu">centrality_expected_influence_2</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Robinaugh, Millner,
+and McNally’s expected influence measure.</p>
+</div>
+<div id="cent-spanning_tree" class="section level3">
+<h3>Spanning Tree Centrality</h3>
+<p>Spanning tree centrality summarises a node’s contribution across
+spanning-tree structures via the Laplacian pseudoinverse <span class="math inline">\(L^{+}\)</span>.</p>
+<p><span class="math display">\[
+\mathrm{ST}(v) = \frac{1}{L^{+}_{vv}}, \quad L^{+} = \text{Moore-Penrose
+pseudoinverse of } L
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates structural
+participation across many tree-like ways of connecting the graph.</p>
+<div class="sourceCode" id="cb79"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb79-1"><a href="#cb79-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;spanning_tree&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on matrix-tree theorem
+centrality formulations.</p>
+</div>
+</div>
+<div id="neighbourhood-structure-and-cohesion" class="section level2">
+<h2>Neighbourhood structure and cohesion</h2>
+<div id="cent-transitivity" class="section level3">
+<h3>Transitivity Centrality</h3>
+<p>Transitivity measures local clustering: whether a node’s neighbours
+are connected to each other.</p>
+<p><span class="math display">\[
+c(v) = \frac{2\, t_v}{k_v (k_v - 1)}, \quad t_v = \text{number of
+triangles through } v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates locally closed
+neighbourhoods. This can represent cohesion or redundancy, depending on
+the relation.</p>
+<div class="sourceCode" id="cb80"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb80-1"><a href="#cb80-1" tabindex="-1"></a><span class="fu">centrality_transitivity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::transitivity()</code> for standard types;
+<code>cograph</code> also supports weighted variants.</p>
+</div>
+<div id="cent-constraint" class="section level3">
+<h3>Constraint Centrality</h3>
+<p>Constraint measures how redundant a node’s contacts are, following
+Burt’s structural holes framework.</p>
+<p><span class="math display">\[
+C(v) = \sum_{u \in N(v)} \left( p_{vu} + \sum_{q \ne v, u} p_{vq}\,
+p_{qu} \right)^2, \quad p_{vu} = \text{proportional tie strength}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a locally
+constrained ego network. Lower constraint may indicate structural holes,
+depending on theory and relation type.</p>
+<div class="sourceCode" id="cb81"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb81-1"><a href="#cb81-1" tabindex="-1"></a><span class="fu">centrality_constraint</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::constraint()</code>.</p>
+</div>
+<div id="cent-effective_size" class="section level3">
+<h3>Effective Size Centrality</h3>
+<p>Effective size estimates the number of nonredundant contacts in a
+node’s ego network (Burt).</p>
+<p><span class="math display">\[
+\mathrm{ES}(v) = k_v - \frac{1}{k_v} \sum_{u \in N(v)} |N(v) \cap N(u)|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates relatively
+nonoverlapping contacts.</p>
+<div class="sourceCode" id="cb82"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1" tabindex="-1"></a><span class="fu">centrality_effective_size</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>influenceR::effective_size()</code>.</p>
+</div>
+<div id="cent-topological_coefficient" class="section level3">
+<h3>Topological Coefficient Centrality</h3>
+<p>Topological coefficient centrality measures shared-neighbour
+overlap.</p>
+<p><span class="math display">\[
+T(v) = \frac{\operatorname{avg}_{u}\, J(v, u)}{k_v}, \quad J(v, u) =
+\text{number of neighbours shared by } v \text{ and } u
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates neighbourhood
+overlap or topological similarity.</p>
+<div class="sourceCode" id="cb83"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb83-1"><a href="#cb83-1" tabindex="-1"></a><span class="fu">centrality_topological_coefficient</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::topocoefficient()</code>.</p>
+</div>
+<div id="cent-diversity" class="section level3">
+<h3>Diversity Centrality</h3>
+<p>Diversity centrality measures entropy in the distribution of edge
+weights around a node.</p>
+<p><span class="math display">\[
+\mathrm{Div}(v) = \frac{-\sum_{u \in N(v)} p_{vu} \log_2 p_{vu}}{\log_2
+k_v}, \quad p_{vu} = \frac{w_{vu}}{\sum_{u&#39;} w_{vu&#39;}}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that weighted ties
+are relatively evenly distributed rather than concentrated.</p>
+<div class="sourceCode" id="cb84"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb84-1"><a href="#cb84-1" tabindex="-1"></a><span class="fu">centrality_diversity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>igraph::diversity()</code>.</p>
+</div>
+<div id="cent-cross_clique" class="section level3">
+<h3>Cross-Clique Centrality</h3>
+<p>Cross-clique centrality counts how many cliques contain a node.</p>
+<p><span class="math display">\[
+X(v) = |\{\, Q \in \mathcal{Q}(G) : v \in Q \,\}|, \quad \mathcal{Q}(G)
+= \text{set of cliques}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates participation in
+many fully connected local groups.</p>
+<div class="sourceCode" id="cb85"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb85-1"><a href="#cb85-1" tabindex="-1"></a><span class="fu">centrality_cross_clique</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>centiserve::crossclique()</code>.</p>
+</div>
+<div id="cent-coreness" class="section level3">
+<h3>Coreness Centrality</h3>
+<p>Coreness assigns nodes to k-core shells.</p>
+<p><span class="math display">\[
+C_{\mathrm{core}}(v) = \max \{\, k : v \in (k\text{-core of } G) \,\}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates membership in a
+dense core. It does not imply brokerage or short paths to all nodes.</p>
+<div class="sourceCode" id="cb86"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb86-1"><a href="#cb86-1" tabindex="-1"></a><span class="fu">centrality_coreness</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Equivalent to
+<code>igraph::coreness()</code>.</p>
+</div>
+<div id="cent-onion" class="section level3">
+<h3>Onion Centrality</h3>
+<p>Onion centrality assigns nodes to layers from onion decomposition, a
+fine-grained extension of k-core decomposition.</p>
+<p><span class="math display">\[
+\text{layer}(v) = \text{iteration index at which } v \text{ is peeled by
+the onion decomposition}
+\]</span></p>
+<p><strong>Meaning.</strong> A high layer indicates that the node
+remains until later stages of the peeling process.</p>
+<div class="sourceCode" id="cb87"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb87-1"><a href="#cb87-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;onion&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against NetworkX
+onion layer behavior in package tests.</p>
+</div>
+<div id="cent-kreach" class="section level3">
+<h3>K-Reach Centrality</h3>
+<p>K-reach centrality counts nodes reachable within path length <span class="math inline">\(k\)</span>.</p>
+<p><span class="math display">\[
+C_{kR}(v) = |\{\, u : 0 &lt; d(v, u) \le k \,\}|, \quad k = 3
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates broad reach within a
+fixed local radius. Results depend on the chosen <span class="math inline">\(k\)</span>.</p>
+<div class="sourceCode" id="cb88"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb88-1"><a href="#cb88-1" tabindex="-1"></a><span class="fu">centrality_kreach</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against k-path
+reach conventions.</p>
+</div>
+</div>
+<div id="directed-prestige-and-hierarchy" class="section level2">
+<h2>Directed prestige and hierarchy</h2>
+<div id="cent-prestige_domain" class="section level3">
+<h3>Prestige Domain Centrality</h3>
+<p>Prestige domain centrality counts how many nodes can reach a focal
+node in a directed graph.</p>
+<p><span class="math display">\[
+P(v) = |\{\, u \ne v : u \rightsquigarrow v \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a large incoming
+reach domain.</p>
+<div class="sourceCode" id="cb89"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb89-1"><a href="#cb89-1" tabindex="-1"></a><span class="fu">centrality_prestige_domain</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Wasserman-Faust
+prestige concepts and <code>sna</code>-style prestige measures.</p>
+</div>
+<div id="cent-prestige_domain_proximity" class="section level3">
+<h3>Prestige Domain Proximity Centrality</h3>
+<p>Prestige domain proximity measures how close nodes in the prestige
+domain are to the focal node.</p>
+<p><span class="math display">\[
+C(v) = \frac{|R^{-}(v)|^2}{(n - 1) \sum_{u \in R^{-}(v)} d(u, v)}, \quad
+R^{-}(v) = \{ u \ne v : u \rightsquigarrow v \}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates that many
+predecessors can reach the node through short directed paths.</p>
+<div class="sourceCode" id="cb90"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb90-1"><a href="#cb90-1" tabindex="-1"></a><span class="fu">centrality_prestige_domain_proximity</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Wasserman-Faust
+prestige proximity concepts.</p>
+</div>
+<div id="cent-reaching_local" class="section level3">
+<h3>Local Reaching Centrality</h3>
+<p>Local reaching centrality measures how much of the network is
+reachable from a node through directed paths.</p>
+<p><span class="math display">\[
+\mathrm{LRC}(v) = \frac{|\{\, u : v \rightsquigarrow u \,\}|}{n - 1}
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates broad directed reach
+from the node.</p>
+<div class="sourceCode" id="cb91"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb91-1"><a href="#cb91-1" tabindex="-1"></a><span class="fu">centrality_reaching_local</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Matches
+<code>networkx.local_reaching_centrality</code> in package equivalence
+tests.</p>
+</div>
+<div id="cent-pairwisedis" class="section level3">
+<h3>Pairwise Disconnectivity Centrality</h3>
+<p>Pairwise disconnectivity measures how directed reachability between
+pairs changes when a node is removed.</p>
+<p><span class="math display">\[
+\mathrm{Dis}(v) = \frac{P(G) - P(G \setminus v)}{P(G)}, \quad P(G) = |\{
+(s, t) : s \rightsquigarrow t \}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates structural
+importance for preserving directed reachability.</p>
+<div class="sourceCode" id="cb92"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb92-1"><a href="#cb92-1" tabindex="-1"></a><span class="fu">centrality_pairwisedis</span>(student_interactions)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against reference
+implementations in package tests.</p>
+</div>
+<div id="cent-trophic_level" class="section level3">
+<h3>Trophic Level Centrality</h3>
+<p>Trophic level estimates hierarchical position in a directed flow
+network.</p>
+<p><span class="math display">\[
+(I - W)\,\mathbf{s} = \mathbf{1}, \quad W_{ji} =
+\frac{a_{ij}}{k_j^{\mathrm{in}}}, \quad \text{basal nodes have level } 1
+\]</span></p>
+<p><strong>Meaning.</strong> A higher value indicates a higher position
+in the inferred directed hierarchy. This is appropriate only for
+flow-like relations.</p>
+<div class="sourceCode" id="cb93"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb93-1"><a href="#cb93-1" tabindex="-1"></a><span class="fu">centrality</span>(student_interactions, <span class="at">measures =</span> <span class="st">&quot;trophic_level&quot;</span>)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Checked against NetworkX
+trophic-level behavior in package tests.</p>
+<p>The measures below need a <strong>community membership
+vector</strong>. Build one with <code>detect_communities()</code>
+(<code>walktrap</code> works on the directed
+<code>student_interactions</code> graph), then pass it as
+<code>membership =</code>:</p>
+<div class="sourceCode" id="cb94"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb94-1"><a href="#cb94-1" tabindex="-1"></a>comm   <span class="ot">&lt;-</span> <span class="fu">detect_communities</span>(student_interactions, <span class="at">method =</span> <span class="st">&quot;walktrap&quot;</span>)</span>
+<span id="cb94-2"><a href="#cb94-2" tabindex="-1"></a>groups <span class="ot">&lt;-</span> <span class="fu">setNames</span>(comm<span class="sc">$</span>community, comm<span class="sc">$</span>node)</span>
+<span id="cb94-3"><a href="#cb94-3" tabindex="-1"></a><span class="fu">centrality_participation</span>(student_interactions, <span class="at">membership =</span> groups)</span>
+<span id="cb94-4"><a href="#cb94-4" tabindex="-1"></a><span class="co">#&gt;        Ac        Ad        Fi        Ik        Vx        Rt        Km        Gj </span></span>
+<span id="cb94-5"><a href="#cb94-5" tabindex="-1"></a><span class="co">#&gt; 0.6078972 0.5450000 0.4965278 0.5612245 0.6213018 0.5150000 0.4628099 0.5540166 </span></span>
+<span id="cb94-6"><a href="#cb94-6" tabindex="-1"></a><span class="co">#&gt;        Bd        Ce        Oq        Ya        Mo        Hj        Tv        Eg </span></span>
+<span id="cb94-7"><a href="#cb94-7" tabindex="-1"></a><span class="co">#&gt; 0.4861111 0.4600000 0.4897959 0.4733728 0.5416667 0.6250000 0.5400000 0.5400000 </span></span>
+<span id="cb94-8"><a href="#cb94-8" tabindex="-1"></a><span class="co">#&gt;        Pr        Qs        Xz        Np        Dg        Hk        Wy        Jl </span></span>
+<span id="cb94-9"><a href="#cb94-9" tabindex="-1"></a><span class="co">#&gt; 0.4297521 0.5244444 0.4897959 0.4687500 0.5562130 0.6015625 0.6446281 0.4177778 </span></span>
+<span id="cb94-10"><a href="#cb94-10" tabindex="-1"></a><span class="co">#&gt;        Fh        Zb        Eh        Be        Df        Cf        Su        Ln </span></span>
+<span id="cb94-11"><a href="#cb94-11" tabindex="-1"></a><span class="co">#&gt; 0.5396825 0.6938776 0.6938776 0.6020408 0.3750000 0.6805556 0.4444444 0.4081633 </span></span>
+<span id="cb94-12"><a href="#cb94-12" tabindex="-1"></a><span class="co">#&gt;        Gi        Uw </span></span>
+<span id="cb94-13"><a href="#cb94-13" tabindex="-1"></a><span class="co">#&gt; 0.6666667 0.6250000</span></span></code></pre></div>
+</div>
+</div>
+<div id="community-and-group-based" class="section level2">
+<h2>Community and group-based</h2>
+<div id="cent-participation" class="section level3">
+<h3>Participation Coefficient</h3>
+<p>Participation coefficient measures how evenly a node’s ties are
+distributed across communities.</p>
+<p><span class="math display">\[
+P(v) = 1 - \sum_{m} \left( \frac{k_v^{(m)}}{k_v} \right)^2, \quad
+k_v^{(m)} = \text{ties from } v \text{ to module } m
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates ties spread across
+multiple communities. It requires a meaningful membership vector.</p>
+<div class="sourceCode" id="cb95"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb95-1"><a href="#cb95-1" tabindex="-1"></a><span class="fu">centrality_participation</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>brainGraph</code> participation coefficient conventions.</p>
+</div>
+<div id="cent-within_module_z" class="section level3">
+<h3>Within-Module Z Centrality</h3>
+<p>Within-module z centrality standardises a node’s within-community
+degree against other nodes in the same community.</p>
+<p><span class="math display">\[
+z(v) = \frac{k_v^{(m_v)} - \mu_{m_v}}{\sigma_{m_v}}, \quad m_v =
+\text{community of } v
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates unusually high
+within-module connectivity.</p>
+<div class="sourceCode" id="cb96"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb96-1"><a href="#cb96-1" tabindex="-1"></a><span class="fu">centrality_within_module_z</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>brainGraph</code> within-module z-score conventions.</p>
+</div>
+<div id="cent-gateway" class="section level3">
+<h3>Gateway Centrality</h3>
+<p>Gateway centrality measures inter-community brokerage weighted by
+centrality of communities or nodes involved.</p>
+<p><span class="math display">\[
+g(v) = 1 - \frac{1}{k_v^2} \sum_{s} k_{vs}^2\, \gamma_{vs}^2, \quad
+k_{vs} = \text{ties from } v \text{ to module } s
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates a structurally
+prominent position between communities.</p>
+<div class="sourceCode" id="cb97"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb97-1"><a href="#cb97-1" tabindex="-1"></a><span class="fu">centrality_gateway</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Validated against
+<code>brainGraph::gateway()</code> conventions.</p>
+</div>
+<div id="cent-brokerage_coordinator" class="section level3">
+<h3>Brokerage Coordinator Centrality</h3>
+<p>Coordinator brokerage occurs when a node mediates between two nodes
+in its own group. It counts open directed two-paths <span class="math inline">\(a \to v \to c\)</span> (with no direct <span class="math inline">\(a \to c\)</span>).</p>
+<p><span class="math display">\[
+\mathrm{Coord}(v) = |\{\, a \to v \to c : g(a) = g(v) = g(c) \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates within-group
+mediation under the supplied membership vector.</p>
+<div class="sourceCode" id="cb98"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb98-1"><a href="#cb98-1" tabindex="-1"></a><span class="fu">centrality_brokerage_coordinator</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Gould-Fernandez
+brokerage roles.</p>
+</div>
+<div id="cent-brokerage_itinerant" class="section level3">
+<h3>Brokerage Itinerant Centrality</h3>
+<p>Itinerant brokerage occurs when a node mediates between two nodes in
+another group.</p>
+<p><span class="math display">\[
+\mathrm{Itin}(v) = |\{\, a \to v \to c : g(a) = g(c) \ne g(v) \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates brokerage among
+members outside the node’s own group.</p>
+<div class="sourceCode" id="cb99"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb99-1"><a href="#cb99-1" tabindex="-1"></a><span class="fu">centrality_brokerage_itinerant</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Gould-Fernandez
+brokerage roles.</p>
+</div>
+<div id="cent-brokerage_representative" class="section level3">
+<h3>Brokerage Representative Centrality</h3>
+<p>Representative brokerage occurs when a node mediates from its own
+group to another group.</p>
+<p><span class="math display">\[
+\mathrm{Rep}(v) = |\{\, a \to v \to c : g(a) = g(v) \ne g(c) \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates outward brokerage
+from the node’s group.</p>
+<div class="sourceCode" id="cb100"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb100-1"><a href="#cb100-1" tabindex="-1"></a><span class="fu">centrality_brokerage_representative</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Gould-Fernandez
+brokerage roles.</p>
+</div>
+<div id="cent-brokerage_gatekeeper" class="section level3">
+<h3>Brokerage Gatekeeper Centrality</h3>
+<p>Gatekeeper brokerage occurs when a node mediates from another group
+into its own group.</p>
+<p><span class="math display">\[
+\mathrm{Gate}(v) = |\{\, a \to v \to c : g(a) \ne g(v) = g(c) \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates inward brokerage
+into the node’s group.</p>
+<div class="sourceCode" id="cb101"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb101-1"><a href="#cb101-1" tabindex="-1"></a><span class="fu">centrality_brokerage_gatekeeper</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Gould-Fernandez
+brokerage roles.</p>
+</div>
+<div id="cent-brokerage_liaison" class="section level3">
+<h3>Brokerage Liaison Centrality</h3>
+<p>Liaison brokerage occurs when a node mediates between two groups,
+neither of which is its own.</p>
+<p><span class="math display">\[
+\mathrm{Liai}(v) = |\{\, a \to v \to c : g(a),\, g(v),\, g(c) \text{ all
+distinct} \,\}|
+\]</span></p>
+<p><strong>Meaning.</strong> A high value indicates between-group
+brokerage outside the node’s own group.</p>
+<div class="sourceCode" id="cb102"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb102-1"><a href="#cb102-1" tabindex="-1"></a><span class="fu">centrality_brokerage_liaison</span>(student_interactions, <span class="at">membership =</span> groups)</span></code></pre></div>
+<p><strong>Equivalence reference.</strong> Based on Gould-Fernandez
+brokerage roles.</p>
+</div>
+</div>
+<div id="argument-catalogue" class="section level2">
+<h2>Argument catalogue</h2>
+<p>All measures are reachable through the single
+<code>centrality()</code> verb. These arguments control how they are
+computed. Measure-specific knobs are repeated in each measure’s
+<strong>Arguments</strong> line.</p>
+<table>
+<colgroup>
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+<col width="25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Argument</th>
+<th>Default</th>
+<th>Affects</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>type</code></td>
+<td><code>&quot;basic&quot;</code></td>
+<td>all</td>
+<td>Curated tier of measures: <code>&quot;basic&quot;</code>,
+<code>&quot;extended&quot;</code>, or <code>&quot;all&quot;</code>.</td>
+</tr>
+<tr class="even">
+<td><code>measures</code></td>
+<td><code>NULL</code></td>
+<td>all</td>
+<td>Character vector of specific measures to compute (overrides
+<code>type</code>).</td>
+</tr>
+<tr class="odd">
+<td><code>mode</code></td>
+<td><code>&quot;all&quot;</code></td>
+<td>directed measures</td>
+<td>Traversal direction: <code>&quot;all&quot;</code>, <code>&quot;in&quot;</code>, or
+<code>&quot;out&quot;</code>.</td>
+</tr>
+<tr class="even">
+<td><code>normalized</code></td>
+<td><code>FALSE</code></td>
+<td>most</td>
+<td>Divide each score by its maximum.</td>
+</tr>
+<tr class="odd">
+<td><code>weighted</code></td>
+<td><code>TRUE</code></td>
+<td>weighted measures</td>
+<td>Use edge weights when present.</td>
+</tr>
+<tr class="even">
+<td><code>directed</code></td>
+<td><code>NULL</code></td>
+<td>all</td>
+<td>Force directed/undirected; <code>NULL</code> auto-detects.</td>
+</tr>
+<tr class="odd">
+<td><code>loops</code></td>
+<td><code>TRUE</code></td>
+<td>degree, strength</td>
+<td>Keep self-loops.</td>
+</tr>
+<tr class="even">
+<td><code>simplify</code></td>
+<td><code>&quot;sum&quot;</code></td>
+<td>multigraphs</td>
+<td>How to combine parallel edges.</td>
+</tr>
+<tr class="odd">
+<td><code>cutoff</code></td>
+<td><code>-1</code></td>
+<td>path-based</td>
+<td>Cap path length (<code>-1</code> = no cap).</td>
+</tr>
+<tr class="even">
+<td><code>invert_weights</code></td>
+<td><code>NULL</code></td>
+<td>distance/path</td>
+<td>Treat weights as distances vs. strengths.</td>
+</tr>
+<tr class="odd">
+<td><code>alpha</code></td>
+<td><code>1</code></td>
+<td>weight transform</td>
+<td>Exponent applied when <code>invert_weights = TRUE</code>.</td>
+</tr>
+<tr class="even">
+<td><code>damping</code></td>
+<td><code>0.85</code></td>
+<td>PageRank</td>
+<td>Random-walk damping factor.</td>
+</tr>
+<tr class="odd">
+<td><code>personalized</code></td>
+<td><code>NULL</code></td>
+<td>PageRank</td>
+<td>Personalization vector.</td>
+</tr>
+<tr class="even">
+<td><code>transitivity_type</code></td>
+<td><code>&quot;local&quot;</code></td>
+<td>transitivity</td>
+<td><code>&quot;local&quot;</code>, <code>&quot;global&quot;</code>, or weighted
+variants.</td>
+</tr>
+<tr class="odd">
+<td><code>isolates</code></td>
+<td><code>&quot;nan&quot;</code></td>
+<td>transitivity</td>
+<td>How isolates are scored.</td>
+</tr>
+<tr class="even">
+<td><code>lambda</code></td>
+<td><code>1</code></td>
+<td>diffusion</td>
+<td>Diffusion scaling factor.</td>
+</tr>
+<tr class="odd">
+<td><code>k</code></td>
+<td><code>3</code></td>
+<td>k-reach</td>
+<td>Path-length radius.</td>
+</tr>
+<tr class="even">
+<td><code>states</code></td>
+<td><code>NULL</code></td>
+<td>percolation</td>
+<td>Per-node percolation state vector.</td>
+</tr>
+<tr class="odd">
+<td><code>decay_parameter</code></td>
+<td><code>0.5</code></td>
+<td>decay, generalized closeness</td>
+<td>Distance-decay base.</td>
+</tr>
+<tr class="even">
+<td><code>dmnc_epsilon</code></td>
+<td><code>1.7</code></td>
+<td>DMNC</td>
+<td>Density exponent.</td>
+</tr>
+<tr class="odd">
+<td><code>katz_alpha</code></td>
+<td><code>0.1</code></td>
+<td>Katz</td>
+<td>Attenuation factor.</td>
+</tr>
+<tr class="even">
+<td><code>hubbell_weight</code></td>
+<td><code>0.5</code></td>
+<td>Hubbell</td>
+<td>Weight factor <span class="math inline">\(w\)</span>.</td>
+</tr>
+<tr class="odd">
+<td><code>membership</code></td>
+<td><code>NULL</code></td>
+<td>group-based</td>
+<td>Community assignment vector.</td>
+</tr>
+<tr class="even">
+<td><code>digits</code></td>
+<td><code>NULL</code></td>
+<td>all</td>
+<td>Round numeric columns.</td>
+</tr>
+<tr class="odd">
+<td><code>sort_by</code></td>
+<td><code>NULL</code></td>
+<td>all</td>
+<td>Order rows by a column name.</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

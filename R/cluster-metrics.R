@@ -169,7 +169,9 @@ wagg <- aggregate_weights
 #'       \describe{
 #'         \item{type}{The \code{type} argument used ("tna", "raw", etc.)}
 #'         \item{method}{The \code{method} argument used ("sum", "mean", etc.)}
-#'         \item{directed}{Logical, whether network was treated as directed}
+#'         \item{directed}{Logical, effective directedness of the stored
+#'           weights (\code{FALSE} when \code{type = "cooccurrence"}, which
+#'           symmetrizes them)}
 #'         \item{n_nodes}{Total number of nodes in original network}
 #'         \item{n_clusters}{Number of clusters}
 #'         \item{cluster_sizes}{Named vector of cluster sizes}
@@ -187,7 +189,7 @@ wagg <- aggregate_weights
 #' net$nodes$clusters <- group_assignments
 #'
 #' # 2. Compute cluster summary
-#' cs <- cluster_summary(net, type = "tna")
+#' cs <- csum(net, type = "tna")
 #'
 #' # 3. Convert to tna models
 #' tna_models <- as_tna(cs)
@@ -229,20 +231,20 @@ wagg <- aggregate_weights
 #' rownames(mat) <- colnames(mat) <- LETTERS[1:10]
 #'
 #' # Membership vector
-#' cs <- cluster_summary(mat, c(1,1,1,2,2,2,3,3,3,3))
+#' cs <- csum(mat, c(1,1,1,2,2,2,3,3,3,3))
 #' cs$macro$weights      # 3x3 cluster transition matrix
 #'
 #' # Named list of clusters, TNA-normalized
 #' clusters <- list(Alpha = LETTERS[1:3], Beta = LETTERS[4:6], Gamma = LETTERS[7:10])
-#' cs <- cluster_summary(mat, clusters, type = "tna")
+#' cs <- csum(mat, clusters, type = "tna")
 #' rowSums(cs$macro$weights)  # all 1 (TNA probabilities)
-cluster_summary <- function(x,
-                            clusters = NULL,
-                            method = c("sum", "mean", "median", "max",
-                                       "min", "density", "geomean"),
-                            type = c("tna", "cooccurrence", "semi_markov", "raw"),
-                            directed = TRUE,
-                            compute_within = TRUE) {
+csum <- function(x,
+                 clusters = NULL,
+                 method = c("sum", "mean", "median", "max",
+                            "min", "density", "geomean"),
+                 type = c("tna", "cooccurrence", "semi_markov", "raw"),
+                 directed = TRUE,
+                 compute_within = TRUE) {
 
   # If already a cluster_summary, return as-is
 
@@ -446,7 +448,9 @@ cluster_summary <- function(x,
       meta = list(
         type = type,
         method = method,
-        directed = directed,
+        # Effective directedness of the stored weights: type =
+        # "cooccurrence" symmetrizes regardless of the directed argument.
+        directed = isTRUE(directed) && type != "cooccurrence",
         n_nodes = n,
         n_clusters = n_clusters,
         cluster_sizes = vapply(cluster_list, length, integer(1))
@@ -458,15 +462,12 @@ cluster_summary <- function(x,
   result
 }
 
-#' @rdname cluster_summary
-#' @return See \code{\link{cluster_summary}}.
-#' @export
-#' @examples
-#' mat <- matrix(c(0.5, 0.2, 0.3, 0.1, 0.6, 0.3, 0.4, 0.1, 0.5), 3, 3,
-#'               byrow = TRUE,
-#'               dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
-#' csum(mat, list(G1 = c("A", "B"), G2 = c("C")))
-csum <- cluster_summary
+# Internal alias: the matrix aggregator was exported as cluster_summary()
+# until 2.3.7, when the export was renamed to csum() to end the collision
+# with Nestimate::cluster_summary() (a different, aggregation-only verb).
+# Namespace-internal callers (plot_mcml, plot_htna_multi, mcml, ...) keep
+# using this name; it is no longer exported.
+cluster_summary <- csum
 
 # ==============================================================================
 # 2b. Build MCML from Raw Transition Data
@@ -476,7 +477,7 @@ csum <- cluster_summary
 #'
 #' Builds a Multi-Cluster Multi-Level (MCML) model from raw transition data
 #' (edge lists or sequences) by recoding node labels to cluster labels and
-#' counting actual transitions. Unlike \code{\link{cluster_summary}} which
+#' counting actual transitions. Unlike \code{\link{csum}} which
 #' aggregates a pre-computed weight matrix, this function works from the
 #' original transition data to produce the TRUE Markov chain over cluster states.
 #'
@@ -489,11 +490,11 @@ csum <- cluster_summary
 #'       sequence, columns are time steps. Consecutive pairs (t, t+1) become
 #'       transitions.}
 #'     \item{tna object}{If \code{x$data} is non-NULL, uses sequence path on
-#'       the raw data. Otherwise falls back to \code{\link{cluster_summary}}.}
+#'       the raw data. Otherwise falls back to \code{\link{csum}}.}
 #'     \item{cograph_network}{If \code{x$data} is non-NULL, detects edge list
-#'       vs sequence data. Otherwise falls back to \code{\link{cluster_summary}}.}
+#'       vs sequence data. Otherwise falls back to \code{\link{csum}}.}
 #'     \item{cluster_summary}{Returns as-is.}
-#'     \item{square numeric matrix}{Falls back to \code{\link{cluster_summary}}.}
+#'     \item{square numeric matrix}{Falls back to \code{\link{csum}}.}
 #'     \item{non-square or character matrix}{Treated as sequence data.}
 #'   }
 #'
@@ -512,7 +513,7 @@ csum <- cluster_summary
 #'       column containing cluster labels. The mapping is built from unique
 #'       (node, group) pairs in both from and to columns.}
 #'     \item{NULL}{Auto-detect from \code{cograph_network$nodes} or
-#'       \code{$node_groups} (same logic as \code{\link{cluster_summary}}).}
+#'       \code{$node_groups} (same logic as \code{\link{csum}}).}
 #'   }
 #'
 #' @param method Aggregation method for combining edge weights: "sum", "mean",
@@ -529,7 +530,7 @@ csum <- cluster_summary
 #'   \code{\link{plot_mcml}}, \code{\link{as_tna}}, and \code{\link{splot}}.
 #'
 #' @export
-#' @seealso \code{\link{cluster_summary}} for matrix-based aggregation,
+#' @seealso \code{\link{csum}} for matrix-based aggregation,
 #'   \code{\link{as_tna}} to convert to tna objects,
 #'   \code{\link{plot_mcml}} for visualization
 #'
@@ -541,7 +542,7 @@ csum <- cluster_summary
 #'   weight = c(1, 2, 1, 3, 1, 2)
 #' )
 #' clusters <- list(G1 = c("A", "B"), G2 = c("C", "D"))
-#' cs <- build_mcml(edges, clusters)
+#' cs <- summarize_clusters(edges, clusters)
 #' cs$macro$weights
 #'
 #' # Sequence data with clusters
@@ -551,9 +552,9 @@ csum <- cluster_summary
 #'   T3 = c("C", "C", "D"),
 #'   T4 = c("D", "A", "C")
 #' )
-#' cs <- build_mcml(seqs, clusters, type = "raw")
+#' cs <- summarize_clusters(seqs, clusters, type = "raw")
 #' cs$macro$weights
-build_mcml <- function(x,
+summarize_clusters <- function(x,
                        clusters = NULL,
                        method = c("sum", "mean", "median", "max",
                                   "min", "density", "geomean"),
@@ -617,6 +618,7 @@ build_mcml <- function(x,
 
 #' Convert a cluster_summary to mcml (strip tna classes)
 #' @keywords internal
+#' @noRd
 .as_mcml <- function(cs) {
   # Strip tna class from macro
   m <- unclass(cs$macro)
@@ -651,6 +653,7 @@ build_mcml <- function(x,
 
 #' Decode numeric tna_seq_data back to character labels
 #' @keywords internal
+#' @noRd
 .decode_tna_data <- function(data) {
   if (is.null(data)) return(NULL)
   tna_labels <- attr(data, "labels")
@@ -676,6 +679,7 @@ build_mcml <- function(x,
 #'     from each tna's labels. Macro rebuilt from original data.}
 #' }
 #' @keywords internal
+#' @noRd
 .group_tna_to_mcml <- function(x, clusters = NULL, method = "sum",
                                 type = "tna", directed = TRUE,
                                 compute_within = TRUE) {
@@ -800,8 +804,9 @@ build_mcml <- function(x,
   }
 }
 
-#' Detect input type for build_mcml
+#' Detect input type for summarize_clusters
 #' @keywords internal
+#' @noRd
 .detect_mcml_input <- function(x) {
   if (inherits(x, "group_tna")) return("group_tna")
 
@@ -835,6 +840,7 @@ build_mcml <- function(x,
 
 #' Auto-detect clusters from cograph_network
 #' @keywords internal
+#' @noRd
 .auto_detect_clusters <- function(x) {
   clusters <- NULL
   if (!is.null(x$nodes)) {
@@ -863,6 +869,7 @@ build_mcml <- function(x,
 
 #' Build node-to-cluster lookup from cluster specification
 #' @keywords internal
+#' @noRd
 .build_cluster_lookup <- function(clusters, all_nodes) {
   if (is.data.frame(clusters)) { # nocov start
     # Defensive: .normalize_clusters converts df to list before this is called
@@ -916,6 +923,7 @@ build_mcml <- function(x,
 
 #' Build cluster_summary from transition vectors
 #' @keywords internal
+#' @noRd
 .build_from_transitions <- function(from_nodes, to_nodes, weights,
                                      cluster_lookup, cluster_list,
                                      method, type, directed,
@@ -1080,7 +1088,9 @@ build_mcml <- function(x,
       meta = list(
         type = type,
         method = method,
-        directed = directed,
+        # Effective directedness of the stored weights: type =
+        # "cooccurrence" symmetrizes regardless of the directed argument.
+        directed = isTRUE(directed) && type != "cooccurrence",
         n_nodes = n_nodes,
         n_clusters = n_clusters,
         cluster_sizes = vapply(cluster_list, length, integer(1)),
@@ -1093,6 +1103,7 @@ build_mcml <- function(x,
 
 #' Build MCML from edge list data.frame
 #' @keywords internal
+#' @noRd
 .build_mcml_edgelist <- function(df, clusters, method, type,
                                   directed, compute_within) {
 
@@ -1170,6 +1181,7 @@ build_mcml <- function(x,
 
 #' Build MCML from sequence data.frame
 #' @keywords internal
+#' @noRd
 .build_mcml_sequence <- function(df, clusters, method, type,
                                   directed, compute_within) {
 
@@ -1219,6 +1231,7 @@ build_mcml <- function(x,
 
 #' Process weights based on type
 #' @keywords internal
+#' @noRd
 .process_weights <- function(raw_weights, type, directed = TRUE) {
   if (type == "raw" || type == "frequency") {
     return(raw_weights)
@@ -1252,7 +1265,7 @@ build_mcml <- function(x,
 #' the tna package for centrality analysis, bootstrap validation, permutation
 #' tests, and visualization.
 #'
-#' @param x A \code{cluster_summary} object created by \code{\link{cluster_summary}}.
+#' @param x A \code{cluster_summary} object created by \code{\link{csum}}.
 #'   The cluster_summary should typically be created with \code{type = "tna"} to
 #'   ensure row-normalized transition probabilities. If created with
 #'   \code{type = "raw"}, the raw counts will be passed to \code{tna::tna()}
@@ -1287,7 +1300,7 @@ build_mcml <- function(x,
 #' # Full MCML workflow
 #' net <- cograph(edges, nodes = nodes)
 #' net$nodes$clusters <- group_assignments
-#' cs <- cluster_summary(net, type = "tna")
+#' cs <- csum(net, type = "tna")
 #' tna_models <- as_tna(cs)
 #'
 #' # Now use tna package functions
@@ -1313,7 +1326,7 @@ build_mcml <- function(x,
 #'
 #' @export
 #' @seealso
-#'   \code{\link{cluster_summary}} to create the input object,
+#'   \code{\link{csum}} to create the input object,
 #'   \code{\link{plot_mcml}} for visualization without conversion,
 #'   \code{tna::tna} for the underlying tna constructor
 #'
@@ -1321,7 +1334,7 @@ build_mcml <- function(x,
 #' mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
 #' rownames(mat) <- colnames(mat) <- LETTERS[1:6]
 #' clusters <- list(G1 = c("A","B"), G2 = c("C","D"), G3 = c("E","F"))
-#' cs <- cluster_summary(mat, clusters, type = "tna")
+#' cs <- csum(mat, clusters, type = "tna")
 #' tna_models <- as_tna(cs)
 #' names(tna_models)          # "macro", "G1", "G2", "G3"
 #' splot(tna_models$macro)    # cograph renderer avoids tna's plot deps
@@ -1429,7 +1442,7 @@ as_tna.default <- function(x) {
 #' @param ... Additional arguments passed to methods.
 #' @return An \code{mcml} object with components \code{macro}, \code{clusters},
 #'   \code{cluster_members}, and \code{meta}.
-#' @seealso \code{\link{build_mcml}}, \code{\link{as_tna}}
+#' @seealso \code{\link{summarize_clusters}}, \code{\link{as_tna}}
 #' @export
 #'
 #' @examples
@@ -1439,7 +1452,7 @@ as_tna.default <- function(x) {
 #'                 0.4, 0.1, 0.5), 3, 3, byrow = TRUE,
 #'               dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
 #' clusters <- list(G1 = c("A", "B"), G2 = c("C"))
-#' cs <- cluster_summary(mat, clusters, type = "tna")
+#' cs <- csum(mat, clusters, type = "tna")
 #' m <- as_mcml(cs)
 #' m$macro$weights
 #'
@@ -1484,11 +1497,12 @@ as_mcml.mcml <- function(x, ...) {
 as_mcml.default <- function(x, ...) {
   if (inherits(x, "mcml")) return(x) # nocov
   stop("Cannot convert object of class '", class(x)[1], "' to mcml. ",
-       "Use build_mcml() for raw data inputs.", call. = FALSE)
+       "Use summarize_clusters() for raw data inputs.", call. = FALSE)
 }
 
 #' Normalize cluster specification to list format
 #' @keywords internal
+#' @noRd
 .normalize_clusters <- function(clusters, node_names) {
   if (is.data.frame(clusters)) {
     # Data frame with node and group columns
@@ -1696,6 +1710,7 @@ cqual <- cluster_quality
 
 #' Compute modularity
 #' @keywords internal
+#' @noRd
 .compute_modularity <- function(A, membership, directed = TRUE) {
   # Both directed and undirected use m_total = sum(A). For symmetric A the
   # double-sum counts each edge twice, making this algebraically equivalent
@@ -2059,8 +2074,13 @@ lsim <- layer_similarity
 #' @return Symmetric matrix of pairwise similarities
 #' @export
 #' @examples
-#' # layers <- list(T1 = mat1, T2 = mat2, T3 = mat3)
-#' # layer_similarity_matrix(layers, "cosine")
+#' nodes <- c("A", "B", "C")
+#' t1 <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3, dimnames = list(nodes, nodes))
+#' t2 <- matrix(c(0, 1, 1, 1, 0, 0, 1, 0, 0), 3, 3, dimnames = list(nodes, nodes))
+#' layers <- list(T1 = t1, T2 = t2)
+#'
+#' layer_similarity_matrix(layers, "cosine")
+#' layer_similarity_matrix(layers, "jaccard")
 layer_similarity_matrix <- function(layers,
                                     method = c("jaccard", "overlap", "cosine",
                                                "pearson")) {
@@ -2160,9 +2180,15 @@ ldegcor <- layer_degree_correlation
 #' @return Supra-adjacency matrix of dimension (N*L) x (N*L)
 #' @export
 #' @examples
-#' # layers <- list(L1 = mat1, L2 = mat2)
-#' # S <- supra_adjacency(layers, omega = 0.5)
-#' # dim(S)  # (2*n) x (2*n)
+#' nodes <- c("A", "B", "C")
+#' l1 <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3, dimnames = list(nodes, nodes))
+#' l2 <- matrix(c(0, 1, 1, 1, 0, 0, 1, 0, 0), 3, 3, dimnames = list(nodes, nodes))
+#' layers <- list(L1 = l1, L2 = l2)
+#'
+#' # 3 nodes x 2 layers gives a 6 x 6 supra-adjacency matrix.
+#' s <- supra_adjacency(layers, omega = 0.5)
+#' dim(s)
+#' s
 supra_adjacency <- function(layers,
                             omega = 1,
                             coupling = c("diagonal", "full", "custom"),
@@ -2370,11 +2396,15 @@ extract_interlayer <- supra_interlayer
 #' @return Aggregated adjacency matrix
 #' @export
 #' @examples
-#' # layers <- list(L1 = mat1, L2 = mat2, L3 = mat3)
-#' # aggregate_layers(layers, "sum")           # Total
-#' # aggregate_layers(layers, "mean")          # Average
-#' # aggregate_layers(layers, "union")         # Any edge
-#' # aggregate_layers(layers, "intersection")  # All edges
+#' nodes <- c("A", "B", "C")
+#' l1 <- matrix(c(0, 1, 0, 1, 0, 1, 0, 1, 0), 3, 3, dimnames = list(nodes, nodes))
+#' l2 <- matrix(c(0, 1, 1, 1, 0, 0, 1, 0, 0), 3, 3, dimnames = list(nodes, nodes))
+#' layers <- list(L1 = l1, L2 = l2)
+#'
+#' aggregate_layers(layers, "sum")           # total edge weight
+#' aggregate_layers(layers, "mean")          # average edge weight
+#' aggregate_layers(layers, "union")         # edge present in any layer
+#' aggregate_layers(layers, "intersection")  # edge present in every layer
 aggregate_layers <- function(layers,
                              method = c("sum", "mean", "max", "min",
                                         "union", "intersection"),
@@ -2567,11 +2597,16 @@ print.mcml <- function(x, ...) {
   cat("============\n")
   cat("Type:", x$meta$type, " | Method:", x$meta$method, "\n")
   cat("Nodes:", n_nodes, " | Clusters:", n_clusters, "\n")
-  cat("Transitions:", nrow(x$edges), "\n")
 
-  n_between <- sum(x$edges$type == "between")
-  n_within <- sum(x$edges$type == "within")
-  cat("  Macro:", n_between, " | Per-cluster:", n_within, "\n\n")
+  # Edge-less mcml objects (e.g. aggregate / matrix-derived) carry no $edges
+  # slot; nrow(NULL)/sum(NULL == "between") would otherwise print a blank
+  # `Transitions:` line and a misleading `Macro: 0 | Per-cluster: 0`.
+  if (!is.null(x$edges)) {
+    cat("Transitions:", nrow(x$edges), "\n")
+    cat("  Macro:", sum(x$edges$type == "between"),
+        " | Per-cluster:", sum(x$edges$type == "within"), "\n")
+  }
+  cat("\n")
 
   cat("Clusters:\n")
   for (cl in names(x$cluster_members)) {
@@ -2632,7 +2667,7 @@ print.cluster_quality <- function(x, ...) {
 #'   }
 #'
 #' @export
-#' @seealso \code{\link{cluster_summary}}, \code{\link{plot_mcml}}
+#' @seealso \code{\link{csum}}, \code{\link{plot_mcml}}
 #'
 #' @examples
 #' # Create a network with clusters

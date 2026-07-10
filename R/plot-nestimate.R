@@ -6,6 +6,7 @@
 #'   No Nestimate import is needed — dispatch is via \code{inherits()} class-name checking only.
 #' @name plot-nestimate
 #' @keywords internal
+#' @noRd
 NULL
 
 #' Plot a Nestimate netobject
@@ -40,9 +41,21 @@ splot.netobject <- function(x, ...) {
   # undirected TNA-family networks and still belong in oval layout with no
   # arrows. When $method is missing (legacy mocks, hand-built netobjects),
   # fall back to direction: directed -> TNA, undirected -> psych.
+  # edge_betweenness: a routing network that inherits its source's
+  # directedness (Nestimate preserves x$directed) — a directed one drawn with
+  # psych styling would lose arrows and one triangle of each asymmetric pair,
+  # while one derived from a correlation-family source belongs in the psych
+  # look. Style it like its SOURCE network when Nestimate recorded it
+  # ($edge_betweenness$source_method), falling back to direction: undirected
+  # TNA-family sources (co_occurrence, wtna_cooccurrence) then keep the same
+  # TNA look their source network gets.
   tna_methods <- c("relative", "frequency", "attention",
                    "co_occurrence", "wtna", "wtna_cooccurrence")
-  use_tna <- if (!is.null(x$method)) {
+  use_tna <- if (identical(x$method, "edge_betweenness")) {
+    src <- x[["edge_betweenness"]][["source_method"]]
+    if (!is.null(src)) src %in% tna_methods || isTRUE(x$directed)
+    else isTRUE(x$directed)
+  } else if (!is.null(x$method)) {
     x$method %in% tna_methods
   } else {
     isTRUE(x$directed)
@@ -465,6 +478,9 @@ plot_net_stability <- function(x, ...) {
   invisible(x)
 }
 
-#' @rdname plot_net_stability
-#' @export
-plot.net_stability <- function(x, ...) plot_net_stability(x, ...)
+# NOTE: cograph deliberately does NOT register an S3 `plot.net_stability`
+# method. Nestimate (the data layer that produces `net_stability` objects)
+# ships its own ggplot `plot.net_stability` with confidence-interval ribbons,
+# which is the canonical rendering. Registering one here too created an
+# S3 dispatch clash (last-loaded wins). The base-graphics rendering remains
+# available on demand via `plot_net_stability()`.

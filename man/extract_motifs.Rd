@@ -93,6 +93,10 @@ weight to count as present. Default 5.}
 \item{n_perm}{Number of permutations for significance test. Default 100.}
 
 \item{seed}{Random seed for reproducibility.}
+
+\item{n}{Number of motif rows to print.}
+
+\item{...}{Passed to methods; currently unused.}
 }
 \value{
 A \code{cograph_motif_analysis} object (list) containing:
@@ -144,7 +148,7 @@ m <- extract_motifs(mat, significance = FALSE)
 print(m)
 
 \dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
-\dontrun{
+\donttest{
 Mod <- tna::tna(tna::group_regulation)
 # Individual-level from tna -- keep n_perm tiny for example speed
 extract_motifs(Mod, top = 10, significance = TRUE, n_perm = 10L, seed = 1)
@@ -167,4 +171,3 @@ Other motifs:
 \code{\link{triad_census}()}
 }
 \concept{motifs}
-\keyword{internal}

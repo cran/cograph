@@ -2,6 +2,7 @@
 #' @description Visualize differences between two networks.
 #' @name plot-compare
 #' @keywords internal
+#' @noRd
 NULL
 
 #' Plot Network Difference
@@ -28,6 +29,10 @@ NULL
 #' @param inits_y Node values for y. NULL to auto-extract from tna.
 #' @param show_inits Logical: show node differences as donuts? Default TRUE if inits available.
 #' @param donut_inner_ratio Inner radius ratio for donut (0-1). Default 0.8.
+#' @param difference Logical. If \code{TRUE}, \code{x} is treated as an
+#'   already-subtracted difference network (no \code{y} needed). A
+#'   \code{tna_comparison} object (from \code{tna::compare()}) is detected
+#'   automatically and its \code{$difference_matrix} is used.
 #' @param force Logical: force plotting when more than 4 groups (many comparisons). Default FALSE.
 #' @param combined Logical: when TRUE (default) and \code{x} is a multi-group
 #'   input that triggers all-pairs plotting, lay panels out in an internal
@@ -58,15 +63,16 @@ NULL
 #' m2 <- matrix(runif(25), 5, 5)
 #' rownames(m1) <- colnames(m1) <- LETTERS[1:5]
 #' rownames(m2) <- colnames(m2) <- LETTERS[1:5]
-#' plot_compare(m1, m2)
+#' plot_difference(m1, m2)
 #'
 #' # With node-level differences
-#' plot_compare(m1, m2,
-#'              inits_x = c(.3, .2, .2, .15, .15),
-#'              inits_y = c(.1, .4, .2, .2, .1))
+#' plot_difference(m1, m2,
+#'                 inits_x = c(.3, .2, .2, .15, .15),
+#'                 inits_y = c(.1, .4, .2, .2, .1))
 #'
+#' @seealso \code{\link{plot_compare}}, the deprecated alias of this function.
 #' @export
-plot_compare <- function(x, y = NULL,
+plot_difference <- function(x, y = NULL,
                          i = NULL,
                          j = NULL,
                          pos_color = "#009900",
@@ -79,7 +85,45 @@ plot_compare <- function(x, y = NULL,
                          donut_inner_ratio = 0.8,
                          force = FALSE,
                          combined = TRUE,
+                         # `difference` is new in 2.4.x and must stay AFTER
+                         # `combined`: through the released 2.3.6 signature the
+                         # 14th positional argument is `combined`, and
+                         # plot_compare() forwards positionally via `...`.
+                         # Inserting ahead of it silently rebinds a caller's
+                         # 14th argument to `difference`, which makes the
+                         # function treat `x` as a pre-computed difference and
+                         # discard `y`. Append new arguments; never insert.
+                         difference = FALSE,
                          ...) {
+
+  # Consume a pre-computed difference: a tna_comparison object (uses its
+  # $difference_matrix) or, with difference = TRUE, x is treated as the already
+  # subtracted matrix/network. Modelled as x - 0 so the whole downstream
+  # pipeline (styling, sign colouring) is reused unchanged.
+  p_diff_matrix <- NULL
+  if (inherits(x, c("tna_comparison", "netdifference")) ||
+      (is.list(x) && is.matrix(x$difference_matrix))) {
+    # netdifference carries the DISPLAY matrix in $weights (e.g. only the
+    # supported differences when coerced with significant_only = TRUE) and the
+    # full difference in $difference_matrix; prefer the display matrix.
+    # Keep the probability-of-difference matrix (Bayesian coercions) for the
+    # {p_diff} label placeholder before x is reduced to a plain matrix.
+    if (is.list(x) && is.matrix(x$p_difference)) p_diff_matrix <- x$p_difference
+    x <- if (inherits(x, "netdifference") && is.matrix(x$weights)) {
+      x$weights
+    } else {
+      x$difference_matrix
+    }
+    difference <- TRUE
+  }
+  if (isTRUE(difference)) {
+    if (!is.null(y)) {
+      warning("'difference = TRUE': 'y' is ignored; 'x' is used as the ",
+              "difference network.", call. = FALSE)
+    }
+    x <- .extract_weights(x)
+    y <- matrix(0, nrow(x), ncol(x), dimnames = dimnames(x))
+  }
 
   # Handle group_tna object (tna package integration)
   if (inherits(x, "group_tna")) {
@@ -139,8 +183,11 @@ plot_compare <- function(x, y = NULL,
     y <- y_elem
   }
 
-  # Handle plain list of networks
-  else if (is.list(x) && !inherits(x, c("tna", "CographNetwork", "igraph"))) {
+  # Handle plain list of networks. Exclude network objects that are themselves
+  # S3 lists (cograph_network covers psychnet, Nestimate netobject, etc.) so a
+  # single such network is not mistaken for a list of networks to compare.
+  else if (is.list(x) &&
+           !inherits(x, c("tna", "CographNetwork", "cograph_network", "igraph"))) {
     if (length(x) < 2) {
       stop("List must contain at least 2 networks to compare")
     }
@@ -272,32 +319,54 @@ plot_compare <- function(x, y = NULL,
       edge_positive_color = pos_color,
       edge_negative_color = neg_color,
       labels = labels,
-      title = title
+      title = title,
+      # Show all difference edges: the style presets below default
+      # `minimum = 0.01`, which would silently hide small differences on a
+      # plot whose whole purpose is differences. User `minimum` still wins.
+      minimum = 0
     ),
     donut_args
   )
 
-  # Apply TNA visual defaults when inputs are TNA objects
-  if (is_tna_input) {
-    n_states <- nrow(diff_mat)
-    tna_colors <- if (!is.null(x$data)) attr(x$data, "colors") else NULL
-    if (is.null(tna_colors)) tna_colors <- tna_color_palette(n_states)
+  # Style the difference like a proper network instead of bare default nodes:
+  # the TNA look for a directed difference, the psychometric (Okabe-Ito) look
+  # for an undirected one. The presets supply the node size (qgraph scale, which
+  # splot transforms) and a per-node palette; edge_color is dropped so the
+  # sign-based positive/negative edge colours are kept.
+  n_states <- nrow(diff_mat)
+  diff_directed <- is_tna_input ||
+    !isTRUE(all.equal(unname(diff_mat), unname(t(diff_mat)), tolerance = 1e-8))
 
-    tna_defaults <- .tna_style_defaults(directed = TRUE)
-    tna_defaults$edge_labels <- TRUE
-    tna_defaults$node_fill <- tna_colors
-    # Remove edge_color from defaults so pos/neg colors are used for sign-based coloring
-    tna_defaults$edge_color <- NULL
-    for (nm in names(tna_defaults)) {
-      if (is.null(plot_args[[nm]])) {
-        plot_args[[nm]] <- tna_defaults[[nm]]
-      }
+  if (diff_directed) {
+    style_defaults <- .tna_style_defaults(n_nodes = n_states, directed = TRUE)
+    # Prefer the tna object's own state colours when available.
+    tna_colors <- if (is_tna_input && !is.null(x$data)) attr(x$data, "colors") else NULL
+    if (!is.null(tna_colors)) style_defaults$node_fill <- tna_colors
+  } else {
+    style_defaults <- .psych_style_defaults(n_nodes = n_states)
+  }
+  style_defaults$edge_color <- NULL  # keep sign-based pos/neg edge colours
+
+  for (nm in names(style_defaults)) {
+    if (is.null(plot_args[[nm]])) {
+      plot_args[[nm]] <- style_defaults[[nm]]
     }
   }
 
   # User args override defaults
   for (nm in names(extra_args)) {
     plot_args[[nm]] <- extra_args[[nm]]
+  }
+
+  # Bayesian coercions: expose the probability of the difference to the
+  # {p_diff} template placeholder (matrix form — splot indexes it per edge).
+  # Check names(extra_args), not is.null(): an explicit edge_label_p_diff =
+  # NULL from the user must suppress the auto-forward (R list NULL trap —
+  # assigning NULL deleted the element, so is.null() alone can't see it).
+  if (!is.null(p_diff_matrix) &&
+      !("edge_label_p_diff" %in% names(extra_args)) &&
+      is.null(plot_args[["edge_label_p_diff"]])) {
+    plot_args$edge_label_p_diff <- p_diff_matrix
   }
 
   # Plot with splot
@@ -307,6 +376,29 @@ plot_compare <- function(x, y = NULL,
     weights = diff_mat,
     inits = inits_diff
   ))
+}
+
+#' Plot Network Difference (alias of plot_difference)
+#'
+#' \code{plot_compare()} is an alias of \code{\link{plot_difference}()}. It is
+#' \strong{not deprecated}: \code{tna::plot_compare()} delegates to it by name
+#' (\code{cograph::plot_compare(x, y, ...)}), so the alias is part of the
+#' tna integration and must keep working. New cograph code may prefer the
+#' \code{plot_difference()} name; both call the same implementation.
+#'
+#' @param x First network (see \code{\link{plot_difference}}).
+#' @param ... Arguments passed to \code{\link{plot_difference}}.
+#' @return Invisibly, the value of \code{\link{plot_difference}}.
+#' @seealso \code{\link{plot_difference}}
+#' @examples
+#' m1 <- matrix(stats::runif(25), 5, 5)
+#' m2 <- matrix(stats::runif(25), 5, 5)
+#' rownames(m1) <- colnames(m1) <- LETTERS[1:5]
+#' rownames(m2) <- colnames(m2) <- LETTERS[1:5]
+#' plot_compare(m1, m2)
+#' @export
+plot_compare <- function(x, ...) {
+  plot_difference(x, ...)
 }
 
 
@@ -464,6 +556,7 @@ plot_comparison_heatmap <- function(x, y = NULL,
 #' @param x Network object (matrix, CographNetwork, tna, igraph, or list with $weights).
 #' @return A numeric matrix.
 #' @keywords internal
+#' @noRd
 .extract_weights <- function(x) {
   if (is.matrix(x)) {
     return(x)
@@ -506,6 +599,7 @@ plot_comparison_heatmap <- function(x, y = NULL,
 #' @param x Network object.
 #' @return A numeric vector of initial probabilities, or NULL if not available.
 #' @keywords internal
+#' @noRd
 .extract_inits <- function(x) {
   if (inherits(x, "tna")) {
     return(x$inits)
@@ -533,6 +627,7 @@ plot_comparison_heatmap <- function(x, y = NULL,
 #' @param ... Additional arguments passed to splot().
 #' @return Invisibly returns list of comparison results.
 #' @keywords internal
+#' @noRd
 .plot_compare_all_pairs <- function(x, pos_color, neg_color, labels,
                                     show_inits, donut_inner_ratio,
                                     combined = TRUE, ...) {

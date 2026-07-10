@@ -141,6 +141,21 @@ test_that("to_igraph preserves edge weights", {
   expect_true(!is.null(igraph::E(g)$weight))
 })
 
+test_that("to_igraph converts edge-list data frames", {
+  df <- data.frame(
+    from = c("A", "B", "B"),
+    to = c("B", "C", "A"),
+    weight = c(1, 2, 3)
+  )
+
+  g <- to_igraph(df)
+
+  expect_true(inherits(g, "igraph"))
+  expect_equal(sort(igraph::V(g)$name), c("A", "B", "C"))
+  expect_equal(igraph::ecount(g), 3)
+  expect_equal(igraph::E(g)$weight, c(1, 2, 3))
+})
+
 test_that("to_igraph errors on invalid input", {
   expect_error(to_igraph("not a network"))
   expect_error(to_igraph(list(a = 1, b = 2)))
@@ -211,6 +226,34 @@ test_that("detect_communities with walktrap method", {
   result <- detect_communities(mat, method = "walktrap")
 
   expect_equal(nrow(result), 4)
+})
+
+test_that("detect_communities louvain/leiden collapse a directed graph (no igraph abort)", {
+  # a genuinely directed, asymmetric matrix — louvain and leiden are
+  # undirected-only in igraph and would abort with
+  # "Multi-level community detection works for undirected graphs only".
+  dir_mat <- matrix(c(0, 1, 2, 0,
+                      0, 0, 1, 3,
+                      2, 0, 0, 1,
+                      1, 2, 0, 0), 4, 4, byrow = TRUE,
+                    dimnames = list(LETTERS[1:4], LETTERS[1:4]))
+
+  expect_message(
+    louvain <- detect_communities(dir_mat, method = "louvain"),
+    "collapsing directed edges"
+  )
+  expect_s3_class(louvain, "data.frame")
+  expect_equal(nrow(louvain), 4)
+
+  expect_message(
+    leiden <- detect_communities(dir_mat, method = "leiden"),
+    "collapsing directed edges"
+  )
+  expect_equal(nrow(leiden), 4)
+
+  # an undirected graph must NOT trigger the collapse message
+  sym_mat <- dir_mat + t(dir_mat)
+  expect_no_message(detect_communities(sym_mat, method = "louvain"))
 })
 
 test_that("detect_communities with fast_greedy method", {

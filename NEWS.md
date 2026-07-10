@@ -1,3 +1,321 @@
+# cograph 2.4.4
+
+## New features
+
+- **Producer-supplied splot metadata** (`x$meta$splot`): packages that create
+  cograph-plottable objects can now attach a small rendering contract —
+  `renderer` (resolved through a cograph-maintained whitelist of existing
+  renderers; arbitrary function names are never evaluated), `weight` (which
+  stored edge quantity to render: an edge column keeps the producer's edge
+  set, a matrix redefines the drawn network from its nonzero cells, aligned
+  by dimnames), and `defaults` (renderer arguments). Precedence is always
+  `user arguments > meta$splot$defaults > cograph defaults`; on the regular
+  network path this includes deprecated argument aliases (a user-supplied
+  `positive_color` still beats a metadata `edge_positive_color` default).
+  See `?splot`, section "Producer-Supplied splot Metadata".
+
+## Bug fixes / changes
+
+- `plot_bootstrap_forest()`, `extract_motifs()`, `motif_census()`,
+  `triad_census()` and `extract_triads()` are now listed in the package index
+  and the reference site. All five are exported and user-facing, but carried
+  `@keywords internal`, which hid them from `help(package = "cograph")` — you
+  could only find them if you already knew the name. `mcml()` remains hidden;
+  it is a deprecated alias of `csum()`. The `n` and `...` arguments of
+  `print.cograph_motif_analysis()` and `print.cograph_motifs()` are now
+  documented (previously exempt from checking by the `internal` keyword).
+
+- `plot_difference()`'s new `difference` argument moved to the end of the
+  signature, after `combined`. It had been inserted *before* `combined`, which
+  shifted the positional argument order relative to the released 2.3.6
+  signature. Because `plot_compare()` is `function(x, ...)` and forwards to
+  `plot_difference()`, a caller passing 14 positional arguments had their 14th
+  silently rebound from `combined` to `difference` — making the function treat
+  `x` as an already-subtracted matrix, discard `y`, and draw the wrong network
+  with no error. `difference` was introduced after the last CRAN release, so no
+  released behaviour changes. Named calls were never affected.
+
+- `plot_bootstrap_forest()` and `plot_edge_diff_forest()` no longer emit a
+  `geom_errorbarh()` deprecation warning under ggplot2 4.0.0. The four
+  horizontal error-bar layers now use
+  `geom_errorbar(orientation = "y")`; the rendered output is unchanged.
+  `DESCRIPTION` now declares the `ggplot2 (>= 3.4.0)` requirement the package
+  already had (it uses the `linewidth` aesthetic throughout).
+
+- `plot_edge_diff_forest(layout = "chord")` no longer emits a spurious
+  "row names were found from a short variable and have been discarded"
+  warning for every node arc it draws.
+
+- `aggregate_layers()`, `supra_adjacency()`, `layer_similarity_matrix()` and
+  `plot_motifs()` now ship runnable examples. Their `\examples` sections were
+  previously commented out (or entirely `\dontrun`), so they demonstrated
+  nothing and were never checked. The remaining `\dontrun` blocks in
+  `motifs()` and `extract_motifs()` are now `\donttest`, so they are executed
+  under `R CMD check --run-donttest`.
+
+- `detect_communities()` with the `"louvain"` (the default) or `"leiden"`
+  method no longer errors on a **directed** graph. These igraph algorithms
+  are undirected-only, so `detect_communities(tna_object)` — a tna model is
+  always directed — aborted with "Multi-level community detection works for
+  undirected graphs only". It now collapses the directed edges to undirected
+  (mean, as the `"fast_greedy"` method already did) with a message, so the
+  package's primary object type works with the default algorithm. This also
+  fixes `plot_htna(x, community = "louvain")` and other internal callers that
+  ran community detection on a directed model.
+
+- `splot()` on a Nestimate `netdifference` (from `subtract_networks()` /
+  `as_netdifference()`) now routes to `plot_difference()`. Previously it fell
+  through to the `netobject` path, which styles by `$method` — "difference"
+  is not a TNA-family method, so the asymmetric difference matrix was drawn
+  with undirected psych styling: no arrowheads and one triangle of each
+  asymmetric edge pair silently dropped. `splot(d, minimum = 3)` is now the
+  straightforward call for a signed difference network.
+
+- The `netdifference` routing excludes `net_permutation`-family objects:
+  `net_bayes` carries both classes and must keep reaching
+  `splot.net_permutation`, whose per-edge CI/star arrays are aligned by
+  `Nestimate::plot.net_bayes` to that renderer's edge ordering.
+
+- `plot_difference()` on a `netdifference` now draws the display matrix
+  (`$weights` — e.g. only the credible differences when coerced with
+  `as_netdifference(b, significant_only = TRUE)`), falling back to
+  `$difference_matrix`. For `subtract_networks()` results the two are
+  identical, so nothing changes there.
+
+- `plot_permutation()` / `splot.net_permutation()`: the `title` and `layout`
+  defaults now use exact `[[` indexing. `args$title` on a dots-list holding
+  `title_size` (but no `title`) partially matched `title_size`, so the
+  default title was silently skipped and no title was drawn — this is why
+  `Nestimate::plot.net_bayes()` output had no title. Same latent hazard
+  fixed for `layout` / `layout_scale`.
+
+- Edge label templates gain a `{p_diff}` placeholder (probability of the
+  difference, for Bayesian comparisons), fed by the new `edge_label_p_diff`
+  argument — a per-edge vector or a full node-by-node matrix (the matrix is
+  indexed at each drawn edge, so it survives `minimum`/`threshold`
+  filtering, and is aligned by dimnames so it may be supplied in any node
+  order). Filled automatically from `$p_difference` by
+  `splot.net_permutation` and by `plot_difference()` on Bayesian
+  `netdifference` coercions. Template example:
+  `edge_label_template = "{est} (P={p_diff})"`.
+
+- `splot.netobject()` styling classifier: `"edge_betweenness"` networks are
+  now styled by their directedness. A directed edge-betweenness network
+  previously fell into psych styling — drawn undirected, silently losing one
+  direction of each asymmetric pair; it now gets the TNA presets with arrows.
+  An undirected one (from a correlation-family source — Nestimate preserves
+  the source's directedness) keeps the psych look.
+
+- Nestimate producers now use the `meta$splot` contract: `netdifference`
+  objects carry `renderer = "difference"` and `net_bayes` carries
+  `renderer = "permutation"`, so metadata routing (which runs before class
+  dispatch) selects the renderer; the `netdifference` class branch remains
+  as a fallback for objects built without metadata.
+
+# cograph 2.4.3
+
+## Bug fixes / changes
+
+- `plot_difference()` no longer hides small difference edges: it defaults
+  `minimum = 0` (the style presets otherwise injected `minimum = 0.01`,
+  silently dropping edges with `|x - y| < 0.01`). An explicit `minimum`
+  still wins.
+
+- `plot_difference(x, y, difference = TRUE)` now warns that `y` is ignored
+  and uses `x` as the difference network, instead of silently computing
+  `x - y`.
+
+# cograph 2.4.2
+
+## Bug fixes / changes
+
+- `plot_compare()` is **no longer deprecated** — it is a plain alias of
+  `plot_difference()`. `tna::plot_compare()` delegates to it by name
+  (`cograph::plot_compare(x, y, ...)`), so deprecating it wrongly made every
+  `tna::plot_compare()` call emit a warning; the warning is removed. Both
+  names call the same implementation; `plot_difference()` is the preferred
+  spelling for new cograph code.
+
+- `plot_difference()` also auto-detects a Nestimate `netdifference` object
+  (or any object exposing `$difference_matrix`), alongside `tna_comparison`.
+
+# cograph 2.4.1
+
+## New features
+
+- `plot_difference()` can now consume a **pre-computed difference network**:
+  a `tna_comparison` object (from `tna::compare()`) is detected automatically
+  and its `$difference_matrix` is plotted, and `difference = TRUE` treats `x`
+  as an already-subtracted matrix/network (no `y` needed). The two-network
+  `plot_difference(x, y)` path is unchanged.
+
+# cograph 2.4.0
+
+## New features
+
+- Two focal-node flow layouts, usable anywhere a layout name is accepted
+  (`splot(x, layout = "target")` / `layout = "saqr"`):
+  - `layout_target()` ports qgraph's `flow()` — places one node of
+    interest (`target =`) on the left and every other node in columns by
+    unweighted BFS distance (hops). Unlike qgraph it handles disconnected
+    graphs (isolated nodes go to a trailing column) instead of erroring.
+  - `layout_saqr()` ports the Dynalytics Desktop "saqr" transition layout
+    (Saqr et al., LAK25): Start on top, End on bottom, middle nodes ranked
+    by outgoing weight from Start and split into 2–3 sine-enveloped rows
+    with a zig-zag first row (`start =`, `end =`, `jitter =`).
+
+## Bug fixes / changes
+
+- `plot_difference()` now **styles the difference network automatically**
+  instead of drawing bare default-blue nodes: an undirected difference
+  gets the psychometric look (Okabe-Ito node palette, no arrows, thin
+  edges), a directed difference gets the TNA look (TNA palette, arrows).
+  Node size uses the calibrated preset (previously nodes could render
+  near-invisible), and edges stay coloured by the sign of the difference.
+  Explicit `node_*` arguments still override the preset.
+
+- `plot_difference()` is added as the preferred name for the
+  difference-network plotter. `plot_compare()` remains a first-class alias
+  of it (`tna::plot_compare()` delegates to `cograph::plot_compare()` by
+  name, so the name must keep working).
+
+- `plot_difference()` (the renamed difference-network plotter) now treats
+  an S3 `cograph_network` (which is itself a list — e.g. a `psychnet`
+  fit, a Nestimate `netobject`, or any `as_cograph()` result) as a single
+  network. Previously such an object fell into the "plain list of
+  networks" branch and was misread as a list of sub-networks, failing
+  with "x must be a matrix, cograph_network, tna, or igraph object".
+  Comparing two psychnet/netobject networks with
+  `plot_difference(net1, net2)` now works.
+
+# cograph 2.3.11
+
+## New features
+
+- `dyad_census()` classifies every dyad of a directed network into
+  mutual (M), asymmetric (A), or null (N), returning a tidy
+  one-row-per-type data.frame with counts and proportions and a
+  dyad-based reciprocity (`2M / (2M + A)`) attribute. It is the
+  dyad-level companion to `triad_census()`. Undirected input counts
+  every edge as a mutual dyad.
+
+- `ego_networks()` reports tidy per-ego personal-network metrics — size,
+  ego/alter tie counts and densities, and Burt's structural-hole
+  measures (`effective_size`, `constraint`, `order = 1` only) — with one
+  row per ego. The structural-hole columns reuse the same
+  implementations as `centrality()`, so they match
+  `centrality(x, measures = c("effective_size", "constraint"))` exactly.
+
+# cograph 2.3.10
+
+## Bug fixes / changes
+
+- Bootstrap plots of undirected co-occurrence networks
+  (`splot.net_bootstrap`) now default to the `"oval"` layout instead of
+  the force-directed `"spring"` layout, matching `splot.tna_bootstrap`.
+  Pass `layout = "spring"` to restore the previous behavior.
+
+- Bootstrap plots now auto-suppress the `".00"` decimal tail on
+  integer-valued weight matrices (co-occurrence counts, raw
+  frequencies): `266.00**` renders as `266**`. Detection mirrors
+  `splot.netobject` — when every nonzero weight is a whole number and the
+  user has not set `weight_digits`, both `weight_digits` and
+  `edge_label_digits` default to `0`. Applies to both `splot.net_bootstrap`
+  and `splot.tna_bootstrap`. Non-integer (correlation/GLASSO) networks are
+  unaffected, and an explicit `weight_digits` always wins.
+
+# cograph 2.3.9
+
+## New features
+
+- `plot_mcml()` gains a `theme` argument: `"classic"` (default — the
+  established pie-node / straight-edge look, now with thinner node and
+  shell borders and slightly larger detail nodes), `"rich"` (donut nodes
+  on both layers plus curved summary edges and splot self-loops), and
+  `"light"` (`"rich"` with no shell outline and a softer fill). Granular
+  overrides `node_donut`, `node_donut_inner_ratio`,
+  `summary_donut_inner_ratio`, `summary_donut_show_value`, `curved_edges`,
+  and `summary_curve` win over the preset.
+
+- `plot_mcml()` now colors edges by weight sign on every layer
+  (within-cluster, between-cluster, summary, and self-loops) via
+  `edge_color_by`: `"auto"` (default) keeps cluster coloring for
+  non-negative transition networks but switches to sign coloring when any
+  negative weight is present (correlation / association networks),
+  `"cluster"` and `"sign"` force either mode. Positive edges use
+  `edge_positive_color` (`"#2E7D32"`, green) and negative edges
+  `edge_negative_color` (`"#C62828"`, red), matching `splot()`. Edge
+  visibility thresholding and width scaling now use the absolute weight,
+  so negative edges are drawn rather than silently dropped, and a
+  positive/negative key is added to the legend when sign coloring is
+  active.
+
+- `plot_mcml()` summary-node labels are now placed "on the clock": each
+  label sits just outside its node in the cardinal direction the node
+  points from the arrangement center (top at 12, bottom at 6, left at 9,
+  right at 3), anchored at the node boundary so it always clears the node
+  regardless of `summary_size`. An explicit `summary_label_position` still
+  overrides this.
+
+# cograph 2.3.8
+
+## New features
+
+- `plot_mcml()` and `splot()` accept `mcml_pc` objects
+  (`Nestimate::build_mcml_pc()`, experimental psychometric MCML) and
+  render them undirected via their `meta$directed` flag.
+
+# cograph 2.3.7
+
+## Breaking changes
+
+- The exported names `cluster_summary()` and `build_mcml()` are removed
+  to end, permanently, the collision with `Nestimate::cluster_summary()`
+  and `Nestimate::build_mcml()` — different functions that silently
+  masked each other depending on package attach order (the same disease
+  as the `cluster_network()` alias removed in 2.3.6, where load order
+  silently flipped results between raw counts and row-normalized
+  probabilities). Migration is name-for-name with identical behavior:
+  - `cluster_summary(...)` → `csum(...)` (the existing short alias is
+    now the canonical exported name; same arguments, same
+    `cluster_summary` return object).
+  - `build_mcml(...)` → `summarize_clusters(...)` (same arguments, same
+    `mcml` return object).
+  In sessions where both packages are attached, the bare names
+  `cluster_summary()` / `build_mcml()` now always refer to Nestimate's
+  data-layer verbs, regardless of attach order. The `as_tna()` generic
+  is intentionally exported by both packages: the definitions are
+  identical (`function(x) UseMethod("as_tna")`), so masking is harmless
+  and S3 methods from both packages dispatch correctly.
+
+## New features
+
+- `plot_mcml()` gains a `directed` argument (default `NULL` =
+  auto-detect). Undirected rendering suppresses arrowheads on all three
+  edge layers (within-cluster, between-cluster, summary), draws each
+  symmetric edge pair once instead of twice (previously a symmetric
+  matrix produced overplotted reciprocal arrows), and moves edge labels
+  to the edge midpoint. Auto-detection reads `$meta$directed` from
+  `cluster_summary`/`mcml` input (e.g., co-occurrence aggregations such
+  as `Nestimate::build_mcml(type = "cooccurrence")` now render
+  undirected with no extra flag), the `$directed` field of network
+  objects, or matrix symmetry for plain matrices — the same contract as
+  `splot()`, which forwards `directed` when dispatching
+  `mcml`/`cluster_summary` objects.
+- `plot_mcml()` undirected matrix input is aggregated with
+  `cluster_summary(type = "cooccurrence")` (symmetrized counts) instead
+  of the row-normalized `type = "tna"`, whose output is asymmetric even
+  for symmetric input and cannot be represented by undirected drawing.
+  When `directed = FALSE` is forced on weights that are not symmetric,
+  `plot_mcml()` now warns that only the upper triangle is drawn.
+
+## Bug fixes
+
+- `cluster_summary()` and the sequence path of `build_mcml()` now record
+  the *effective* directedness in `$meta$directed`: `FALSE` when
+  `type = "cooccurrence"` (which symmetrizes the weights), instead of
+  echoing the `directed` argument unchanged.
+
 # cograph 2.3.6
 
 ## Bug fixes

@@ -162,6 +162,7 @@ splot(
   edge_ci_lower = NULL,
   edge_ci_upper = NULL,
   edge_label_p = NULL,
+  edge_label_p_diff = NULL,
   edge_label_p_digits = 3,
   edge_label_p_prefix = "p=",
   edge_label_stars = NULL,
@@ -195,6 +196,7 @@ splot(
   node_names = NULL,
   tna_styling = NULL,
   psych_styling = NULL,
+  predictability = NULL,
   i = NULL,
   filetype = "default",
   filename = file.path(tempdir(), "splot"),
@@ -270,9 +272,11 @@ Default \code{1 - x$alpha} (i.e. the complement of the alpha level).}
 \item{edge_nonsig_style}{Line style for non-significant edges. Default 2L.}
 
 \item{layout}{Layout algorithm: "oval" (default), "circle", "spring",
-"groups", or a matrix of x,y coordinates, or an igraph layout function.
-Also supports igraph two-letter codes: "kk", "fr", "drl", "mds", "ni",
-etc.}
+"groups", "target" (qgraph-style focal-node BFS levels; node of interest
+via \code{target}), "saqr" (Start/End transition flow; \code{start}/
+\code{end}/\code{jitter}), or a matrix of x,y coordinates, or an igraph
+layout function. Also supports igraph two-letter codes: "kk", "fr", "drl",
+"mds", "ni", etc.}
 
 \item{directed}{Logical. Force directed interpretation. NULL for auto-detect.}
 
@@ -522,7 +526,7 @@ Useful for ensuring significant edges appear above non-significant ones.}
 
 \item{edge_label_style}{Preset style: "none", "estimate", "full", "range", "stars".}
 
-\item{edge_label_template}{Template with placeholders: \{est\}, \{range\}, \{low\}, \{up\}, \{p\}, \{stars\}.
+\item{edge_label_template}{Template with placeholders: \{est\}, \{range\}, \{low\}, \{up\}, \{p\}, \{p_diff\}, \{stars\}.
 Overrides edge_label_style if provided.}
 
 \item{edge_label_digits}{Decimal places for estimates. Default 2.}
@@ -539,6 +543,13 @@ Set to FALSE to display ".5" instead of "0.5".}
 \item{edge_ci_upper}{Numeric vector of upper CI bounds for labels.}
 
 \item{edge_label_p}{Numeric vector of p-values for edges.}
+
+\item{edge_label_p_diff}{Probability-of-difference values for the
+\code{\{p_diff\}} template placeholder: a per-edge numeric vector, or a
+full node-by-node matrix (indexed at each drawn edge automatically —
+the safe form when \code{minimum}/\code{threshold} filter edges). A
+matrix with dimnames is aligned to the plot's node names, so it may be
+supplied in any node order.}
 
 \item{edge_label_p_digits}{Decimal places for p-values. Default 3.}
 
@@ -630,6 +641,15 @@ Okabe-Ito palette, no arrows, thin edges) as a base layer. If \code{NULL}
 (default), \code{splot.netobject} auto-enables it on correlation-family input
 (glasso, cor, pcor, ising) and on the undirected constituents of
 \code{net_mlvar}. Explicit user args always win.}
+
+\item{predictability}{Logical or NULL. Draws a per-node predictability ring
+(a donut fill) from a \code{predictability} column on the network's node table,
+the way \code{qgraph}/\code{bootnet} show node predictability. If \code{TRUE}, draws
+it when the column is present; if \code{FALSE}, never; if \code{NULL}
+(default), draws it when the object marks it as its default
+(\code{network$meta$predictability_default}, set e.g. by a \code{psychnet}
+glasso network). A caller's own \code{pie_values} / \code{donut_fill}
+takes precedence.}
 
 \item{i}{Group index or name when x is a group_tna object. If NULL (default),
 plots all groups in a grid. If specified (e.g., i = 1 or i = "Treatment"),
@@ -775,10 +795,71 @@ For statistical output, use templates to format complex labels:
 \describe{
 \item{\strong{edge_label_template}}{Template string with placeholders:
 \code{\{est\}} for estimate/weight, \code{\{low\}}/\code{\{up\}} for CI bounds,
-\code{\{range\}} for formatted range, \code{\{p\}} for p-value, \code{\{stars\}}
-for significance stars.}
+\code{\{range\}} for formatted range, \code{\{p\}} for p-value,
+\code{\{p_diff\}} for the probability of the difference (Bayesian
+comparisons), \code{\{stars\}} for significance stars.}
 \item{\strong{edge_label_style}}{Preset styles: \code{"estimate"} (weight only),
 \code{"full"} (estimate + CI), \code{"range"} (CI only), \code{"stars"} (significance).}
+}
+}
+
+\subsection{Producer-Supplied splot Metadata}{
+
+Packages that create \code{cograph_network}-compatible objects can attach a
+small plotting contract at \code{x$meta$splot}. This lets producer packages
+such as Nestimate, lagdynamics, or other modelling packages describe their
+preferred cograph rendering without adding a new cograph-side class branch for
+every object type.
+
+The contract is optional. Objects without \code{meta$splot} follow the normal
+\code{splot()} path and all existing class-specific dispatch remains in place.
+When present, the supported fields are:
+\describe{
+\item{\code{renderer}}{Character scalar naming the cograph renderer to use.
+\code{"network"} (also \code{"splot"}, \code{"default"}, or \code{"base"})
+means the object follows the normal \code{splot()} path — including any
+class-specific dispatch cograph already performs for it — with the
+metadata defaults applied. Other values are resolved through a
+cograph-maintained whitelist of existing renderers, for example
+\code{"difference"}, \code{"bootstrap"}, \code{"permutation"},
+\code{"stability"}, \code{"mlvar"}, \code{"netobject"},
+\code{"netobject_group"}, \code{"netobject_ml"}, \code{"boot_glasso"},
+and \code{"wtna_mixed"}. Arbitrary function names are never evaluated.}
+\item{\code{weight}}{Optional character scalar naming the default edge
+weight to render. If it names an edge column, that column is copied to
+\code{edges$weight} for the plot (the producer's edge set is kept, and
+the \code{weights} matrix is rebuilt to match). If it names a matrix
+stored on the object, that matrix becomes the rendered network: it is
+copied to \code{weights} and the drawn edge set is rebuilt from its
+nonzero cells (aligned to the object's node order via dimnames when
+present). This is useful when the analytical object stores several edge
+quantities (for example counts, probabilities, residuals, effects) but
+has one preferred plot view. When the name matches both an edge column
+and a stored matrix, the matrix form wins.}
+\item{\code{defaults}}{Named list of \code{splot()} or renderer arguments.
+These are defaults only: any argument explicitly supplied by the user
+wins. Defaults can include regular \code{splot()} arguments such as
+\code{layout}, \code{node_fill}, \code{edge_labels},
+\code{weight_digits}, or renderer-specific arguments such as
+\code{display} for bootstrap renderers.}
+}
+
+The precedence rule is always:
+\preformatted{
+user arguments > x$meta$splot$defaults > cograph defaults
+}
+
+Example producer-side metadata:
+\preformatted{
+x$meta$splot <- list(
+  renderer = "network",
+  weight = "adj_res",
+  defaults = list(
+    node_fill = "white",
+    edge_labels = TRUE,
+    weight_digits = 1
+  )
+)
 }
 }
 }

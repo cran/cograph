@@ -19,7 +19,7 @@ CographNetwork <- R6::R6Class(
   "CographNetwork",
   public = list(
     #' @description Create a new CographNetwork object.
-    #' @param input Network input supported by \code{\link{parse_input}},
+    #' @param input Network input supported by \code{parse_input},
     #'   such as a matrix, edge list, igraph, statnet network, qgraph, or tna object.
     #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
     #' @param nodes Node metadata. Can be NULL or a data frame with node attributes.
@@ -335,6 +335,7 @@ CographNetwork <- R6::R6Class(
 #' @param x Object to check.
 #' @return Logical.
 #' @keywords internal
+#' @noRd
 is_cograph_network <- function(x) {
 
   inherits(x, "CographNetwork") || inherits(x, "cograph_network")
@@ -359,6 +360,7 @@ is_cograph_network <- function(x) {
 #' @param type Optional source/type string stored in \code{meta$type}.
 #' @return A cograph_network object (named list with class).
 #' @keywords internal
+#' @noRd
 .create_cograph_network <- function(
     nodes,
     edges,
@@ -754,7 +756,9 @@ set_layout <- function(x, layout_df) {
 #'     \item{\code{meta}}{Consolidated metadata list with sub-fields:
 #'       \code{source} (input type string),
 #'       \code{layout} (layout info list or NULL),
-#'       \code{tna} (TNA metadata or NULL)}
+#'       \code{tna} (TNA metadata or NULL), and optionally
+#'       \code{splot} (producer-supplied rendering hints read by
+#'       \code{\link{splot}})}
 #'     \item{\code{node_groups}}{Optional node groupings data frame}
 #'   }
 #'
@@ -763,6 +767,14 @@ set_layout <- function(x, layout_df) {
 #' - Lean: Only essential data stored, computed values derived on demand
 #' - Modern: Uses named list elements instead of attributes for clean \code{$} access
 #' - Compatible: Works seamlessly with splot() and other cograph functions
+#'
+#' Producer packages may attach optional plotting hints under
+#' \code{meta$splot}. The recognized fields are \code{renderer} (which cograph
+#' renderer to use), \code{weight} (the edge column or matrix to render as
+#' \code{weight}), and \code{defaults} (a named list of renderer arguments).
+#' Entries in \code{defaults} are defaults only — user-supplied arguments to
+#' \code{\link{splot}} always override them. \code{renderer} and \code{weight}
+#' define which view is rendered and are not overridden by plot arguments.
 #'
 #' Use getter functions for programmatic access:
 #' \code{\link{get_nodes}}, \code{\link{get_edges}}, \code{\link{get_labels}},

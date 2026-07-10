@@ -19,9 +19,11 @@ NULL
 #'   - A group_tna object (list of tna objects from tna package).
 #'     Use parameter `i` to select a specific group, or omit to plot all groups.
 #' @param layout Layout algorithm: "oval" (default), "circle", "spring",
-#'   "groups", or a matrix of x,y coordinates, or an igraph layout function.
-#'   Also supports igraph two-letter codes: "kk", "fr", "drl", "mds", "ni",
-#'   etc.
+#'   "groups", "target" (qgraph-style focal-node BFS levels; node of interest
+#'   via \code{target}), "saqr" (Start/End transition flow; \code{start}/
+#'   \code{end}/\code{jitter}), or a matrix of x,y coordinates, or an igraph
+#'   layout function. Also supports igraph two-letter codes: "kk", "fr", "drl",
+#'   "mds", "ni", etc.
 #' @param directed Logical. Force directed interpretation. NULL for auto-detect.
 #' @param seed Random seed for deterministic layouts. Default 42.
 #' @param theme Theme name: "classic", "dark", "minimal", "colorblind", etc.
@@ -178,7 +180,7 @@ NULL
 #'   Useful for ensuring significant edges appear above non-significant ones.
 #'
 #' @param edge_label_style Preset style: "none", "estimate", "full", "range", "stars".
-#' @param edge_label_template Template with placeholders: \{est\}, \{range\}, \{low\}, \{up\}, \{p\}, \{stars\}.
+#' @param edge_label_template Template with placeholders: \{est\}, \{range\}, \{low\}, \{up\}, \{p\}, \{p_diff\}, \{stars\}.
 #'   Overrides edge_label_style if provided.
 #' @param edge_label_digits Decimal places for estimates. Default 2.
 #' @param edge_label_leading_zero Logical: show leading zero for values < 1? Default TRUE.
@@ -188,6 +190,12 @@ NULL
 #' @param edge_ci_lower Numeric vector of lower CI bounds for labels.
 #' @param edge_ci_upper Numeric vector of upper CI bounds for labels.
 #' @param edge_label_p Numeric vector of p-values for edges.
+#' @param edge_label_p_diff Probability-of-difference values for the
+#'   \code{\{p_diff\}} template placeholder: a per-edge numeric vector, or a
+#'   full node-by-node matrix (indexed at each drawn edge automatically —
+#'   the safe form when \code{minimum}/\code{threshold} filter edges). A
+#'   matrix with dimnames is aligned to the plot's node names, so it may be
+#'   supplied in any node order.
 #' @param edge_label_p_digits Decimal places for p-values. Default 3.
 #' @param edge_label_p_prefix Prefix for p-values. Default "p=".
 #' @param edge_label_stars Stars for labels: character vector, TRUE (compute from p),
@@ -253,6 +261,14 @@ NULL
 #'   (default), `splot.netobject` auto-enables it on correlation-family input
 #'   (glasso, cor, pcor, ising) and on the undirected constituents of
 #'   `net_mlvar`. Explicit user args always win.
+#' @param predictability Logical or NULL. Draws a per-node predictability ring
+#'   (a donut fill) from a `predictability` column on the network's node table,
+#'   the way `qgraph`/`bootnet` show node predictability. If \code{TRUE}, draws
+#'   it when the column is present; if \code{FALSE}, never; if \code{NULL}
+#'   (default), draws it when the object marks it as its default
+#'   (\code{network$meta$predictability_default}, set e.g. by a `psychnet`
+#'   glasso network). A caller's own \code{pie_values} / \code{donut_fill}
+#'   takes precedence.
 #' @param i Group index or name when x is a group_tna object. If NULL (default),
 #'   plots all groups in a grid. If specified (e.g., i = 1 or i = "Treatment"),
 #'   plots only that group.
@@ -338,10 +354,69 @@ NULL
 #' \describe{
 #'   \item{\strong{edge_label_template}}{Template string with placeholders:
 #'     \code{\{est\}} for estimate/weight, \code{\{low\}}/\code{\{up\}} for CI bounds,
-#'     \code{\{range\}} for formatted range, \code{\{p\}} for p-value, \code{\{stars\}}
-#'     for significance stars.}
+#'     \code{\{range\}} for formatted range, \code{\{p\}} for p-value,
+#'     \code{\{p_diff\}} for the probability of the difference (Bayesian
+#'     comparisons), \code{\{stars\}} for significance stars.}
 #'   \item{\strong{edge_label_style}}{Preset styles: \code{"estimate"} (weight only),
 #'     \code{"full"} (estimate + CI), \code{"range"} (CI only), \code{"stars"} (significance).}
+#' }
+#'
+#' ## Producer-Supplied splot Metadata
+#' Packages that create \code{cograph_network}-compatible objects can attach a
+#' small plotting contract at \code{x$meta$splot}. This lets producer packages
+#' such as Nestimate, lagdynamics, or other modelling packages describe their
+#' preferred cograph rendering without adding a new cograph-side class branch for
+#' every object type.
+#'
+#' The contract is optional. Objects without \code{meta$splot} follow the normal
+#' \code{splot()} path and all existing class-specific dispatch remains in place.
+#' When present, the supported fields are:
+#' \describe{
+#'   \item{\code{renderer}}{Character scalar naming the cograph renderer to use.
+#'     \code{"network"} (also \code{"splot"}, \code{"default"}, or \code{"base"})
+#'     means the object follows the normal \code{splot()} path — including any
+#'     class-specific dispatch cograph already performs for it — with the
+#'     metadata defaults applied. Other values are resolved through a
+#'     cograph-maintained whitelist of existing renderers, for example
+#'     \code{"difference"}, \code{"bootstrap"}, \code{"permutation"},
+#'     \code{"stability"}, \code{"mlvar"}, \code{"netobject"},
+#'     \code{"netobject_group"}, \code{"netobject_ml"}, \code{"boot_glasso"},
+#'     and \code{"wtna_mixed"}. Arbitrary function names are never evaluated.}
+#'   \item{\code{weight}}{Optional character scalar naming the default edge
+#'     weight to render. If it names an edge column, that column is copied to
+#'     \code{edges$weight} for the plot (the producer's edge set is kept, and
+#'     the \code{weights} matrix is rebuilt to match). If it names a matrix
+#'     stored on the object, that matrix becomes the rendered network: it is
+#'     copied to \code{weights} and the drawn edge set is rebuilt from its
+#'     nonzero cells (aligned to the object's node order via dimnames when
+#'     present). This is useful when the analytical object stores several edge
+#'     quantities (for example counts, probabilities, residuals, effects) but
+#'     has one preferred plot view. When the name matches both an edge column
+#'     and a stored matrix, the matrix form wins.}
+#'   \item{\code{defaults}}{Named list of \code{splot()} or renderer arguments.
+#'     These are defaults only: any argument explicitly supplied by the user
+#'     wins. Defaults can include regular \code{splot()} arguments such as
+#'     \code{layout}, \code{node_fill}, \code{edge_labels},
+#'     \code{weight_digits}, or renderer-specific arguments such as
+#'     \code{display} for bootstrap renderers.}
+#' }
+#'
+#' The precedence rule is always:
+#' \preformatted{
+#' user arguments > x$meta$splot$defaults > cograph defaults
+#' }
+#'
+#' Example producer-side metadata:
+#' \preformatted{
+#' x$meta$splot <- list(
+#'   renderer = "network",
+#'   weight = "adj_res",
+#'   defaults = list(
+#'     node_fill = "white",
+#'     edge_labels = TRUE,
+#'     weight_digits = 1
+#'   )
+#' )
 #' }
 #'
 #' @return Invisibly returns the cograph_network object.
@@ -494,6 +569,7 @@ splot <- function(
     edge_ci_lower = NULL,
     edge_ci_upper = NULL,
     edge_label_p = NULL,
+    edge_label_p_diff = NULL,
     edge_label_p_digits = 3,
     edge_label_p_prefix = "p=",
     edge_label_stars = NULL,
@@ -537,6 +613,9 @@ splot <- function(
     # Psych network styling
     psych_styling = NULL,
 
+    # Node predictability ring (draws nodes$predictability as a donut fill)
+    predictability = NULL,
+
     # Group selection (for group_tna)
     i = NULL,
 
@@ -568,6 +647,36 @@ splot <- function(
   # Evaluate user-explicit args once from local scope (safe, no re-eval of AST)
   # Exclude "..." — those are already captured in .dots
   .user_args <- mget(setdiff(names(.user_explicit), "..."), envir = environment())
+  .model_default_args <- character(0)
+
+  # Producer packages can attach a small, optional rendering contract at
+  # x$meta$splot. It is interpreted before legacy class dispatch so a producer
+  # can opt into an existing cograph renderer without adding another branch.
+  .splot_meta <- .get_splot_metadata(x)
+  if (!is.null(.splot_meta)) {
+    x <- .apply_splot_metadata_weight(x, .splot_meta)
+    .renderer <- .splot_metadata_renderer_name(.splot_meta)
+
+    if (!.is_network_splot_renderer(.renderer)) {
+      .renderer_fn <- .resolve_splot_metadata_renderer(.renderer)
+      .call_args <- .collect_dispatch_args(
+        .user_args,
+        .dots,
+        base = .splot_metadata_defaults(.splot_meta)
+      )
+      return(do.call(.renderer_fn, c(list(x = x), .call_args)))
+    }
+
+    .merged <- .merge_splot_metadata_defaults(
+      .splot_metadata_defaults(.splot_meta),
+      .user_args,
+      .dots
+    )
+    .user_args <- .merged$user_args
+    .dots <- .merged$dots
+    .model_default_args <- .merged$applied
+    list2env(.user_args[.merged$formal_args], envir = environment())
+  }
 
   # Handle tna objects directly
   if (inherits(x, "tna")) {
@@ -652,7 +761,7 @@ splot <- function(
   # ============================================
 
   # Handle cluster_summary / mcml objects -> dispatch to plot_mcml
-  if (inherits(x, c("cluster_summary", "mcml"))) {
+  if (inherits(x, c("cluster_summary", "mcml", "mcml_pc"))) {
     return(do.call(plot_mcml, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
   }
 
@@ -683,6 +792,19 @@ splot <- function(
   # Dispatch for cograph detect_communities() results
   if (inherits(x, "cograph_communities")) {
     return(do.call(splot.cograph_communities, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
+  }
+
+  # Nestimate: signed network difference (subtract_networks / as_netdifference).
+  # Must come before netobject — netdifference inherits from it, and the
+  # netobject path would style it by $method ("difference" -> psych styling),
+  # rendering an asymmetric difference as undirected and dropping one triangle.
+  # plot_difference() owns the difference conventions: sign-based edge colours,
+  # directedness from the matrix, minimum = 0.
+  # Excludes net_permutation-family objects (net_bayes carries netdifference
+  # too): those go to splot.net_permutation below, whose per-edge CI/star
+  # arrays are aligned by the caller (plot.net_bayes) to ITS edge ordering.
+  if (inherits(x, "netdifference") && !inherits(x, "net_permutation")) {
+    return(do.call(plot_difference, c(list(x = x), .collect_dispatch_args(.user_args, .dots))))
   }
 
   # Nestimate: base netobject — apply directed/undirected styling defaults
@@ -742,7 +864,10 @@ splot <- function(
   # ============================================
   # HANDLE DEPRECATED PARAMETERS
   # ============================================
-  # Detect which arguments were explicitly provided by the user
+  # Detect which arguments were explicitly provided by the user.
+  # Metadata defaults (x$meta$splot$defaults) are NOT included yet: a user's
+  # deprecated alias (e.g. positive_color) must still beat a metadata default
+  # for the new name (edge_positive_color) — user args always outrank metadata.
   explicit_args <- names(.user_explicit)
 
   # For params with NULL defaults, simple check works
@@ -769,6 +894,12 @@ splot <- function(
     "donut_line_type", "donut_border_lty",
     new_val_was_set = "donut_line_type" %in% explicit_args
   )
+
+  # From here on, metadata defaults count as explicit so the styling presets
+  # below (cograph defaults) do not override them: user > metadata > preset.
+  if (length(.model_default_args)) {
+    explicit_args <- union(explicit_args, .model_default_args)
+  }
 
   # Convert edge_label_fontface to numeric if string (for backwards compat with renderers)
   edge_label_fontface_num <- fontface_to_numeric(edge_label_fontface)
@@ -902,6 +1033,19 @@ splot <- function(
   nodes <- get_nodes(network)
   edges <- get_edges(network)
   is_net_directed <- is_directed(network)
+
+  # Predictability ring: a network may carry a per-node `predictability` column
+  # (e.g. a psychnet object stores node R^2 / accuracy at fit time). Draw it as
+  # the node donut fill when `predictability = TRUE`, or when `predictability`
+  # is left NULL and the object marks it as its default (network$meta$
+  # predictability_default). A caller's own pie_values / donut_fill always wins.
+  draw_predictability <- if (is.null(predictability)) {
+    isTRUE(network$meta$predictability_default)
+  } else isTRUE(predictability)
+  if (draw_predictability && is.null(pie_values) && is.null(donut_fill) &&
+      !is.null(nodes$predictability)) {
+    donut_fill <- as.numeric(nodes$predictability)
+  }
 
   # Get layout coordinates from nodes if available
   if ("x" %in% names(nodes) && !all(is.na(nodes$x))) {
@@ -1091,6 +1235,8 @@ splot <- function(
       edge_label_fontface    <- .subset_if_per_edge(edge_label_fontface)
       edge_label_position    <- .subset_if_per_edge(edge_label_position)
       edge_label_p           <- .subset_if_per_edge(edge_label_p)
+      if (!is.matrix(edge_label_p_diff))
+        edge_label_p_diff    <- .subset_if_per_edge(edge_label_p_diff)
       edge_ci_lower          <- .subset_if_per_edge(edge_ci_lower)
       edge_ci_upper          <- .subset_if_per_edge(edge_ci_upper)
     }
@@ -1163,6 +1309,32 @@ splot <- function(
     if (!is.null(edge_label_template) || edge_label_style != "none") {
       # Use template-based labels
       edge_weights <- if ("weight" %in% names(edges)) edges$weight else NULL
+      # edge_label_p_diff accepts a full matrix: index it at this plot's own
+      # edge positions so callers never have to replicate edge enumeration.
+      # Prefer dimname alignment — a matrix supplied in a different node order
+      # than the plot must still label each edge with its own value. Character
+      # indexing needs names on BOTH dimensions; otherwise fall back to
+      # positional indexing (dims must match) or drop the matrix with a
+      # warning rather than crash with "subscript out of bounds".
+      edge_p_diff_vec <- if (is.matrix(edge_label_p_diff)) {
+        pd <- edge_label_p_diff
+        node_names <- if (!is.null(nodes$name)) as.character(nodes$name)
+        by_name <- !is.null(node_names) && !anyDuplicated(node_names) &&
+          !is.null(rownames(pd)) && !is.null(colnames(pd)) &&
+          all(node_names %in% rownames(pd)) && all(node_names %in% colnames(pd))
+        if (by_name) {
+          pd[cbind(node_names[edges$from], node_names[edges$to])]
+        } else if (nrow(pd) == n_nodes && ncol(pd) == n_nodes) {
+          pd[cbind(edges$from, edges$to)]
+        } else {
+          warning("edge_label_p_diff matrix does not match the network's ",
+                  "nodes (by dimnames or by dimension); ignoring it",
+                  call. = FALSE)
+          NULL
+        }
+      } else {
+        edge_label_p_diff
+      }
       edge_labels_vec <- build_edge_labels_from_template(
         template = edge_label_template,
         style = edge_label_style,
@@ -1170,6 +1342,7 @@ splot <- function(
         ci_lower = edge_ci_lower,
         ci_upper = edge_ci_upper,
         p_values = edge_label_p,
+        p_diff = edge_p_diff_vec,
         stars = edge_label_stars,
         digits = edge_label_digits,
         p_digits = edge_label_p_digits,
@@ -1576,6 +1749,7 @@ splot <- function(
 
 #' Render Edges for splot
 #' @keywords internal
+#' @noRd
 render_edges_splot <- function(edges, layout, node_sizes, shapes,
                                edge_color, edge_width, edge_style, curvature,
                                curve_shape, curve_pivot, show_arrows, arrow_size,
@@ -1924,6 +2098,7 @@ render_edges_splot <- function(edges, layout, node_sizes, shapes,
 #' @param donut_values List of values for donut chart. Each element is a single
 #'   numeric (0-1) representing fill proportion for that node.
 #' @keywords internal
+#' @noRd
 render_nodes_splot <- function(layout, node_size, node_size2, node_shape, node_fill,
                                node_border_color, node_border_width, pie_values, pie_colors,
                                pie_border_width, donut_values, donut_colors,
@@ -2230,6 +2405,7 @@ render_nodes_splot <- function(layout, node_size, node_size2, node_shape, node_f
 #' @param show_node_sizes Logical: show node size legend?
 #' @param node_size Vector of node sizes.
 #' @keywords internal
+#' @noRd
 render_legend_splot <- function(groups, node_names, nodes, node_colors,
                                 position = "topright", cex = 0.8,
                                 show_edge_colors = FALSE,
@@ -2388,6 +2564,267 @@ render_legend_splot <- function(groups, node_names, nodes, node_colors,
     xpd = FALSE,
     visual_scale = visual_scale
   )
+}
+
+#' Extract producer-supplied splot metadata
+#' @noRd
+.get_splot_metadata <- function(x) {
+  # .subset2: exact-name extraction with NO S3 dispatch — $ would partial
+  # match (meta$splot_version), and [[ dispatches to class methods (on an
+  # igraph, x[["meta"]] is vertex indexing, not attribute access)
+  if (!is.list(x)) {
+    return(NULL)
+  }
+
+  meta <- .subset2(x, "meta")
+  if (!is.list(meta)) {
+    return(NULL)
+  }
+
+  spec <- .subset2(meta, "splot")
+  if (is.null(spec)) {
+    return(NULL)
+  }
+
+  if (!is.list(spec)) {
+    stop("x$meta$splot must be a named list", call. = FALSE)
+  }
+
+  spec
+}
+
+#' Resolve the renderer name from producer metadata
+#' @noRd
+.splot_metadata_renderer_name <- function(spec) {
+  renderer <- spec[["renderer"]]
+  if (is.null(renderer)) renderer <- "network"
+
+  if (!is.character(renderer) || length(renderer) != 1L ||
+      is.na(renderer) || !nzchar(renderer)) {
+    stop("x$meta$splot$renderer must be a non-empty character scalar",
+         call. = FALSE)
+  }
+
+  tolower(renderer)
+}
+
+#' Does a metadata renderer mean the regular splot network path?
+#' @noRd
+.is_network_splot_renderer <- function(renderer) {
+  renderer %in% c("network", "splot", "base", "default")
+}
+
+#' Whitelist metadata renderer names to existing cograph renderer functions
+#' @noRd
+.resolve_splot_metadata_renderer <- function(renderer) {
+  switch(
+    renderer,
+    "difference" = plot_difference,
+    "compare" = plot_difference,
+    "bootstrap" = splot.net_bootstrap,
+    "net_bootstrap" = splot.net_bootstrap,
+    "tna_bootstrap" = splot.tna_bootstrap,
+    "permutation" = splot.net_permutation,
+    "net_permutation" = splot.net_permutation,
+    "tna_permutation" = splot.tna_permutation,
+    "disparity" = splot.tna_disparity,
+    "tna_disparity" = splot.tna_disparity,
+    "communities" = splot.cograph_communities,
+    "cograph_communities" = splot.cograph_communities,
+    "tna_communities" = splot.tna_communities,
+    "netobject" = splot.netobject,
+    "boot_glasso" = splot.boot_glasso,
+    "wtna_mixed" = splot.wtna_mixed,
+    "mlvar" = splot.net_mlvar,
+    "net_mlvar" = splot.net_mlvar,
+    "stability" = plot_net_stability,
+    "net_stability" = plot_net_stability,
+    "netobject_group" = plot_netobject_group,
+    "netobject_ml" = plot_netobject_ml,
+    "net_bootstrap_group" = plot_net_bootstrap_group,
+    stop(
+      "Unknown x$meta$splot$renderer '", renderer, "'. ",
+      "Use 'network' or one of cograph's whitelisted renderers.",
+      call. = FALSE
+    )
+  )
+}
+
+#' Validate and return metadata defaults
+#' @noRd
+.splot_metadata_defaults <- function(spec) {
+  defaults <- spec[["defaults"]]
+  if (is.null(defaults)) {
+    return(list())
+  }
+
+  if (!is.list(defaults)) {
+    stop("x$meta$splot$defaults must be a named list", call. = FALSE)
+  }
+
+  if (length(defaults) == 0L) {
+    return(list())
+  }
+
+  nms <- names(defaults)
+  if (is.null(nms) || anyNA(nms) || any(!nzchar(nms))) {
+    stop("x$meta$splot$defaults must be a named list", call. = FALSE)
+  }
+
+  defaults[setdiff(names(defaults), c("x", "..."))]
+}
+
+#' Merge metadata defaults into the regular splot argument state
+#' @noRd
+.merge_splot_metadata_defaults <- function(defaults, user_args, dots) {
+  if (length(defaults) == 0L) {
+    return(list(
+      user_args = user_args,
+      dots = dots,
+      applied = character(0),
+      formal_args = character(0)
+    ))
+  }
+
+  supplied <- union(names(user_args), names(dots))
+  defaults <- defaults[!names(defaults) %in% supplied]
+  if (length(defaults) == 0L) {
+    return(list(
+      user_args = user_args,
+      dots = dots,
+      applied = character(0),
+      formal_args = character(0)
+    ))
+  }
+
+  formal_names <- setdiff(names(formals(splot)), c("x", "..."))
+  formal_args <- intersect(names(defaults), formal_names)
+  dot_args <- setdiff(names(defaults), formal_args)
+
+  if (length(formal_args) > 0L) {
+    user_args[formal_args] <- defaults[formal_args]
+  }
+  if (length(dot_args) > 0L) {
+    dots[dot_args] <- defaults[dot_args]
+  }
+
+  list(
+    user_args = user_args,
+    dots = dots,
+    applied = names(defaults),
+    formal_args = formal_args
+  )
+}
+
+#' Apply producer-selected active edge weight to a plotting copy
+#' @noRd
+.apply_splot_metadata_weight <- function(x, spec) {
+  weight <- spec[["weight"]]
+  if (is.null(weight)) {
+    return(x)
+  }
+
+  if (!is.character(weight) || length(weight) != 1L ||
+      is.na(weight) || !nzchar(weight)) {
+    stop("x$meta$splot$weight must be a non-empty character scalar",
+         call. = FALSE)
+  }
+
+  edges <- x[["edges"]]
+  has_edge_column <- is.data.frame(edges) && weight %in% names(edges)
+  has_matrix <- is.matrix(x[[weight]])
+
+  if (!has_edge_column && !has_matrix) {
+    stop(
+      "x$meta$splot$weight names '", weight,
+      "', but no matching edge column or matrix was found",
+      call. = FALSE
+    )
+  }
+
+  if (has_matrix) {
+    # The matrix form redefines the rendered network: the drawn edge set is
+    # every nonzero cell of the selected matrix, not the producer's original
+    # edge list (which may lack cells that are nonzero only in this quantity,
+    # e.g. a residual at a zero-count transition).
+    mat <- x[[weight]]
+    nm <- if (is.data.frame(x[["nodes"]])) {
+      x[["nodes"]][["name"]] %||% x[["nodes"]][["label"]]
+    }
+    # as.character: a factor here would index by its level codes, silently
+    # attaching every weight to the wrong node pair. Alignment needs names on
+    # BOTH dimensions and a duplicate-free node table; otherwise the matrix
+    # is taken as already node-ordered.
+    if (!is.null(nm)) nm <- as.character(nm)
+    if (!is.null(nm) && !anyDuplicated(nm) &&
+        !is.null(rownames(mat)) && !is.null(colnames(mat)) &&
+        all(nm %in% rownames(mat)) && all(nm %in% colnames(mat))) {
+      mat <- mat[nm, nm, drop = FALSE]
+    }
+    x$weights <- mat
+    directed <- if (is.logical(x[["directed"]])) x[["directed"]] else NULL
+    x$edges <- parse_input(mat, directed = directed)$edges
+  } else {
+    # The edge-column form keeps the producer's edge set and re-weights it.
+    # Rebuild the weights matrix in place (never delete it: class renderers
+    # like splot.netobject read x$weights directly).
+    wcol <- edges[[weight]]
+    if (is.factor(wcol)) wcol <- as.character(wcol)
+    x$edges$weight <- as.numeric(wcol)
+    if (is.matrix(x[["weights"]])) {
+      mat <- x[["weights"]]
+      mat[] <- 0
+      if (nrow(edges) > 0L && all(c("from", "to") %in% names(edges))) {
+        idx <- .splot_edges_matrix_index(edges, mat, x[["nodes"]])
+        if (isFALSE(x[["directed"]])) {
+          # mirror first: an edge list that spells out both A->B and B->A
+          # keeps each row's own value (the direct write below wins)
+          mat[idx[, c(2L, 1L), drop = FALSE]] <- x$edges$weight
+        }
+        mat[idx] <- x$edges$weight
+      }
+      x$weights <- mat
+    }
+  }
+
+  x
+}
+
+#' Row/column index pairs aligning an edge list to a node-by-node matrix
+#'
+#' Integer endpoints index positionally; character endpoints index by
+#' dimnames, falling back to matching against the node table.
+#' @noRd
+.splot_edges_matrix_index <- function(edges, mat, nodes = NULL) {
+  from <- edges[["from"]]
+  to <- edges[["to"]]
+  if (anyNA(from) || anyNA(to)) {
+    stop("edges$from/edges$to contain missing values; ",
+         "cannot align edges to the weight matrix", call. = FALSE)
+  }
+  if (is.numeric(from) && is.numeric(to)) {
+    return(cbind(as.integer(from), as.integer(to)))
+  }
+
+  # character indexing subscripts rows by rownames and columns by colnames —
+  # both must be present and cover the endpoints
+  from <- as.character(from)
+  to <- as.character(to)
+  if (!is.null(rownames(mat)) && !is.null(colnames(mat)) &&
+      all(from %in% rownames(mat)) && all(to %in% colnames(mat))) {
+    return(cbind(from, to))
+  }
+
+  nm <- if (is.data.frame(nodes)) nodes[["name"]] %||% nodes[["label"]]
+  if (!is.null(nm)) nm <- as.character(nm)
+  if (is.null(nm) || anyNA(match(c(from, to), nm))) {
+    stop(
+      "cannot align edges to the weight matrix: character edge endpoints ",
+      "require matching matrix dimnames or node names",
+      call. = FALSE
+    )
+  }
+  cbind(match(from, nm), match(to, nm))
 }
 
 #' Collect user-explicit args for dispatch forwarding

@@ -2,6 +2,7 @@
 #' @description Functions for registering built-in layouts.
 #' @name layout-registry
 #' @keywords internal
+#' @noRd
 NULL
 
 #' Register Built-in Layouts
@@ -9,6 +10,7 @@ NULL
 #' Register all built-in layout algorithms.
 #'
 #' @keywords internal
+#' @noRd
 register_builtin_layouts <- function() {
   # Circle layout
   register_layout("circle", layout_circle)
@@ -21,6 +23,12 @@ register_builtin_layouts <- function() {
   register_layout("spring", layout_spring)
   register_layout("fr", layout_spring)  # Alias
   register_layout("fruchterman-reingold", layout_spring)  # Alias
+
+  # Target layout (qgraph-style focal-node BFS levels)
+  register_layout("target", layout_target)
+
+  # Saqr layout (Start/End transition flow; Saqr et al. LAK25)
+  register_layout("saqr", layout_saqr)
 
   # Groups layout
   register_layout("groups", layout_groups)

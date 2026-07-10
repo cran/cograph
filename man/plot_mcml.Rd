@@ -8,6 +8,7 @@ plot_mcml(
   x,
   cluster_list = NULL,
   mode = c("weights", "tna"),
+  theme = c("classic", "rich", "light"),
   layer_spacing = NULL,
   spacing = 3,
   shape_size = 1.2,
@@ -21,7 +22,7 @@ plot_mcml(
   nodes = NULL,
   label_size = NULL,
   label_abbrev = NULL,
-  node_size = 1.8,
+  node_size = 2.4,
   node_shape = "circle",
   cluster_shape = "circle",
   title = NULL,
@@ -37,7 +38,16 @@ plot_mcml(
   summary_label_color = "gray20",
   summary_arrows = TRUE,
   summary_arrow_size = 0.1,
+  node_donut = NULL,
+  node_donut_inner_ratio = 0.55,
+  summary_donut_inner_ratio = 0.6,
+  summary_donut_show_value = FALSE,
+  curved_edges = NULL,
+  summary_curve = NULL,
   summary_pie = c("inits", "self"),
+  edge_color_by = c("auto", "cluster", "sign"),
+  edge_positive_color = "#2E7D32",
+  edge_negative_color = "#C62828",
   between_arrows = FALSE,
   edge_width_range = c(0.3, 1.3),
   between_edge_width_range = c(0.5, 2),
@@ -56,19 +66,23 @@ plot_mcml(
   inter_layer_gap = 0.6,
   node_radius_scale = 0.55,
   shell_alpha = 0.15,
-  shell_border_width = 2,
+  shell_border_width = 0.75,
   node_border_color = "gray30",
+  node_border_width = 0.4,
   summary_border_color = "gray20",
-  summary_border_width = 2,
+  summary_border_width = 0.6,
   label_color = "gray20",
   label_position = 3,
+  directed = NULL,
   ...
 )
 }
 \arguments{
-\item{x}{A weight matrix, \code{tna} object, \code{cograph_network}, or
-\code{cluster_summary} object. When a \code{cluster_summary} is provided
-(e.g., from \code{\link{cluster_summary}}), all aggregation has already
+\item{x}{A weight matrix, \code{tna} object, \code{cograph_network},
+\code{cluster_summary}, or \code{mcml}/\code{mcml_pc} object (the
+latter from \code{Nestimate::build_mcml_pc()}, rendered undirected via
+its \code{meta$directed} flag). When a \code{cluster_summary} is provided
+(e.g., from \code{\link{csum}}), all aggregation has already
 been performed and the \code{cluster_list}, \code{aggregation}, and
 \code{nodes} parameters are ignored. See the \strong{Input Formats}
 section for details.}
@@ -95,6 +109,19 @@ sums to 1, producing transition probabilities. Automatically enables
 \code{edge_labels} and \code{summary_edge_labels} unless you
 explicitly set them to \code{FALSE}.}
 }}
+
+\item{theme}{Visual preset controlling node and edge styling. One of:
+\describe{
+\item{\code{"classic"}}{(default) The historical look — pie-chart nodes
+and straight summary edges, with thin borders and slightly larger
+detail nodes.}
+\item{\code{"rich"}}{Donut nodes on both layers plus curved (qgraph-style)
+summary edges and splot self-loops.}
+\item{\code{"light"}}{Like \code{"rich"} but with no cluster-shell
+outline and a softer shell fill.}
+}
+The granular style arguments (\code{node_donut}, \code{curved_edges})
+override the preset when supplied.}
 
 \item{layer_spacing}{Vertical distance between the bottom and top layers.
 \code{NULL} (default) auto-calculates a gap that prevents overlap based
@@ -165,7 +192,7 @@ number of nodes: more nodes triggers shorter abbreviations.
 }}
 
 \item{node_size}{Size of individual detail nodes in the bottom layer.
-This controls the pie-chart radius for each node. Default 1.8.}
+This controls the pie-chart radius for each node. Default 2.4.}
 
 \item{node_shape}{Shape for detail nodes in the bottom layer. Supported
 values: \code{"circle"}, \code{"square"}, \code{"diamond"},
@@ -209,10 +236,32 @@ nodes: 1 = below, 2 = left, 3 = above, 4 = right. Default 3 (above).}
 \code{"gray20"}.}
 
 \item{summary_arrows}{Logical. Draw arrowheads on summary-layer directed
-edges. Set to \code{FALSE} for undirected networks. Default \code{TRUE}.}
+edges. Default \code{TRUE}. For fully undirected networks prefer
+\code{directed = FALSE}, which also suppresses these arrowheads and
+draws each symmetric edge pair only once.}
 
 \item{summary_arrow_size}{Size of arrowheads on summary edges. Default
 0.10.}
+
+\item{node_donut}{Logical or \code{NULL}. Force donut node rendering on
+(\code{TRUE}) or off (\code{FALSE}), overriding \code{theme}. \code{NULL}
+(default) follows the preset (donut for \code{"rich"}/\code{"light"}).}
+
+\item{node_donut_inner_ratio}{Hole size (0–1) of the detail-node donut ring.
+Default 0.55.}
+
+\item{summary_donut_inner_ratio}{Hole size (0–1) of the top-layer summary
+donut ring. Default 0.6.}
+
+\item{summary_donut_show_value}{Logical. Print the fill proportion in the
+center of each summary donut. Default \code{FALSE}.}
+
+\item{curved_edges}{Logical or \code{NULL}. Force curved summary edges on or
+off, overriding \code{theme}. \code{NULL} (default) follows the preset.}
+
+\item{summary_curve}{Numeric or \code{NULL}. Curvature of curved summary
+edges (only used when curved). \code{NULL} auto-selects (0.25 for directed,
+straight for undirected).}
 
 \item{summary_pie}{Character scalar controlling what the colored slice
 of the top-layer pie chart represents. One of:
@@ -226,6 +275,26 @@ out-strength (\code{bw[i, i] / rowSums(bw)[i]}). Answers "how
 sticky is this cluster — how much of its outgoing flow loops
 back to itself?" Each pie is normalized independently.}
 }}
+
+\item{edge_color_by}{How to color edges on all layers:
+\describe{
+\item{\code{"auto"}}{(default) Color edges by their cluster when the
+weights are non-negative (transition networks), but switch to
+sign-based coloring automatically when any negative weight is present
+(correlation / association networks).}
+\item{\code{"cluster"}}{Always color edges by the source cluster's color.}
+\item{\code{"sign"}}{Always color edges by weight sign — positive in
+\code{edge_positive_color}, negative in \code{edge_negative_color}.}
+}
+Sign coloring uses each edge's absolute weight for the threshold
+(\code{minimum}) and line-width scaling, so negative edges are drawn
+rather than dropped.}
+
+\item{edge_positive_color}{Color for positive-weight edges when sign
+coloring is active. Default \code{"#2E7D32"} (green).}
+
+\item{edge_negative_color}{Color for negative-weight edges when sign
+coloring is active. Default \code{"#C62828"} (red).}
 
 \item{between_arrows}{Logical. Draw arrowheads on between-cluster edges
 in the bottom layer. Default \code{FALSE}.}
@@ -295,22 +364,42 @@ border; decrease to pack them tighter. Default 0.55.}
 values make shells more opaque, giving stronger visual grouping but
 potentially obscuring edges. Default 0.15.}
 
-\item{shell_border_width}{Line width for cluster shell borders. Default 2.}
+\item{shell_border_width}{Line width for cluster shell borders. Default
+0.75 (thin). \code{theme = "light"} drops the outline entirely.}
 
 \item{node_border_color}{Border color for detail nodes in the bottom
 layer. Default \code{"gray30"}.}
+
+\item{node_border_width}{Line width for detail-node borders in the bottom
+layer. Default 0.4 (thin). Increase for heavier outlines.}
 
 \item{summary_border_color}{Border color for summary pie-chart nodes.
 Default \code{"gray20"}.}
 
 \item{summary_border_width}{Border line width for summary nodes.
-Default 2.}
+Default 0.6 (thin).}
 
 \item{label_color}{Text color for detail node labels. Default
 \code{"gray20"}.}
 
 \item{label_position}{Accepted for backward compatibility. Detail labels
 are currently positioned automatically to the left or right of each node.}
+
+\item{directed}{Logical or \code{NULL}. \code{NULL} (default)
+auto-detects: a \code{cluster_summary}/\code{mcml} input uses its own
+\code{$meta$directed} flag; other objects use their \code{$directed}
+field when present; a plain matrix is undirected when symmetric (the
+same contract as \code{\link{splot}}). When \code{TRUE}, every
+non-zero cell of the weight matrices is drawn as a directed edge with
+an arrowhead. When \code{FALSE} (undirected, e.g. co-occurrence
+weights): arrowheads are suppressed on all three edge layers
+(within-cluster, between-cluster, and summary), each symmetric pair is
+drawn once instead of twice (the upper triangle is used; a warning is
+issued if the weights are not symmetric), edge labels move to the edge
+midpoint, and matrix input is aggregated with
+\code{type = "cooccurrence"} (symmetrized counts) instead of the
+row-normalized \code{type = "tna"}. Overrides \code{summary_arrows}
+and \code{between_arrows}.}
 
 \item{...}{Additional arguments (currently unused).}
 }
@@ -343,8 +432,8 @@ multilevel/multiplex layers, see \code{\link{plot_mlna}}.
 \enumerate{
 \item \strong{Direct}: pass a weight matrix (or tna / cograph_network
 object) together with \code{cluster_list}. The function calls
-\code{\link{cluster_summary}} internally to compute aggregated weights.
-\item \strong{Pre-computed}: call \code{\link{cluster_summary}} yourself,
+\code{\link{csum}} internally to compute aggregated weights.
+\item \strong{Pre-computed}: call \code{\link{csum}} yourself,
 inspect or modify the result, then pass the \code{cluster_summary}
 object as \code{x}. This avoids redundant computation when you plot
 the same clustering repeatedly with different visual settings.
@@ -359,6 +448,15 @@ probabilities (rows sum to 1) and automatically enables edge labels
 on both layers (unless you explicitly set \code{edge_labels} or
 \code{summary_edge_labels} to \code{FALSE}).
 }
+
+\strong{Directionality:}
+\code{directed = NULL} (default) auto-detects directedness from the
+input: \code{cluster_summary}/\code{mcml} objects carry it in
+\code{$meta$directed}, and plain matrices are treated as undirected when
+symmetric. Directed edges get arrowheads; undirected weights (e.g.,
+co-occurrence aggregations) are drawn as a single plain line per
+symmetric pair on every layer, with no arrowheads. Pass
+\code{directed = TRUE}/\code{FALSE} to override the detection.
 
 \strong{Layout logic:}
 Bottom-layer clusters are arranged on a circle of radius \code{spacing},
@@ -379,7 +477,7 @@ extracted automatically.}
 extracted via \code{to_matrix()} and node metadata (display labels)
 is read from the \code{$nodes} data frame.}
 \item{\strong{cluster_summary}}{A pre-computed summary from
-\code{\link{cluster_summary}}. When this type is passed, the
+\code{\link{csum}}. When this type is passed, the
 \code{cluster_list}, \code{aggregation}, and \code{nodes} parameters
 are ignored because the summary already contains everything needed.}
 }
@@ -421,6 +519,7 @@ Summary labels                 \tab \code{summary_labels}, \code{summary_label_s
 Within-cluster edges           \tab \code{edge_width_range}, \code{edge_alpha}, \code{edge_labels} \cr
 Between-cluster edges          \tab \code{between_edge_width_range}, \code{between_edge_alpha} \cr
 Summary edges                  \tab \code{summary_edge_width_range}, \code{summary_edge_alpha}, \code{summary_edge_labels}, \code{summary_arrows} \cr
+Directed vs undirected         \tab \code{directed} \cr
 Inter-layer lines              \tab \code{inter_layer_alpha} \cr
 Top-layer layout               \tab \code{top_layer_scale}, \code{inter_layer_gap} \cr
 Title / legend                 \tab \code{title}, \code{subtitle}, \code{legend}, \code{legend_position} \cr
@@ -433,12 +532,12 @@ colnames(mat) <- rownames(mat) <- LETTERS[1:6]
 clusters <- list(C1 = c("A","B"), C2 = c("C","D"), C3 = c("E","F"))
 plot_mcml(mat, clusters)
 \donttest{
-cs <- cluster_summary(mat, clusters)
+cs <- csum(mat, clusters)
 plot_mcml(cs, mode = "tna", edge_labels = TRUE)
 }
 }
 \seealso{
-\code{\link{cluster_summary}} for pre-computing aggregated cluster data,
+\code{\link{csum}} for pre-computing aggregated cluster data,
 \code{\link{plot_mtna}} for flat multi-cluster visualization (no summary
 layer),
 \code{\link{plot_mlna}} for stacked multilevel/multiplex layer

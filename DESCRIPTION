@@ -1,6 +1,6 @@
 Package: cograph
 Title: Analysis and Visualization of Complex Networks
-Version: 2.3.6
+Version: 2.4.4
 Authors@R: c(
     person("Mohammed", "Saqr", role = c("aut", "cph")),
     person("Sonsoles", "L\u00f3pez-Pernas",
@@ -20,7 +20,7 @@ URL: https://sonsoles.me/cograph/,
         https://github.com/sonsoleslp/cograph
 BugReports: https://github.com/sonsoleslp/cograph/issues
 Depends: R (>= 4.1.0)
-Imports: ggplot2, grDevices, grid, Matrix, R6, stats, utils
+Imports: ggplot2 (>= 3.4.0), grDevices, grid, Matrix, R6, stats, utils
 Suggests: backbone, brainGraph, centiserve, colorspace, digest, dplyr,
         gifski, gridExtra, grImport2, igraph, influenceR, jsonlite,
         knitr, Nestimate, network, qgraph, RColorBrewer, reticulate,
@@ -33,6 +33,6 @@ Language: en-US
 RoxygenNote: 7.3.3
 LazyData: true
 NeedsCompilation: no
-Packaged: 2026-05-31 09:01:34 UTC; mohammedsaqr
+Packaged: 2026-07-10 14:12:07 UTC; mohammedsaqr
 Repository: CRAN
-Date/Publication: 2026-05-31 10:10:02 UTC
+Date/Publication: 2026-07-10 16:10:02 UTC
