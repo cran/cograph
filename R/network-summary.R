@@ -45,8 +45,6 @@
 #'   \item{transitivity}{Global clustering coefficient}
 #'   \item{reciprocity}{Proportion of mutual edges (directed only)}
 #'   \item{assortativity_degree}{Degree assortativity coefficient}
-#'   \item{hub_score}{Maximum hub score (HITS algorithm)}
-#'   \item{authority_score}{Maximum authority score (HITS algorithm)}
 #' }
 #'
 #' **Extended measures (when extended = TRUE):**
@@ -74,7 +72,7 @@
 #' }
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Basic usage with adjacency matrix
 #' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
 #' network_summary(adj)
@@ -132,12 +130,6 @@ network_summary <- function(x,
     NULL
   }
 
-  # Compute HITS scores once (hub and authority)
-  hits <- tryCatch(
-    igraph::hits_scores(g, weights = weights),
-    error = function(e) NULL
-  )
-
   # Basic measures (always computed)
   results <- list(
     node_count = igraph::vcount(g),
@@ -176,13 +168,7 @@ network_summary <- function(x,
     } else {
       NA_real_
     },
-    assortativity_degree = igraph::assortativity_degree(g, directed = is_directed),
-    hub_score = if (!is.null(hits) && length(hits$hub_score) > 0) { # nocov start
-      max(hits$hub_score)
-    } else NA_real_, # nocov end
-    authority_score = if (!is.null(hits) && length(hits$authority_score) > 0) { # nocov start
-      max(hits$authority_score)
-    } else NA_real_ # nocov end
+    assortativity_degree = igraph::assortativity_degree(g, directed = is_directed)
   )
 
   # Extended structural measures (only when extended = TRUE)
@@ -292,13 +278,15 @@ network_summary <- function(x,
 #'   \describe{
 #'     \item{degree}{Named numeric vector of per-node degrees.}
 #'     \item{table}{Table of degree frequencies.}
-#'     \item{breaks}{Breakpoints used for the histogram (non-cumulative only).}
-#'     \item{counts}{Bin counts (non-cumulative only).}
-#'     \item{proportions}{Bin proportions (non-cumulative only).}
+#'     \item{breaks}{Breakpoints of the degree histogram.}
+#'     \item{counts}{Bin counts.}
+#'     \item{proportions}{Bin proportions (\code{counts / sum(counts)}).}
 #'   }
+#'   All five components are returned for both the histogram and the
+#'   cumulative plot; \code{cumulative = TRUE} only changes what is drawn.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Undirected network
 #' adj <- matrix(c(0, 1, 1, 0, 1, 0, 1, 1,
 #'                 1, 1, 0, 1, 0, 1, 1, 0), 4, 4, byrow = TRUE)
@@ -500,12 +488,13 @@ degree_distribution <- function(x,
 #' Returns Inf for acyclic graphs (trees, DAGs).
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return Integer: length of shortest cycle, or Inf if no cycles exist
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Triangle has girth 3
 #' triangle <- matrix(c(0,1,1, 1,0,1, 1,1,0), 3, 3)
 #' network_girth(triangle)  # 3
@@ -531,13 +520,15 @@ network_girth <- function(x, ...) {
 #' The radius is the smallest such maximum distance.
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param directed Logical. Consider edge direction? Default TRUE for directed graphs.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param directed Logical or NULL. Consider edge direction? Default NULL,
+#'   which follows the directedness of the converted graph.
+#' @param ... Currently unused; \code{directed} is already an explicit
+#'   argument above and \code{\link{to_igraph}} accepts no others.
 #'
 #' @return Numeric: the network radius
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Star graph: center has eccentricity 1, leaves have 2, so radius = 1
 #' star <- matrix(c(0,1,1,1, 1,0,0,0, 1,0,0,0, 1,0,0,0), 4, 4)
 #' network_radius(star)  # 1
@@ -561,12 +552,13 @@ network_radius <- function(x, directed = NULL, ...) {
 #' Higher values indicate more robust network structure.
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return Integer: minimum vertex cut size
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Complete graph K4 has vertex connectivity 3
 #' k4 <- matrix(1, 4, 4); diag(k4) <- 0
 #' network_vertex_connectivity(k4)  # 3
@@ -592,13 +584,18 @@ network_vertex_connectivity <- function(x, ...) {
 #' Finds the size of the largest clique (complete subgraph) in the network.
 #' Also known as the clique number or omega of the graph.
 #'
+#' A clique is defined on undirected ties, so a directed network is read with
+#' each pair of nodes joined when either direction is present, and loops and
+#' repeated edges are dropped before counting.
+#'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return Integer: size of the largest clique
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Triangle embedded in larger graph
 #' adj <- matrix(c(0,1,1,1, 1,0,1,0, 1,1,0,0, 1,0,0,0), 4, 4)
 #' network_clique_size(adj)  # 3
@@ -608,6 +605,9 @@ network_clique_size <- function(x, ...) {
   } else {
     g <- to_igraph(x, ...)
   }
+  # igraph 2.3.3's clique_num() overflows the C stack on a directed graph, and
+  # cliques ignore direction anyway: count on the simple undirected skeleton.
+  g <- igraph::simplify(igraph::as_undirected(g, mode = "collapse"))
   igraph::clique_num(g)
 }
 
@@ -619,13 +619,14 @@ network_clique_size <- function(x, ...) {
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
 #' @param count_only Logical. If TRUE, return only the count. Default FALSE.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return If count_only = FALSE, vector of node indices (or names if graph is named).
 #'   If count_only = TRUE, integer count.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Bridge node connecting two components
 #' adj <- matrix(c(0,1,1,0,0, 1,0,1,0,0, 1,1,0,1,0, 0,0,1,0,1, 0,0,0,1,0), 5, 5)
 #' network_cut_vertices(adj)  # Node 3 is cut vertex
@@ -654,13 +655,14 @@ network_cut_vertices <- function(x, count_only = FALSE, ...) {
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
 #' @param count_only Logical. If TRUE, return only the count. Default FALSE.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return If count_only = FALSE, data frame with from/to columns.
 #'   If count_only = TRUE, integer count.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Two triangles connected by single edge
 #' adj <- matrix(0, 6, 6)
 #' adj[1,2] <- adj[2,1] <- adj[1,3] <- adj[3,1] <- adj[2,3] <- adj[3,2] <- 1
@@ -706,27 +708,29 @@ network_bridges <- function(x, count_only = FALSE, ...) {
 #' (infinite distances contribute 0).
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param directed Logical. Consider edge direction? Default TRUE for directed graphs.
+#' @param directed Logical or NULL. Consider edge direction? Default NULL,
+#'   which follows the directedness of the converted graph.
 #' @param weights Edge weights (NULL for unweighted). Set to NA to ignore existing weights.
 #' @param invert_weights Logical or NULL. Invert weights so higher weights = shorter
 #'   paths? Default NULL which auto-detects: TRUE for tna objects, FALSE otherwise
 #'   (matching igraph/sna). Set TRUE for strength/frequency weights (qgraph style).
 #' @param alpha Numeric. Exponent for weight inversion: distance = 1/weight^alpha.
 #'   Default 1.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Currently unused; \code{directed} is already an explicit
+#'   argument above and \code{\link{to_igraph}} accepts no others.
 #'
 #' @return Numeric global efficiency. For unweighted simple graphs this is in
 #'   \eqn{[0, 1]}; weighted graphs can exceed 1 when edge distances are below 1.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Complete graph has efficiency 1
 #' k4 <- matrix(1, 4, 4); diag(k4) <- 0
 #' network_global_efficiency(k4)  # 1
 #'
 #' # Star has lower efficiency
 #' star <- matrix(c(0,1,1,1, 1,0,0,0, 1,0,0,0, 1,0,0,0), 4, 4)
-#' network_global_efficiency(star)  # ~0.83
+#' network_global_efficiency(star)  # 0.75
 network_global_efficiency <- function(x, directed = NULL, weights = NULL,
                                       invert_weights = NULL, alpha = 1, ...) {
   # Auto-detect invert_weights for tna objects
@@ -773,9 +777,15 @@ network_global_efficiency <- function(x, directed = NULL, weights = NULL,
 
 #' Local Efficiency
 #'
-#' Computes the average local efficiency across all nodes. Local efficiency
-#' of a node is the global efficiency of its neighborhood subgraph
-#' (excluding the node itself). Measures fault tolerance and local integration.
+#' Computes the average local efficiency across all nodes, delegating to
+#' \code{igraph::average_local_efficiency()}. igraph removes the node and
+#' measures the distances between its neighbors \emph{through the rest of
+#' the network}, so the value can exceed the one Latora & Marchiori (2001)
+#' define, which restricts those distances to the subgraph induced on the
+#' neighbors. \code{centrality(x, measures = "local_efficiency")} reports
+#' the induced-subgraph form, matching networkx, brainGraph and the Brain
+#' Connectivity Toolbox. Both measure fault tolerance and local integration;
+#' the two agree whenever the neighbors have no detour available.
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
 #' @param weights Edge weights (NULL for unweighted). Set to NA to ignore existing weights.
@@ -783,14 +793,15 @@ network_global_efficiency <- function(x, directed = NULL, weights = NULL,
 #'   paths? Default NULL which auto-detects: TRUE for tna objects, FALSE otherwise
 #'   (matching igraph/sna). Set TRUE for strength/frequency weights (qgraph style).
 #' @param alpha Numeric. Exponent for weight inversion. Default 1.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
 #' @return Numeric average local efficiency. For unweighted simple graphs this
 #'   is in \eqn{[0, 1]}; weighted graphs can exceed 1 when edge distances are
 #'   below 1.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Complete graph: removing any node leaves complete subgraph, so local efficiency = 1
 #' k5 <- matrix(1, 5, 5); diag(k5) <- 0
 #' network_local_efficiency(k5)  # 1
@@ -798,6 +809,9 @@ network_global_efficiency <- function(x, directed = NULL, weights = NULL,
 #' # Star: neighbors not connected to each other
 #' star <- matrix(c(0,1,1,1,1, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0, 1,0,0,0,0), 5, 5)
 #' network_local_efficiency(star)  # 0
+#'
+#' # Per-node values under the Latora definition
+#' centrality(star, measures = "local_efficiency")
 network_local_efficiency <- function(x, weights = NULL, invert_weights = NULL, alpha = 1, ...) {
   # Auto-detect invert_weights for tna objects
   is_tna_input <- inherits(x, c("tna", "group_tna", "ctna", "ftna", "atna",
@@ -846,10 +860,20 @@ network_local_efficiency <- function(x, weights = NULL, invert_weights = NULL, a
 #' networks have sigma >> 1.
 #'
 #' @param x Network input: matrix, igraph, network, cograph_network, or tna object
-#' @param n_random Number of random graphs for comparison. Default 10.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param n_random Number of Erdos-Renyi comparison graphs (same \code{n} and
+#'   \code{m} as the observed graph). Default 10.
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
-#' @return Numeric: small-world coefficient sigma
+#' @return Numeric: small-world coefficient sigma. \code{NA} when the graph has
+#'   fewer than 4 nodes, no edges, or an undefined/zero mean path length.
+#'
+#' @section Reproducibility:
+#' The comparison graphs are drawn from the caller's RNG stream; this function
+#' takes no \code{seed} argument and does not save or restore
+#' \code{.Random.seed}. Call \code{set.seed()} beforehand for a reproducible
+#' result, and prefer a larger \code{n_random} than the default for anything
+#' you report.
 #'
 #' @export
 #' @examples
@@ -922,9 +946,18 @@ network_small_world <- function(x, n_random = 10, ...) {
 #'   If NULL, uses median degree.
 #' @param normalized Logical. Normalize by random graph expectation? Default FALSE.
 #' @param n_random Number of random graphs for normalization. Default 10.
-#' @param ... Additional arguments passed to \code{\link{to_igraph}}
+#' @param ... Passed to \code{\link{to_igraph}}, whose only other argument
+#'   is \code{directed}; anything else raises an "unused argument" error.
 #'
-#' @return Numeric: rich club coefficient (> 1 indicates rich club effect when normalized)
+#' @return Numeric: rich club coefficient (> 1 indicates rich club effect when
+#'   normalized). \code{NA} when fewer than two nodes exceed \code{k}.
+#'
+#' @section Reproducibility:
+#' When \code{normalized = TRUE} the null graphs are drawn from the caller's
+#' RNG stream; this function takes no \code{seed} argument and does not save or
+#' restore \code{.Random.seed}. Call \code{set.seed()} beforehand for a
+#' reproducible result. \code{\link{rich_club}()} offers a \code{seed}
+#' argument, confidence intervals, and the full rich club curve.
 #'
 #' @export
 #' @examples
@@ -1039,15 +1072,14 @@ network_rich_club <- function(x, k = NULL, normalized = FALSE, n_random = 10, ..
 #' \emph{Chemical Physics Letters}, 319(5-6), 713-718.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' # Karate club
 #' g <- igraph::make_graph("Zachary")
 #' estrada_index(g)
 estrada_index <- function(x) {
-  g <- to_igraph(x)
-  n <- igraph::vcount(g)
-  if (n == 0) return(0)
-  A <- as.matrix(igraph::as_adjacency_matrix(g, sparse = FALSE))
+  cg <- .cg_graph(x)
+  if (cg$n == 0L) return(0)
+  A <- unname(cg$b)
   ev <- eigen(A, only.values = TRUE, symmetric = isSymmetric(A))$values
   sum(exp(Re(ev)))
 }
@@ -1093,28 +1125,48 @@ estrada_index <- function(x) {
 #' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
 #' trophic_incoherence(adj)
 trophic_incoherence <- function(x, cannibalism = TRUE) {
-  g <- to_igraph(x)
-  if (!igraph::is_directed(g)) {
+  cg <- .cg_graph(x, loops = isTRUE(cannibalism))
+  if (!cg$directed) {
     warning("trophic_incoherence requires a directed graph; returning NA",
             call. = FALSE)
     return(NA_real_)
   }
-  if (!isTRUE(cannibalism)) {
-    # Remove self-loops (matching NetworkX's convention when cannibalism=FALSE)
-    g <- igraph::simplify(g, remove.multiple = FALSE, remove.loops = TRUE)
-  }
-  if (igraph::ecount(g) == 0) return(NA_real_)
+  if (nrow(cg$edges) == 0L) return(NA_real_)
 
-  # Compute trophic levels via the existing native calculator
-  levels <- calculate_trophic_level(g)
+  # Trophic level s_j = 1 + (1/k_j^in) * sum_{i->j} s_i, solved as
+  # (I - W^T) s = 1 with W_ji = A_ij / k_j^in. Self-loops stay in A when
+  # cannibalism = TRUE, so the diagonal is read rather than dropped.
+  levels <- .trophic_levels_from_adjacency(unname(cg$b))
   if (all(is.na(levels))) return(NA_real_)
 
-  el <- igraph::as_edgelist(g, names = FALSE)
-  diffs <- levels[el[, 2]] - levels[el[, 1]]
+  diffs <- levels[cg$edges[, 2L]] - levels[cg$edges[, 1L]]
 
   # NetworkX uses numpy.std with default ddof=0 (population std); R's sd()
   # uses ddof=1 (sample std) and would diverge.
   sqrt(mean((diffs - mean(diffs))^2))
+}
+
+#' Trophic levels of a binary adjacency, NA when the system is singular
+#'
+#' A directed graph without a basal node (every vertex has an in-edge) has a
+#' singular level system; that is the one condition turned into `NA`, any
+#' other solver failure is propagated.
+#' @keywords internal
+#' @noRd
+.trophic_levels_from_adjacency <- function(A) {
+  n <- nrow(A)
+  in_deg <- colSums(A)
+  in_deg[in_deg == 0] <- 1
+  W <- t(t(A) / in_deg)
+  tryCatch(
+    solve(diag(n) - t(W), rep(1, n)),
+    error = function(e) {
+      if (grepl("singular", conditionMessage(e), fixed = TRUE)) {
+        return(rep(NA_real_, n))
+      }
+      stop(e)
+    }
+  )
 }
 
 
@@ -1147,9 +1199,9 @@ trophic_incoherence <- function(x, cannibalism = TRUE) {
 #' }
 #'
 #' @section Divergence from NetworkX on betweenness:
-#' \code{networkx.group_betweenness_centrality} uses the Puzis-Yahalom-Elovici
+#' \code{networkx.group_betweenness_centrality} uses the Puzis-Elovici-Dolev
 #' iterative algorithm, which produces results that diverge from the textbook
-#' Everett-Borgatti / Puzis 2008 "at least one node in C" definition on some
+#' Everett-Borgatti / Puzis 2007 "at least one node in C" definition on some
 #' graph topologies (verified via an independent Python brute-force). cograph
 #' implements the textbook formula directly; group_closeness and group_degree
 #' match NetworkX exactly.
@@ -1173,12 +1225,12 @@ trophic_incoherence <- function(x, cannibalism = TRUE) {
 #' Everett, M. G., & Borgatti, S. P. (1999). The centrality of groups and
 #' classes. \emph{Journal of Mathematical Sociology}, 23(3), 181-201.
 #'
-#' Puzis, R., Yahalom, R., & Elovici, Y. (2008). Augmentative data collection
-#' for betweenness centrality. In \emph{Advances in Social Networks Analysis
-#' and Mining} (pp. 196-200). IEEE.
+#' Puzis, R., Elovici, Y., & Dolev, S. (2007). Fast algorithm for successive
+#'   computation of group betweenness centrality. \emph{Physical Review E}, 76,
+#'   056709. \doi{10.1103/PhysRevE.76.056709}.
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' g <- igraph::make_graph("Zachary")
 #' group_centrality(g, nodes = c(1, 2, 3), measure = "betweenness")
 #' group_centrality(g, nodes = c(1, 2, 3), measure = "closeness")
@@ -1190,16 +1242,15 @@ group_centrality <- function(x, nodes,
   measure <- match.arg(measure)
   mode <- match.arg(mode)
 
-  g <- to_igraph(x)
-  n <- igraph::vcount(g)
+  cg <- .cg_graph(x)
+  n <- cg$n
 
   # Resolve node names to integer indices
   if (is.character(nodes)) {
-    vnames <- igraph::V(g)$name
-    if (is.null(vnames)) {
+    if (!cg$has_names) {
       stop("group_centrality: node names not available on graph", call. = FALSE)
     }
-    C <- match(nodes, vnames)
+    C <- match(nodes, cg$labels)
     if (anyNA(C)) {
       stop("group_centrality: unknown nodes: ",
            paste(nodes[is.na(C)], collapse = ", "), call. = FALSE)
@@ -1214,9 +1265,9 @@ group_centrality <- function(x, nodes,
   C <- unique(C)
 
   switch(measure,
-    "betweenness" = .group_betweenness(g, C, normalized = normalized),
-    "closeness"   = .group_closeness(g, C),
-    "degree"      = .group_degree(g, C, mode = mode)
+    "betweenness" = .group_betweenness(cg, C, normalized = normalized),
+    "closeness"   = .group_closeness(cg, C),
+    "degree"      = .group_degree(cg, C, mode = mode)
   )
 }
 
@@ -1225,26 +1276,29 @@ group_centrality <- function(x, nodes,
 #' @keywords internal
 #' @noRd
 .group_betweenness <- function(g, C, normalized = TRUE) {
-  n <- igraph::vcount(g)
+  cg <- .cg_as_context(g)
+  n <- cg$n
   V_minus_C <- setdiff(seq_len(n), C)
   if (length(V_minus_C) < 2L) return(0)
 
-  total <- 0
-  for (s in V_minus_C) {
-    for (t in V_minus_C) {
-      if (s == t) next
-      asp <- igraph::all_shortest_paths(g, from = s, to = t, weights = NA)
-      paths <- asp$res
-      if (length(paths) == 0L) next
-      through <- sum(vapply(paths, function(p) {
-        pv <- as.integer(p)
-        if (length(pv) <= 2L) return(FALSE)
-        inner <- pv[-c(1L, length(pv))]
-        any(inner %in% C)
-      }, logical(1)))
-      total <- total + through / length(paths)
-    }
-  }
+  # Unweighted geodesics in the graph's own direction. A geodesic passes
+  # through C exactly when it is not a geodesic of the graph with C removed,
+  # so the through-fraction is 1 - sigma_{G - C}(s, t) / sigma_G(s, t),
+  # counting only paths that are still shortest in G (same distance).
+  a <- unname(cg$b)
+  diag(a) <- 0
+  d <- .cg_distances(a, "out")
+  sigma <- .cg_geodesic_counts(a, d)
+  a_c <- a
+  a_c[C, ] <- 0
+  a_c[, C] <- 0
+  sigma_c <- .cg_geodesic_counts(a_c, d)
+
+  D <- d[V_minus_C, V_minus_C, drop = FALSE]
+  reachable <- is.finite(D) & D > 0
+  S <- sigma[V_minus_C, V_minus_C, drop = FALSE][reachable]
+  S_c <- sigma_c[V_minus_C, V_minus_C, drop = FALSE][reachable]
+  total <- sum(1 - S_c / S)
 
   if (normalized) {
     k <- length(V_minus_C)
@@ -1258,14 +1312,14 @@ group_centrality <- function(x, nodes,
 #' @keywords internal
 #' @noRd
 .group_closeness <- function(g, C) {
-  n <- igraph::vcount(g)
+  cg <- .cg_as_context(g)
+  n <- cg$n
   V_minus_C <- setdiff(seq_len(n), C)
   if (length(V_minus_C) == 0L) return(0)
 
-  # distances(g, v = V-C, to = C): matrix where D[i, j] = dist from V-C[i] to C[j]
-  # min per row = distance from each v in V-C to the closest group member.
-  D <- igraph::distances(g, v = V_minus_C, to = C, mode = "out", weights = NA)
-  d_vec <- apply(D, 1, min)
+  # Hop distance from each v in V - C to its closest group member.
+  D <- .cg_hop_distances(cg, "out")[V_minus_C, C, drop = FALSE]
+  d_vec <- apply(D, 1L, min)
   closeness_sum <- sum(d_vec[is.finite(d_vec)])
   if (closeness_sum == 0) return(0)
   length(V_minus_C) / closeness_sum
@@ -1276,15 +1330,12 @@ group_centrality <- function(x, nodes,
 #' @keywords internal
 #' @noRd
 .group_degree <- function(g, C, mode = "all") {
-  n <- igraph::vcount(g)
-  if (!igraph::is_directed(g)) mode <- "all"
+  cg <- .cg_as_context(g)
+  n <- cg$n
+  if (!cg$directed) mode <- "all"
 
-  nbrs <- integer(0)
-  for (c in C) {
-    nbrs <- c(nbrs, as.integer(igraph::neighbors(g, c, mode = mode)))
-  }
-  nbrs_unique <- unique(nbrs)
-  nbrs_outside <- setdiff(nbrs_unique, C)
+  nbrs <- unique(unlist(.cg_neighbors(cg$b, cg$directed, mode)[C]))
+  nbrs_outside <- setdiff(nbrs, C)
   k <- n - length(C)
   if (k == 0L) return(0)
   length(nbrs_outside) / k
@@ -1331,10 +1382,14 @@ group_centrality <- function(x, nodes,
 #' @return
 #' \itemize{
 #'   \item Scalar if both \code{u} and \code{v} are specified.
-#'   \item Named numeric vector if exactly one of \code{u}, \code{v} is given
-#'     (names are the other endpoints).
+#'   \item Named numeric vector if exactly one of \code{u}, \code{v} is given,
+#'     one element per neighbor of that node; the names are the neighbors'
+#'     1-based node \emph{indices} as character strings, not their labels.
 #'   \item A data frame with columns \code{from}, \code{to}, \code{dispersion}
-#'     when neither \code{u} nor \code{v} is given (one row per ordered edge).
+#'     when neither \code{u} nor \code{v} is given, one row per ordered
+#'     (node, neighbor) pair, with \code{from} and \code{to} given as 1-based
+#'     integer node indices.
+#'   \item \code{numeric(0)} for an empty graph.
 #' }
 #'
 #' @references
@@ -1344,7 +1399,7 @@ group_centrality <- function(x, nodes,
 #' \url{https://arxiv.org/pdf/1310.6753v1.pdf}
 #'
 #' @export
-#' @examples
+#' @examplesIf requireNamespace("igraph", quietly = TRUE)
 #' g <- igraph::make_graph("Zachary")
 #' # Node 0 (R index 1) to node 33 (R index 34)
 #' dispersion(g, u = 1, v = 34)
@@ -1353,19 +1408,18 @@ group_centrality <- function(x, nodes,
 dispersion <- function(x, u = NULL, v = NULL,
                        normalized = TRUE,
                        alpha = 1, b = 0, c = 0) {
-  g <- to_igraph(x)
-  n <- igraph::vcount(g)
-  if (n == 0) return(numeric(0))
+  cg <- .cg_graph(x)
+  n <- cg$n
+  if (n == 0L) return(numeric(0))
 
   # Resolve node labels to 1-based indices
   resolve_node <- function(node) {
     if (is.null(node)) return(NULL)
     if (is.character(node)) {
-      vnames <- igraph::V(g)$name
-      if (is.null(vnames)) {
+      if (!cg$has_names) {
         stop("dispersion: node names not available on graph", call. = FALSE)
       }
-      idx <- match(node, vnames)
+      idx <- match(node, cg$labels)
       if (anyNA(idx)) {
         stop("dispersion: unknown node(s): ",
              paste(node[is.na(idx)], collapse = ", "), call. = FALSE)
@@ -1377,11 +1431,15 @@ dispersion <- function(x, u = NULL, v = NULL,
   u <- resolve_node(u)
   v <- resolve_node(v)
 
-  # Adjacency list (undirected treatment — dispersion is defined on the
-  # undirected ego network in Backstrom-Kleinberg). For a directed graph,
-  # NetworkX treats G[u] as OUT-neighbors, which we match.
+  # Out-neighbor lists (NetworkX reads G[u] as out-neighbors on a directed
+  # graph). A self-loop lists the node itself, twice on an undirected graph,
+  # which is what `igraph::neighbors()` and NetworkX both report.
+  adj <- unname(cg$b) != 0
+  loop_twice <- !cg$directed
   nbrs_of <- function(node) {
-    as.integer(igraph::neighbors(g, node, mode = "out"))
+    j <- which(adj[node, ])
+    if (loop_twice && adj[node, node]) j <- sort(c(j, node))
+    j
   }
 
   # Single-pair inner computation
@@ -1392,25 +1450,17 @@ dispersion <- function(x, u = NULL, v = NULL,
     set_uv <- c(u_i, v_i)
     total <- 0L
     if (length(ST) >= 2L) {
-      # All unordered pairs from ST
-      k <- length(ST)
-      for (i in seq_len(k - 1L)) {
-        for (j in seq(i + 1L, k)) {
-          s <- ST[i]
-          t <- ST[j]
-          # nbrs_s = u's neighbors intersected with s's neighbors, minus {u, v}
-          s_nbrs <- nbrs_of(s)
-          nbrs_s <- setdiff(intersect(u_nbrs, s_nbrs), set_uv)
-          # s and t not directly connected?
-          if (!(t %in% nbrs_s)) {
-            t_nbrs <- nbrs_of(t)
-            # s and t don't share a common neighbor in u's ego net
-            if (length(intersect(nbrs_s, t_nbrs)) == 0L) {
-              total <- total + 1L
-            }
-          }
-        }
-      }
+      # Every unordered pair {s, t} of mutual friends is "dispersed" when s
+      # and t are not adjacent and share no common neighbor inside u's ego
+      # network other than u and v.
+      pairs <- utils::combn(ST, 2L)
+      dispersed <- vapply(seq_len(ncol(pairs)), function(p) {
+        s <- pairs[1L, p]
+        t <- pairs[2L, p]
+        nbrs_s <- setdiff(intersect(u_nbrs, nbrs_of(s)), set_uv)
+        !(t %in% nbrs_s) && length(intersect(nbrs_s, nbrs_of(t))) == 0L
+      }, logical(1))
+      total <- sum(dispersed)
     }
     embeddedness <- length(ST)
     if (normalized) {
@@ -1439,21 +1489,17 @@ dispersion <- function(x, u = NULL, v = NULL,
     return(out)
   }
 
-  # Both NULL: compute for every (u, v) where v is a neighbor of u
-  rows <- list()
-  for (uu in seq_len(n)) {
-    u_nbrs <- nbrs_of(uu)
-    for (vv in u_nbrs) {
-      rows[[length(rows) + 1L]] <- data.frame(
-        from = uu, to = vv,
-        dispersion = disp_pair(uu, vv),
-        stringsAsFactors = FALSE
-      )
-    }
-  }
-  if (length(rows) == 0L) {
+  # Both NULL: one row per (u, v) with v a neighbor of u
+  nbr_lists <- lapply(seq_len(n), nbrs_of)
+  from <- rep(seq_len(n), lengths(nbr_lists))
+  to <- as.integer(unlist(nbr_lists))
+  if (length(from) == 0L) {
     return(data.frame(from = integer(0), to = integer(0),
                       dispersion = numeric(0)))
   }
-  do.call(rbind, rows)
+  data.frame(
+    from = from, to = to,
+    dispersion = mapply(disp_pair, from, to),
+    stringsAsFactors = FALSE
+  )
 }

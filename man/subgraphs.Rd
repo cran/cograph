@@ -9,29 +9,43 @@ subgraphs(...)
 \arguments{
 \item{...}{Arguments forwarded to \code{\link{motifs}()}. See \code{?motifs}
 for the full parameter list (\code{x}, \code{actor}, \code{window},
-\code{pattern}, \code{include}, \code{exclude}, \code{significance},
-\code{n_perm}, \code{min_count}, \code{edge_method}, \code{edge_threshold},
-\code{min_transitions}, \code{top}, \code{seed}).}
+\code{window_type}, \code{pattern}, \code{include}, \code{exclude},
+\code{significance}, \code{n_perm}, \code{cores}, \code{min_count},
+\code{edge_method}, \code{edge_threshold}, \code{min_transitions},
+\code{top}, \code{seed}). \code{named_nodes} is fixed to \code{TRUE} and
+must not be supplied.}
 }
 \value{
 A \code{cograph_motif_result} object with \code{named_nodes = TRUE}.
-Contains \code{$results} (data frame with columns \code{triad}, \code{type},
-\code{observed}, and optionally \code{z}, \code{p}, \code{sig}),
+Contains \code{$results} (data frame with columns \code{triad},
+\code{node1}, \code{node2}, \code{node3}, \code{observed}, \code{type},
+and when \code{significance = TRUE} also \code{expected}, \code{z},
+\code{p}, \code{sig}),
 \code{$type_summary}, \code{$level}, \code{$n_units}, and \code{$params}.
+At individual level, each result row is a node-triple and MAN-type
+combination, and \code{observed} counts sessions/units exhibiting it.
 In instance mode, \code{$type_summary} is built via
 \code{table(results$type)} so it counts how many node-triples fall under
 each MAN type.
 }
 \description{
 Convenience wrapper for \code{motifs(x, named_nodes = TRUE, ...)}. Returns
-one row per concrete node-triple instantiating each MAN pattern, so the
-same MAN type can appear in many rows with its own \code{z} / \code{p}
-per triple. For per-triple significance use
+one row per concrete node-triple and MAN type. At individual level,
+\code{observed} counts sessions/units exhibiting that combination, so one
+triple can occupy multiple rows when its type differs across units. The same
+MAN type can also appear in many rows, each with its own \code{z} / \code{p}.
+For per-triple significance use
 \code{plot(., type = "significance")} or \code{plot(., type = "triads")};
 the per-type plots (\code{"types"}, \code{"patterns"}) deliberately drop
 the significance decoration here, because aggregating per type requires a
 rule (median? max-|z|?) that isn't pinned and would be misleading by
 default.
+}
+\details{
+The \code{"triads"} diagram uses a canonical representative of the row's
+MAN isomorphism class. Concrete labels identify the participating nodes;
+their positions in that representative diagram do not encode the nodes'
+observed source/sink roles.
 }
 \examples{
 mat <- matrix(c(0,3,2,0, 0,0,5,1, 0,0,0,4, 2,0,0,0), 4, 4, byrow = TRUE)

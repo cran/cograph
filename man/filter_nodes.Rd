@@ -8,17 +8,19 @@
 filter_nodes(
   x,
   ...,
-  .keep_edges = c("internal", "none"),
+  keep_edges = c("internal", "none"),
   keep_format = FALSE,
-  directed = NULL
+  directed = NULL,
+  .keep_edges = NULL
 )
 
 subset_nodes(
   x,
   ...,
-  .keep_edges = c("internal", "none"),
+  keep_edges = c("internal", "none"),
   keep_format = FALSE,
-  directed = NULL
+  directed = NULL,
+  .keep_edges = NULL
 )
 }
 \arguments{
@@ -31,12 +33,23 @@ Available variables include:
 \code{name}, \code{x}, \code{y}, \code{inits}, \code{color}, plus any custom}
 \item{Centrality measures}{\code{degree}, \code{indegree}, \code{outdegree},
 \code{strength}, \code{instrength}, \code{outstrength}, \code{betweenness},
-\code{closeness}, \code{eigenvector}, \code{pagerank}, \code{hub}, \code{authority}}
+\code{closeness}, \code{eigenvector}, \code{pagerank}, \code{hub},
+\code{authority}, \code{coreness}. Any other measure
+\code{\link{centrality}()} computes can be named too; see
+\code{\link{list_centralities}()}.}
+\item{Structural context and predicates}{The same vocabulary
+\code{\link{select_nodes}()} documents, for example \code{component},
+\code{component_size}, \code{k_core}, \code{is_isolated},
+\code{is_cut}, \code{local_transitivity}.}
 }
 Examples: \code{degree >= 3}, \code{label \%in\% c("A", "B")},
-\code{pagerank > 0.1 & degree >= 2}.}
+\code{pagerank > 0.1 & degree >= 2}.
 
-\item{.keep_edges}{How to handle edges. One of:
+On a network with negative edge weights, \code{betweenness},
+\code{closeness} and \code{pagerank} are undefined: they return \code{NA}
+with a \code{cograph_negative_weights} warning.}
+
+\item{keep_edges}{How to handle edges. One of:
 \describe{
 \item{\code{"internal"}}{(default) Keep only edges between remaining nodes}
 \item{\code{"none"}}{Remove all edges}
@@ -49,6 +62,8 @@ returns cograph_network (universal format).}
 \item{directed}{Logical or NULL. If NULL (default), auto-detect from matrix
 symmetry. Set TRUE to force directed, FALSE to force undirected.
 Only used for non-cograph_network inputs.}
+
+\item{.keep_edges}{Deprecated. Use \code{keep_edges}.}
 }
 \value{
 A cograph_network object with filtered nodes. If \code{keep_format = TRUE},

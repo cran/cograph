@@ -7,6 +7,7 @@
 plot_mcml(
   x,
   cluster_list = NULL,
+  expand = NULL,
   mode = c("weights", "tna"),
   theme = c("classic", "rich", "light"),
   layer_spacing = NULL,
@@ -100,6 +101,21 @@ names become the cluster labels (e.g.,
 }
 Ignored when \code{x} is a \code{cluster_summary}.}
 
+\item{expand}{Names of clusters whose member states are drawn as separate
+nodes in the top (macro) layer; \code{"all"} or \code{TRUE} expands every
+cluster. The bottom layer always shows the partition, so an expanded
+state appears as its own summary node while staying inside its cluster's
+shell below, linked by the dashed line. Default \code{NULL} draws one
+summary node per cluster.
+
+The expanded macro is re-counted from \code{x} with a refined partition
+(an expanded cluster contributes one group per member state), because a
+k x k aggregate cannot be disaggregated after the fact. That needs the
+source, so passing a pre-built \code{cluster_summary} or \code{mcml}
+instead of the data falls back to \code{Nestimate::macro_network()} and
+raises a \code{cograph_expand_unavailable} error when that is not
+available.}
+
 \item{mode}{What values to display on edges:
 \describe{
 \item{\code{"weights"}}{(default) Shows raw aggregated edge values.
@@ -123,10 +139,22 @@ outline and a softer shell fill.}
 The granular style arguments (\code{node_donut}, \code{curved_edges})
 override the preset when supplied.}
 
-\item{layer_spacing}{Vertical distance between the bottom and top layers.
-\code{NULL} (default) auto-calculates a gap that prevents overlap based
-on cluster positions and shell sizes. Increase for more vertical
-separation; decrease to make the plot more compact.}
+\item{layer_spacing}{Vertical position of the summary (top) layer, which is
+what decides how tall the figure is.
+\itemize{
+\item \code{NULL} (default): placed automatically, just clear of the
+bottom layer (\code{inter_layer_gap} sets the clearance). The figure
+then has a fixed shape, and a taller image only adds white space.
+\item \code{"fill"}: the gap between the layers is stretched so the
+figure uses the full height of the image it is drawn on. Change the
+image height and the plot follows. Shapes stay round; only the space
+between the layers grows. Never tighter than the automatic layout.
+\item A single positive number: the distance from the centre of the
+bottom layer to the centre of the summary layer, in the same units as
+\code{spacing}. Overrides \code{inter_layer_gap}. A value small
+enough to overlap the two layers raises a
+\code{cograph_layers_overlap} warning.
+}}
 
 \item{spacing}{Distance from the center to each cluster's position in the
 bottom layer. Larger values spread clusters farther apart. Default 3.}
@@ -467,7 +495,7 @@ whose proportions are controlled by \code{top_layer_scale}.
 }
 \section{Input Formats}{
 
-\code{x} accepts four types:
+\code{x} accepts the following types:
 \describe{
 \item{\strong{matrix}}{A square numeric weight matrix with row/column
 names matching the node identifiers in \code{cluster_list}.}
@@ -480,6 +508,9 @@ is read from the \code{$nodes} data frame.}
 \code{\link{csum}}. When this type is passed, the
 \code{cluster_list}, \code{aggregation}, and \code{nodes} parameters
 are ignored because the summary already contains everything needed.}
+\item{\strong{mcml / mcml_pc}}{A Nestimate multi-cluster multi-layer
+object; handled exactly like a \code{cluster_summary}, with
+\code{mcml_pc} rendered undirected via its \code{meta$directed} flag.}
 }
 }
 
@@ -527,12 +558,12 @@ Title / legend                 \tab \code{title}, \code{subtitle}, \code{legend}
 }
 
 \examples{
-mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
-colnames(mat) <- rownames(mat) <- LETTERS[1:6]
-clusters <- list(C1 = c("A","B"), C2 = c("C","D"), C3 = c("E","F"))
-plot_mcml(mat, clusters)
+clusters <- list(C1 = c("Explore", "Reflect", "Discuss"),
+                 C2 = c("Plan", "Create", "Share"),
+                 C3 = c("Monitor", "Adapt", "Synthesize", "Evaluate"))
+plot_mcml(regulation_net, clusters)
 \donttest{
-cs <- csum(mat, clusters)
+cs <- csum(regulation_net, clusters)
 plot_mcml(cs, mode = "tna", edge_labels = TRUE)
 }
 }

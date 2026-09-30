@@ -58,6 +58,10 @@ NULL
 #' @param node_alpha Node transparency (0-1). Default 1.
 #' @param labels Node labels: TRUE (use node names/indices), FALSE (none),
 #'   or character vector.
+#' @param label_abbrev Controls label abbreviation in the same way as
+#'   \code{plot_mcml()}: \code{NULL} keeps full labels, an integer truncates
+#'   labels to that maximum number of characters, and \code{"auto"} adapts
+#'   the maximum length to the number of nodes.
 #' @param label_size Label character expansion factor.
 #' @param label_color Label text color.
 #' @param label_position Label position: "center", "above", "below", "left", "right".
@@ -237,7 +241,10 @@ NULL
 #'   grids with networks of different node counts, or any case where
 #'   visual-size parity across panels matters more than canvas fill.
 #'   Default \code{FALSE} uses dynamic, layout-driven bounds (the
-#'   pre-2.1.x behaviour) which renders tighter on the canvas. The
+#'   pre-2.1.x behavior) which renders tighter on the canvas. The fixed
+#'   box is only applied when the layout is being rescaled, so
+#'   \code{align_panels = TRUE} has no effect under
+#'   \code{rescale = FALSE}. The
 #'   per-node loop-reservation pad in \code{compute_plot_limits} runs
 #'   regardless, so networks with different self-loop patterns stay
 #'   centered consistently in either mode.
@@ -257,7 +264,8 @@ NULL
 #'   otherwise. Can be used with any input type (matrix, igraph, cograph_network).
 #' @param psych_styling Logical or NULL. Undirected counterpart of `tna_styling`.
 #'   If \code{TRUE}, applies psychometric-network defaults (spring layout,
-#'   Okabe-Ito palette, no arrows, thin edges) as a base layer. If \code{NULL}
+#'   Okabe-Ito palette, no arrows, solid edge lines, and
+#'   \code{minimum = 0.01}) as a base layer. If \code{NULL}
 #'   (default), `splot.netobject` auto-enables it on correlation-family input
 #'   (glasso, cor, pcor, ising) and on the undirected constituents of
 #'   `net_mlvar`. Explicit user args always win.
@@ -364,7 +372,7 @@ NULL
 #' ## Producer-Supplied splot Metadata
 #' Packages that create \code{cograph_network}-compatible objects can attach a
 #' small plotting contract at \code{x$meta$splot}. This lets producer packages
-#' such as Nestimate, lagdynamics, or other modelling packages describe their
+#' such as Nestimate, lagdynamics, or other modeling packages describe their
 #' preferred cograph rendering without adding a new cograph-side class branch for
 #' every object type.
 #'
@@ -430,13 +438,16 @@ NULL
 #' \code{\link{sn_theme}} for visual themes,
 #' \code{\link{from_qgraph}} and \code{\link{from_tna}} for converting external objects
 #'
-#' @export
-#'
 #' @examples
 #' # Basic directed network
 #' adj <- matrix(c(0, 1, 1, 0, 0, 0, 1, 1,
 #'                 0, 0, 0, 1, 0, 0, 0, 0), 4, 4, byrow = TRUE)
 #' splot(adj, layout = "circle", labels = c("A", "B", "C", "D"))
+#'
+#' # Abbreviate long labels to a fixed maximum length
+#' splot(adj, layout = "circle",
+#'       labels = c("Orientation", "Planning", "Reading", "Submission"),
+#'       label_abbrev = 4)
 #'
 #' # Weighted network with signed edges
 #' w_adj <- matrix(c(0, .5, -.3, 0, .8, 0, .4, -.2,
@@ -465,6 +476,7 @@ splot <- function(
     node_border_width = 1,
     node_alpha = 1,
     labels = TRUE,
+    label_abbrev = NULL,
     label_size = NULL,
     label_color = "black",
     label_position = "center",
@@ -798,7 +810,7 @@ splot <- function(
   # Must come before netobject — netdifference inherits from it, and the
   # netobject path would style it by $method ("difference" -> psych styling),
   # rendering an asymmetric difference as undirected and dropping one triangle.
-  # plot_difference() owns the difference conventions: sign-based edge colours,
+  # plot_difference() owns the difference conventions: sign-based edge colors,
   # directedness from the matrix, minimum = 0.
   # Excludes net_permutation-family objects (net_bayes carries netdifference
   # too): those go to splot.net_permutation below, whose per-edge CI/star
@@ -1186,6 +1198,9 @@ splot <- function(
 
   # Labels
   node_labels <- resolve_labels(labels, nodes, n_nodes)
+  if (!is.null(node_labels) && !is.null(label_abbrev)) {
+    node_labels <- abbrev_label(node_labels, label_abbrev, n_nodes)
+  }
 
   # Device-dependent visual scale: reserve the per-draw env now so inner
   # helpers can retrieve it. The actual scale computation is DEFERRED until
@@ -1198,7 +1213,7 @@ splot <- function(
   .set_current_visual_scale(visual_scale)
   on.exit(.clear_current_visual_scale(), add = TRUE)
 
-  # Per-node label colours (vectorised). Actual label cex is resolved after
+  # Per-node label colors (vectorized). Actual label cex is resolved after
   # plot.new so par("pin") is accurate.
   label_colors <- recycle_to_length(label_color, n_nodes)
 

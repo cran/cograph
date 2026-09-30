@@ -10,11 +10,15 @@
 #' Aggregates a vector of edge weights using various methods.
 #' Compatible with igraph's edge.attr.comb parameter.
 #'
-#' @param w Numeric vector of edge weights
+#' @param w Numeric vector of edge weights. \code{NA} and zero entries are
+#'   dropped before aggregation.
 #' @param method Aggregation method: "sum", "mean", "median", "max", "min",
-#'   "prod", "density", "geomean"
-#' @param n_possible Number of possible edges (for density calculation)
-#' @return Single aggregated value
+#'   "prod", "density", "geomean". Default "sum". Any other value is an error.
+#' @param n_possible Number of possible edges (used only by
+#'   \code{method = "density"}; when NULL or not positive, the number of
+#'   surviving weights is used as the denominator instead).
+#' @return A single numeric value, or 0 when no non-zero, non-NA weight
+#'   remains.
 #' @export
 #' @examples
 #' w <- c(0.5, 0.8, 0.3, 0.9)
@@ -83,7 +87,6 @@ wagg <- aggregate_weights
 #'       Throws an error if no cluster column is found.
 #'       This option only works when \code{x} is a cograph_network.}
 #'     \item{vector}{Cluster membership for each node, in the same order as the
-
 #'       matrix rows/columns. Can be numeric (1, 2, 3) or character ("A", "B").
 #'       Cluster names will be derived from unique values.
 #'       Example: \code{c(1, 1, 2, 2, 3, 3)} assigns first two nodes to cluster 1.}
@@ -1284,8 +1287,8 @@ summarize_clusters <- function(x,
 #'     \item{<cluster_name>}{Per-cluster tna objects, one per cluster. Each tna
 #'       object represents internal transitions within that cluster. Contains
 #'       \code{$weights} (n_i x n_i matrix), \code{$inits} (initial distribution),
-#'       and \code{$labels} (node labels). Clusters with single nodes or zero-row
-#'       nodes are excluded (tna requires positive row sums).}
+#'       and \code{$labels} (node labels). A cluster that cannot become a tna
+#'       model is left out with a warning (see Excluded Clusters).}
 #'   }
 #'
 #' @details
@@ -1321,8 +1324,10 @@ summarize_clusters <- function(x,
 #'   \item Some nodes in the cluster have no outgoing edges (row sums to 0)
 #' }
 #'
-#' These clusters are silently excluded. The macro (cluster-level)
-#' model still includes all clusters.
+#' These clusters are left out of the result with a warning of class
+#' \code{cograph_cluster_dropped}, which names each cluster and the nodes
+#' that have no transition within it. The macro (cluster-level) model still
+#' includes all clusters.
 #'
 #' @export
 #' @seealso
@@ -1331,12 +1336,12 @@ summarize_clusters <- function(x,
 #'   \code{tna::tna} for the underlying tna constructor
 #'
 #' @examplesIf requireNamespace("tna", quietly = TRUE)
-#' mat <- matrix(runif(36), 6, 6); diag(mat) <- 0
-#' rownames(mat) <- colnames(mat) <- LETTERS[1:6]
-#' clusters <- list(G1 = c("A","B"), G2 = c("C","D"), G3 = c("E","F"))
-#' cs <- csum(mat, clusters, type = "tna")
+#' clusters <- list(C1 = c("Explore", "Reflect", "Discuss"),
+#'                  C2 = c("Plan", "Create", "Share"),
+#'                  C3 = c("Monitor", "Adapt", "Synthesize", "Evaluate"))
+#' cs <- csum(regulation_net, clusters, type = "tna")
 #' tna_models <- as_tna(cs)
-#' names(tna_models)          # "macro", "G1", "G2", "G3"
+#' names(tna_models)          # "macro", "C1", "C2", "C3"
 #' splot(tna_models$macro)    # cograph renderer avoids tna's plot deps
 as_tna <- function(x) {
   UseMethod("as_tna")
@@ -1354,24 +1359,7 @@ as_tna.cluster_summary <- function(x) {
   between_tna <- tna::tna(x$macro$weights, inits = x$macro$inits)
   between_tna$data <- x$macro$data
 
-  # Per-cluster tnas
-  within_tnas <- lapply(names(x$clusters), function(cl) {
-    w <- x$clusters[[cl]]$weights
-    inits <- x$clusters[[cl]]$inits
-
-    # Skip if matrix has rows that sum to 0 (tna requires positive rows)
-    if (any(rowSums(w) == 0)) {
-      return(NULL)
-    }
-
-    obj <- tna::tna(w, inits = inits)
-    obj$data <- x$clusters[[cl]]$data
-    obj
-  })
-  names(within_tnas) <- names(x$clusters)
-
-  # Remove NULL entries
-  within_tnas <- within_tnas[!vapply(within_tnas, is.null, logical(1))]
+  within_tnas <- .within_cluster_tnas(x$clusters)
 
   # Combine macro + all cluster tnas into flat group_tna
   all_tnas <- c(list(macro = between_tna), within_tnas)
@@ -1391,29 +1379,62 @@ as_tna.mcml <- function(x) {
   between_tna <- tna::tna(x$macro$weights, inits = x$macro$inits)
   between_tna$data <- x$macro$data
 
-  # Per-cluster tnas
-  within_tnas <- list()
-  if (!is.null(x$clusters)) {
-    within_tnas <- lapply(names(x$clusters), function(cl) {
-      w <- x$clusters[[cl]]$weights
-      inits <- x$clusters[[cl]]$inits
-
-      # Skip if matrix has rows that sum to 0 (tna requires positive rows)
-      if (any(rowSums(w) == 0)) { # nocov start
-        return(NULL)
-      } # nocov end
-
-      obj <- tna::tna(w, inits = inits)
-      obj$data <- x$clusters[[cl]]$data
-      obj
-    })
-    names(within_tnas) <- names(x$clusters)
-    within_tnas <- within_tnas[!vapply(within_tnas, is.null, logical(1))]
-  }
+  within_tnas <- .within_cluster_tnas(x$clusters)
 
   all_tnas <- c(list(macro = between_tna), within_tnas)
   class(all_tnas) <- "group_tna"
   all_tnas
+}
+
+# Build one tna model per cluster from its within-cluster weights. tna::tna()
+# needs every row to have a positive sum, so a cluster in which some node has
+# no transition to another node of the same cluster (every one-node cluster
+# included) cannot become a model. Those clusters are left out, and a single
+# warning of class `cograph_cluster_dropped` names each one and its nodes.
+.within_cluster_tnas <- function(clusters) {
+  if (is.null(clusters)) return(list())
+  zero_nodes <- lapply(clusters, function(cl) {
+    w <- cl$weights
+    nodes <- rownames(w) %||% as.character(seq_len(nrow(w)))
+    nodes[!(rowSums(w) > 0)]
+  })
+  dropped <- lengths(zero_nodes) > 0
+  if (any(dropped)) {
+    quote_list <- function(v) {
+      v <- sprintf("\"%s\"", v)
+      if (length(v) == 1L) return(v)
+      paste(paste(v[-length(v)], collapse = ", "), "and", v[length(v)])
+    }
+    detail <- vapply(names(clusters)[dropped], function(cl) {
+      nodes <- zero_nodes[[cl]]
+      if (nrow(clusters[[cl]]$weights) == 1L) {
+        return(sprintf("\"%s\": single-node cluster (%s).", cl,
+                       quote_list(nodes)))
+      }
+      sprintf("\"%s\": no outgoing within-cluster transitions from %s.",
+              cl, quote_list(nodes))
+    }, character(1))
+    n_dropped <- sum(dropped)
+    warning(warningCondition(
+      paste0(
+        if (n_dropped == 1L) {
+          "The within-cluster TNA model for 1 cluster was not estimated"
+        } else {
+          sprintf("Within-cluster TNA models for %d clusters were not estimated",
+                  n_dropped)
+        },
+        ": transition probabilities are undefined for a node with no ",
+        "outgoing within-cluster transitions.\n",
+        paste0("  * ", detail, collapse = "\n")
+      ),
+      class = "cograph_cluster_dropped", call = NULL
+    ))
+  }
+  lapply(clusters[!dropped], function(cl) {
+    obj <- tna::tna(cl$weights, inits = cl$inits)
+    obj$data <- cl$data
+    obj
+  })
 }
 
 #' @rdname as_tna
@@ -1565,13 +1586,22 @@ as_mcml.default <- function(x, ...) {
 #' Computes per-cluster and global quality metrics for network partitioning.
 #' Supports both binary and weighted networks.
 #'
-#' @param x Adjacency matrix
-#' @param clusters Cluster specification (list or membership vector)
-#' @param weighted Logical; if TRUE, use edge weights; if FALSE, binarize
-#' @param directed Logical; if TRUE, treat as directed network
-#' @return A `cluster_quality` object with:
-#'   \item{per_cluster}{Data frame with per-cluster metrics}
-#'   \item{global}{List of global metrics (modularity, coverage)}
+#' @param x Adjacency matrix (numeric)
+#' @param clusters Cluster specification (named list, data frame, or membership
+#'   vector; see \code{\link{csum}})
+#' @param weighted Logical; if TRUE (default), use edge weights; if FALSE,
+#'   binarize the matrix first
+#' @param directed Logical; if TRUE (default), treat as directed network
+#' @return A `cluster_quality` object (a list) with:
+#'   \item{per_cluster}{Data frame, one row per cluster, with columns
+#'     \code{cluster} (index), \code{cluster_name}, \code{n_nodes},
+#'     \code{internal_edges} (within-cluster weight), \code{cut_edges}
+#'     (boundary-crossing weight), \code{internal_density},
+#'     \code{avg_internal_degree}, \code{expansion}, \code{cut_ratio} and
+#'     \code{conductance}.}
+#'   \item{global}{List with \code{modularity} (Newman-Girvan, computed on the
+#'     weighted or binarized matrix), \code{coverage} (share of total weight
+#'     that is internal to some cluster) and \code{n_clusters}.}
 #' @export
 #' @examples
 #' mat <- matrix(runif(100), 10, 10)
@@ -2013,9 +2043,21 @@ plot.cograph_cluster_significance <- function(x, ...) {
 #'
 #' @param A1 First adjacency matrix
 #' @param A2 Second adjacency matrix
-#' @param method Similarity method: "jaccard", "overlap", "hamming", "cosine",
-#'   "pearson"
-#' @return Numeric similarity value
+#' @param method Comparison method: "jaccard" (default), "overlap", "hamming",
+#'   "cosine" or "pearson"
+#' @return A single numeric value. All methods except \code{"hamming"} return a
+#'   similarity (higher = more alike); \code{"hamming"} returns a
+#'   \emph{distance} - the number of matrix cells whose edge presence differs
+#'   between the two layers - so lower means more alike and the value is not
+#'   bounded by 1. \code{NA} is returned when the denominator is undefined
+#'   (\code{"jaccard"} with no edges in either layer, \code{"overlap"} with an
+#'   empty layer, \code{"cosine"} with an all-zero layer).
+#'
+#' @details
+#' \code{"jaccard"}, \code{"overlap"} and \code{"hamming"} compare edge
+#' \emph{presence} (\code{A > 0}) and therefore ignore weights;
+#' \code{"cosine"} and \code{"pearson"} are computed on the raw cell values.
+#' The two matrices must have identical dimensions.
 #' @export
 #' @examples
 #' A1 <- matrix(c(0,1,1,0, 1,0,0,1, 1,0,0,1, 0,1,1,0), 4, 4)
@@ -2069,9 +2111,14 @@ lsim <- layer_similarity
 #'
 #' Computes similarity matrix for all pairs of layers.
 #'
-#' @param layers List of adjacency matrices (one per layer)
-#' @param method Similarity method
-#' @return Symmetric matrix of pairwise similarities
+#' @param layers Named list of adjacency matrices (one per layer); at least two
+#'   are required.
+#' @param method Comparison method: "jaccard" (default), "overlap", "cosine" or
+#'   "pearson". Note that \code{"hamming"}, accepted by
+#'   \code{\link{layer_similarity}}, is \emph{not} available here because it is
+#'   a distance rather than a similarity.
+#' @return A symmetric L x L matrix of pairwise similarities with the layer
+#'   names as dimnames and 1 on the diagonal.
 #' @export
 #' @examples
 #' nodes <- c("A", "B", "C")
@@ -2177,7 +2224,13 @@ ldegcor <- layer_degree_correlation
 #'   If no entry matches a pair and no legacy chain layout applies, a
 #'   warning is emitted and the diagonal default \code{omega[a,b] * I}
 #'   is used (previously this happened silently).
-#' @return Supra-adjacency matrix of dimension (N*L) x (N*L)
+#' @return A supra-adjacency matrix of dimension (N*L) x (N*L) with class
+#'   \code{c("supra_adjacency", "matrix")}. Diagonal N x N blocks hold the
+#'   intra-layer adjacencies and off-diagonal blocks the inter-layer coupling.
+#'   The attributes \code{"n_nodes"}, \code{"n_layers"}, \code{"node_names"},
+#'   \code{"layer_names"}, \code{"omega"} and \code{"coupling"} record the
+#'   construction and are read back by \code{\link{supra_layer}()} and
+#'   \code{\link{supra_interlayer}()}.
 #' @export
 #' @examples
 #' nodes <- c("A", "B", "C")
@@ -2469,10 +2522,15 @@ lagg <- aggregate_layers
 #' Confirms numerical match with igraph's contract_vertices + simplify.
 #'
 #' @param x Adjacency matrix
-#' @param clusters Cluster specification
-#' @param method Aggregation method
+#' @param clusters Cluster specification (see \code{\link{csum}})
+#' @param method Aggregation method. Default "sum".
 #' @param type Normalization type. Defaults to "raw" for igraph compatibility.
-#' @return List with comparison results
+#' @return A list with components \code{our_result} (cograph's macro weight
+#'   matrix), \code{igraph_result} (igraph's
+#'   \code{contract()} + \code{simplify()} matrix), \code{matches} (logical:
+#'   do the off-diagonals agree to within 1e-10?) and \code{difference} (the
+#'   \code{all.equal()} report when they do not, otherwise NULL). Returns
+#'   \code{NULL} with a message if igraph is not installed.
 #' @export
 verify_with_igraph <- function(x, clusters, method = "sum", type = "raw") {
 
@@ -2586,39 +2644,9 @@ print.cluster_summary <- function(x, ...) {
   invisible(x)
 }
 
-#' @noRd
-#' @export
-print.mcml <- function(x, ...) {
-  n_clusters <- x$meta$n_clusters
-  n_nodes <- x$meta$n_nodes
-  cluster_sizes <- x$meta$cluster_sizes
-
-  cat("MCML Network\n")
-  cat("============\n")
-  cat("Type:", x$meta$type, " | Method:", x$meta$method, "\n")
-  cat("Nodes:", n_nodes, " | Clusters:", n_clusters, "\n")
-
-  # Edge-less mcml objects (e.g. aggregate / matrix-derived) carry no $edges
-  # slot; nrow(NULL)/sum(NULL == "between") would otherwise print a blank
-  # `Transitions:` line and a misleading `Macro: 0 | Per-cluster: 0`.
-  if (!is.null(x$edges)) {
-    cat("Transitions:", nrow(x$edges), "\n")
-    cat("  Macro:", sum(x$edges$type == "between"),
-        " | Per-cluster:", sum(x$edges$type == "within"), "\n")
-  }
-  cat("\n")
-
-  cat("Clusters:\n")
-  for (cl in names(x$cluster_members)) {
-    cat("  ", cl, " (", cluster_sizes[cl], "): ",
-        paste(x$cluster_members[[cl]], collapse = ", "), "\n", sep = "")
-  }
-
-  cat("\nMacro (cluster-level) weights:\n")
-  print(round(x$macro$weights, 4))
-
-  invisible(x)
-}
+# print.mcml lives in Nestimate, which owns the mcml class. Registering a
+# second method here made the printed form depend on which package was loaded
+# last.
 
 #' @noRd
 #' @export

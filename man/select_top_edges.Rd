@@ -9,7 +9,7 @@ select_top_edges(
   n,
   by = "weight",
   ...,
-  .keep_isolates = FALSE,
+  keep_isolates = TRUE,
   keep_format = FALSE,
   directed = NULL
 )
@@ -20,12 +20,14 @@ select_top_edges(
 \item{n}{Integer. Number of top edges to select.}
 
 \item{by}{Character. Metric for ranking. One of:
-\code{"weight"}, \code{"abs_weight"}, \code{"edge_betweenness"}.
-Default \code{"weight"}.}
+\code{"weight"} (default), \code{"abs_weight"},
+\code{"edge_betweenness"}, \code{"from_degree"}, \code{"to_degree"},
+\code{"from_strength"}, \code{"to_strength"}, \code{"weight_rank"}.
+Any other name raises a \code{cograph_bad_selection} error.}
 
 \item{...}{Additional filter expressions.}
 
-\item{.keep_isolates}{Keep nodes with no edges? Default FALSE.}
+\item{keep_isolates}{Keep nodes that end up with no edges? Default TRUE.}
 
 \item{keep_format}{Keep input format? Default FALSE.}
 

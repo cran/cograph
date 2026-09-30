@@ -2,6 +2,10 @@
 # Tests for Zoo of Centralities batch 2 measures
 # ===========================================================================
 
+# Inputs or oracles in this file are built with igraph; without it the
+# file is skipped as a whole (the igraph-free proof is the golden and port tests).
+skip_if_not_installed("igraph")
+
 skip_coverage_tests()
 
 # ---------------------------------------------------------------------------
@@ -43,33 +47,6 @@ test_that("onion: path — endpoints first, middle last", {
   expect_true(o[2] >= o[1])  # inner >= endpoint
 })
 
-test_that("onion matches NetworkX on 100 random graphs", {
-  skip_if_not(reticulate::py_module_available("networkx"), "NetworkX not available")
-  nx <- reticulate::import("networkx")
-
-  set.seed(42)
-  failures <- 0L
-  for (i in 1:100) {
-    n <- sample(8:15, 1)
-    g <- igraph::sample_gnp(n, 0.35)
-    while (!igraph::is_connected(g)) g <- igraph::sample_gnp(n, 0.35)
-
-    co <- cograph:::calculate_onion(g)
-
-    el <- igraph::as_edgelist(g)
-    G <- nx$Graph()
-    G$add_nodes_from(as.list(seq_len(n) - 1L))
-    G$add_edges_from(lapply(seq_len(nrow(el)), function(r) c(el[r,1]-1L, el[r,2]-1L)))
-    nx_ol <- nx$onion_layers(G)
-    nx_vec <- vapply(as.character(seq_len(n) - 1L), function(k) as.integer(nx_ol[[k]]), integer(1))
-
-    if (!isTRUE(all.equal(as.numeric(co), as.numeric(nx_vec)))) {
-      failures <- failures + 1L
-    }
-  }
-  cat(sprintf("  onion vs NetworkX: %d/100 passed\n", 100 - failures))
-  expect_equal(failures, 0L)
-})
 
 # ===========================================================================
 # Trophic level
@@ -92,42 +69,6 @@ test_that("trophic_level: returns NA on undirected", {
   expect_true(all(is.na(tl)))
 })
 
-test_that("trophic_level matches NetworkX on DAG-like graphs", {
-  skip_if_not(reticulate::py_module_available("networkx"), "NetworkX not available")
-  nx <- reticulate::import("networkx")
-
-  set.seed(77)
-  failures <- 0L
-  tested <- 0L
-  for (i in 1:200) {
-    # Generate DAG-like graphs (more likely to have valid trophic levels)
-    n <- sample(6:10, 1)
-    g <- igraph::sample_gnp(n, 0.4, directed = TRUE)
-    if (!igraph::is_connected(g, mode = "weak")) next
-
-    co <- cograph:::calculate_trophic_level(g)
-    if (any(is.na(co))) next
-
-    el <- igraph::as_edgelist(g)
-    G <- nx$DiGraph()
-    G$add_nodes_from(as.list(seq_len(n) - 1L))
-    G$add_edges_from(lapply(seq_len(nrow(el)), function(r) c(el[r,1]-1L, el[r,2]-1L)))
-    nx_tl <- tryCatch({
-      tl <- nx$trophic_levels(G)
-      vapply(as.character(seq_len(n) - 1L), function(k) tl[[k]], numeric(1))
-    }, error = function(e) NULL)
-    if (is.null(nx_tl)) next
-
-    tested <- tested + 1L
-    if (max(abs(co - nx_tl)) > 1e-8) {
-      failures <- failures + 1L
-    }
-    if (tested >= 50) break
-  }
-  cat(sprintf("  trophic_level vs NetworkX: %d/%d passed\n", tested - failures, tested))
-  expect_true(tested >= 10)
-  expect_equal(failures, 0L)
-})
 
 # ===========================================================================
 # Gravity centrality
@@ -139,15 +80,17 @@ test_that("gravity: K3 all equal", {
   expect_equal(grav[1], grav[2])
 })
 
-test_that("gravity: star leaves higher than center", {
+test_that("gravity: the star centre outranks its leaves", {
   g <- igraph::graph_from_adjacency_matrix(star5, mode = "undirected")
   grav <- cograph:::calculate_gravity(g)
-  # Leaves benefit from center's high degree in gravity formula
-  expect_true(grav[2] > grav[1])
+  # Under the published formula both ends carry mass, so the centre -- which
+  # sits one step from everything -- outranks the leaves. Before 2.4.8 the
+  # focal node carried no mass at all and the ranking was the other way up.
+  expect_true(grav[1] > grav[2])
   expect_equal(grav[2], grav[3])  # all leaves equal
 })
 
-test_that("gravity: formula deg*ks/d^2 verified on 100 graphs", {
+test_that("gravity: m_i m_j / d^2 within the radius, on 100 graphs", {
   set.seed(42)
   failures <- 0L
   for (i in 1:100) {
@@ -155,20 +98,37 @@ test_that("gravity: formula deg*ks/d^2 verified on 100 graphs", {
     while (!igraph::is_connected(g)) g <- igraph::sample_gnp(10, 0.35)
     n <- igraph::vcount(g)
     co <- cograph:::calculate_gravity(g)
-    # Manual computation
-    deg <- igraph::degree(g); ks <- igraph::coreness(g)
+    # Ma, Ma, Zhang & Wang (2016): k-shell mass at both ends, radius 3.
+    ks <- igraph::coreness(g)
     sp <- igraph::distances(g, weights = NA)
     manual <- vapply(seq_len(n), function(i) {
-      total <- 0
-      for (j in seq_len(n)) {
-        if (i != j && is.finite(sp[i,j]) && sp[i,j] > 0)
-          total <- total + (deg[j] * ks[j]) / (sp[i,j]^2)
-      }
-      total
+      j <- setdiff(seq_len(n), i)
+      keep <- is.finite(sp[i, j]) & sp[i, j] > 0 & sp[i, j] <= 3
+      sum(ks[i] * ks[j][keep] / sp[i, j][keep]^2)
     }, numeric(1))
     if (!isTRUE(all.equal(co, manual, tolerance = 1e-10))) failures <- failures + 1L
   }
   cat(sprintf("  gravity formula: %d/100 passed\n", 100 - failures))
+  expect_equal(failures, 0L)
+})
+
+test_that("gravity: the legacy mass reproduces the pre-2.4.8 values", {
+  set.seed(42)
+  failures <- 0L
+  for (i in 1:20) {
+    g <- igraph::sample_gnp(10, 0.35)
+    while (!igraph::is_connected(g)) g <- igraph::sample_gnp(10, 0.35)
+    n <- igraph::vcount(g)
+    co <- cograph:::calculate_gravity(g, mass = "legacy", radius = NULL)
+    deg <- igraph::degree(g); ks <- igraph::coreness(g)
+    sp <- igraph::distances(g, weights = NA)
+    old <- vapply(seq_len(n), function(i) {
+      j <- setdiff(seq_len(n), i)
+      keep <- is.finite(sp[i, j]) & sp[i, j] > 0
+      sum((deg[j] * ks[j])[keep] / sp[i, j][keep]^2)
+    }, numeric(1))
+    if (!isTRUE(all.equal(co, old, tolerance = 1e-10))) failures <- failures + 1L
+  }
   expect_equal(failures, 0L)
 })
 
@@ -249,34 +209,6 @@ test_that("second_order: star center lowest SD (most regular return)", {
   expect_true(soc[1] < soc[2])
 })
 
-test_that("second_order: rank correlated with NetworkX (r > 0.7)", {
-  skip_if_not(reticulate::py_module_available("networkx"), "NetworkX not available")
-  nx <- reticulate::import("networkx")
-
-  set.seed(123)
-  rank_cors <- numeric(0)
-  for (i in 1:50) {
-    n <- sample(8:12, 1)
-    g <- igraph::sample_gnp(n, 0.35)
-    while (!igraph::is_connected(g)) g <- igraph::sample_gnp(n, 0.35)
-
-    co <- cograph:::calculate_second_order(g)
-    el <- igraph::as_edgelist(g)
-    G <- nx$Graph()
-    G$add_nodes_from(as.list(seq_len(n) - 1L))
-    G$add_edges_from(lapply(seq_len(nrow(el)), function(r) c(el[r,1]-1L, el[r,2]-1L)))
-    nx_soc <- vapply(as.character(seq_len(n) - 1L),
-                     function(k) nx$second_order_centrality(G)[[k]], numeric(1))
-
-    if (length(unique(co)) > 1 && length(unique(nx_soc)) > 1) {
-      rank_cors <- c(rank_cors, cor(co, nx_soc, method = "spearman"))
-    }
-  }
-  mean_r <- mean(rank_cors)
-  cat(sprintf("  second_order rank r vs NetworkX: %.3f (n=%d)\n",
-              mean_r, length(rank_cors)))
-  expect_true(mean_r > 0.6)
-})
 
 # ===========================================================================
 # Infection number

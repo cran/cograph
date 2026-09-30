@@ -9,7 +9,7 @@ select_top(
   n,
   by = "degree",
   ...,
-  .keep_edges = c("internal", "none"),
+  keep_edges = c("internal", "none"),
   keep_format = FALSE,
   directed = NULL
 )
@@ -19,15 +19,18 @@ select_top(
 
 \item{n}{Integer. Number of top nodes to select.}
 
-\item{by}{Character. Centrality measure for ranking. One of:
+\item{by}{Character. Centrality measure for ranking:
 \code{"degree"}, \code{"indegree"}, \code{"outdegree"}, \code{"strength"},
 \code{"instrength"}, \code{"outstrength"}, \code{"betweenness"},
 \code{"closeness"}, \code{"eigenvector"}, \code{"pagerank"},
-\code{"hub"}, \code{"authority"}, \code{"coreness"}. Default \code{"degree"}.}
+\code{"hub"}, \code{"authority"}, \code{"coreness"}, or the name of any
+other measure \code{\link{centrality}()} computes (see
+\code{\link{list_centralities}()}). An unknown name raises a
+\code{cograph_bad_selection} error. Default \code{"degree"}.}
 
 \item{...}{Additional filter expressions to apply.}
 
-\item{.keep_edges}{How to handle edges. Default "internal".}
+\item{keep_edges}{How to handle edges. Default "internal".}
 
 \item{keep_format}{Logical. Keep input format? Default FALSE.}
 

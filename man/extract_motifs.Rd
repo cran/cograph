@@ -90,7 +90,9 @@ weight to count as present. Default 5.}
 
 \item{significance}{Logical. Run permutation significance test? Default FALSE.}
 
-\item{n_perm}{Number of permutations for significance test. Default 100.}
+\item{n_perm}{Number of permutations for the significance test. When
+\code{significance = TRUE}, must be a whole number of at least 2.
+Default 100.}
 
 \item{seed}{Random seed for reproducibility.}
 
@@ -101,9 +103,14 @@ weight to count as present. Default 5.}
 \value{
 A \code{cograph_motif_analysis} object (list) containing:
 \describe{
-\item{results}{Data frame with triad, type, observed count, and
-(if significance=TRUE) expected, z-score, p-value}
-\item{type_summary}{Summary counts by motif type}
+\item{results}{Data frame with one row per node-triple and MAN type,
+the display label \code{triad}, unambiguous \code{node1}/\code{node2}/
+\code{node3} columns, its observed count, and (if
+\code{significance = TRUE}) expected
+count, z-score, empirical p-value, and significance marker. A node
+triple that has different types across individuals therefore appears
+in more than one row.}
+\item{type_summary}{Summary counts by motif type across individuals.}
 \item{params}{List of parameters used}
 }
 }
@@ -111,7 +118,23 @@ A \code{cograph_motif_analysis} object (list) containing:
 Extract and analyze triad motifs from network data with flexible filtering,
 pattern selection, and statistical significance testing. Supports both
 individual-level analysis (with tna objects or grouped data) and aggregate
-analysis (with matrices or networks).
+analysis (with matrices or networks). The supplied adjacency is classified
+as directed dyads using the 16-class MAN system.
+}
+\details{
+Both individual and aggregate significance in this legacy extractor
+use a directed weighted stub-matching null: positive weights retain at least
+one integer stub, shuffled targets preserve the integerized in/out margins,
+and generated loops/parallel edges are reduced to a simple loopless
+projection for triad classification. This differs from aggregate
+\code{\link[=motifs]{motifs()}}, which delegates to \code{\link[=motif_census]{motif_census()}} and its simple-graph rewiring
+null. Observed self-loops are excluded before activity gating, counting, and
+null construction.
+The selected \code{edge_method} is reapplied to each null replicate, but
+positive fractional weights retain at least one integer stub. This preserves
+support while potentially changing the mass scale used by
+\code{"percent"}/\code{"expected"} inference. Descriptive results and the
+default \code{edge_method = "any"} are unaffected.
 }
 \section{MAN Notation}{
 
@@ -149,7 +172,7 @@ print(m)
 
 \dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 \donttest{
-Mod <- tna::tna(tna::group_regulation)
+Mod <- tna::tna(head(tna::group_regulation, 100))
 # Individual-level from tna -- keep n_perm tiny for example speed
 extract_motifs(Mod, top = 10, significance = TRUE, n_perm = 10L, seed = 1)
 # Filter to feed-forward loops only

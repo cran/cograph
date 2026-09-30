@@ -137,6 +137,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set nodes data frame.
     #' @param nodes Data frame with node information.
+    #' @return The object itself, invisibly.
     set_nodes = function(nodes) {
       private$.nodes <- nodes
       invisible(self)
@@ -144,6 +145,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set edges data frame.
     #' @param edges Data frame with edge information.
+    #' @return The object itself, invisibly.
     set_edges = function(edges) {
       private$.edges <- edges
       invisible(self)
@@ -151,20 +153,23 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set directed flag.
     #' @param directed Logical.
+    #' @return The object itself, invisibly.
     set_directed = function(directed) {
       private$.directed <- directed
       invisible(self)
     },
 
     #' @description Set edge weights.
-    #' @param weights Numeric vector of weights.
+    #' @param weights Numeric vector of edge weights, one per edge.
+    #' @return The object itself, invisibly.
     set_weights = function(weights) {
       private$.weights <- weights
       invisible(self)
     },
 
     #' @description Set layout coordinates.
-    #' @param coords Matrix or data frame with x, y columns.
+    #' @param coords Matrix or data frame with x, y columns, one row per node.
+    #' @return The object itself, invisibly.
     set_layout_coords = function(coords) {
       if (!is.null(coords)) {
         if (is.matrix(coords)) {
@@ -192,6 +197,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set node aesthetics.
     #' @param aes List of aesthetic parameters.
+    #' @return The object itself, invisibly.
     set_node_aes = function(aes) {
       private$.node_aes <- utils::modifyList(private$.node_aes, aes)
       invisible(self)
@@ -199,6 +205,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set edge aesthetics.
     #' @param aes List of aesthetic parameters.
+    #' @return The object itself, invisibly.
     set_edge_aes = function(aes) {
       private$.edge_aes <- utils::modifyList(private$.edge_aes, aes)
       invisible(self)
@@ -206,6 +213,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set theme.
     #' @param theme CographTheme object or theme name.
+    #' @return The object itself, invisibly.
     set_theme = function(theme) {
       private$.theme <- theme
       invisible(self)
@@ -249,6 +257,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set layout info.
     #' @param info List with layout information (name, seed, etc.).
+    #' @return The object itself, invisibly.
     set_layout_info = function(info) {
       private$.layout_info <- info
       invisible(self)
@@ -262,6 +271,7 @@ CographNetwork <- R6::R6Class(
 
     #' @description Set plot parameters.
     #' @param params List of all plot parameters used.
+    #' @return The object itself, invisibly.
     set_plot_params = function(params) {
       private$.plot_params <- params
       invisible(self)
@@ -274,6 +284,7 @@ CographNetwork <- R6::R6Class(
     },
 
     #' @description Print network summary.
+    #' @return The object itself, invisibly.
     print = function() {
       cat("CographNetwork\n")
       cat("  Nodes:", self$n_nodes, "\n")
@@ -372,20 +383,21 @@ is_cograph_network <- function(x) {
     type = NULL
 ) {
   # Ensure edges data frame has standard columns, preserving extra columns
-  if (!is.null(edges) && nrow(edges) > 0) {
-    edges_df <- data.frame(
-      from = as.integer(edges$from),
-      to = as.integer(edges$to),
-      weight = if (!is.null(edges$weight)) as.numeric(edges$weight) else rep(1, nrow(edges)),
-      stringsAsFactors = FALSE
-    )
-    # Preserve extra columns (e.g., session, time from temporal edge lists)
-    extra_cols <- setdiff(names(edges), c("from", "to", "weight"))
-    for (col in extra_cols) {
-      edges_df[[col]] <- edges[[col]]
-    }
-  } else {
-    edges_df <- data.frame(from = integer(0), to = integer(0), weight = numeric(0))
+  # (e.g. session, time from temporal edge lists). An empty edge table keeps
+  # its column skeleton so that names(get_edges(net)) is stable across a
+  # filter that removed every row.
+  if (is.null(edges) || !is.data.frame(edges)) {
+    edges <- data.frame(from = integer(0), to = integer(0), weight = numeric(0))
+  }
+  edges_df <- data.frame(
+    from = as.integer(edges$from),
+    to = as.integer(edges$to),
+    weight = if (!is.null(edges$weight)) as.numeric(edges$weight) else rep(1, nrow(edges)),
+    stringsAsFactors = FALSE
+  )
+  extra_cols <- setdiff(names(edges), c("from", "to", "weight"))
+  if (length(extra_cols) > 0) {
+    edges_df[extra_cols] <- edges[extra_cols]
   }
 
   # Ensure meta has required sub-fields
@@ -456,7 +468,12 @@ get_nodes <- function(x) {
 #' Extracts the edges data frame from a cograph_network object.
 #'
 #' @param x A cograph_network object.
-#' @return A data frame with columns: from, to, weight.
+#' @return A data frame with one row per edge and columns \code{from} and
+#'   \code{to} (integer row numbers into the node table, \emph{not} labels) and
+#'   \code{weight}, plus any extra edge columns the network carries. An
+#'   undirected network stores one row per unordered pair. Use
+#'   \code{\link{as.data.frame.cograph_network}} or \code{\link{to_df}} for the
+#'   same table with the endpoints given as node labels.
 #'
 #' @seealso \code{\link{as_cograph}}, \code{\link{n_edges}}, \code{\link{get_nodes}}
 #'
@@ -622,8 +639,12 @@ set_nodes <- function(x, nodes_df) {
     nodes_df$label <- as.character(nodes_df$id)
   }
 
-  # Update the network (no redundant fields to update)
   x$nodes <- nodes_df
+
+  # The stored weight matrix is keyed by label and sized by node count, so it
+  # has to follow the node table rather than go stale behind it.
+  x$weights <- .network_weight_matrix(as.character(nodes_df$label),
+                                      get_edges(x), isTRUE(x$directed))
 
   x
 }
@@ -663,13 +684,42 @@ set_edges <- function(x, edges_df) {
     edges_df$weight <- rep(1, nrow(edges_df))
   }
 
-  # Update the network (store as data frame only, no redundant vectors)
-  x$edges <- data.frame(
+  n <- nrow(get_nodes(x))
+  endpoints <- c(edges_df$from, edges_df$to)
+  if (length(endpoints) > 0 && (anyNA(endpoints) ||
+        min(endpoints) < 1 || max(endpoints) > n)) {
+    stop(errorCondition(
+      paste0("edges_df refers to node indices outside 1:", n, "."),
+      class = "cograph_bad_selection", call = NULL))
+  }
+
+  # For an undirected network A->B and B->A are one edge; storing both would
+  # leave the edge table claiming two edges where the matrix holds one.
+  keys <- .edge_key(edges_df, isTRUE(x$directed))
+  if (anyDuplicated(keys) > 0L) {
+    stop(errorCondition(
+      paste0("edges_df names the same edge more than once: ",
+             paste(unique(keys[duplicated(keys)]), collapse = ", "),
+             ". Supply each edge once."),
+      class = "cograph_bad_selection", call = NULL))
+  }
+
+  # Store the edge table, keeping extra columns, and rebuild the weight
+  # matrix so that to_matrix() and the edge table cannot disagree.
+  standard <- data.frame(
     from = as.integer(edges_df$from),
     to = as.integer(edges_df$to),
     weight = as.numeric(edges_df$weight),
     stringsAsFactors = FALSE
   )
+  extra_cols <- setdiff(names(edges_df), c("from", "to", "weight"))
+  if (length(extra_cols) > 0) {
+    standard[extra_cols] <- edges_df[extra_cols]
+  }
+
+  x$edges <- standard
+  x$weights <- .network_weight_matrix(as.character(get_nodes(x)$label),
+                                      standard, isTRUE(x$directed))
 
   x
 }
@@ -1150,6 +1200,9 @@ is_directed <- function(x) {
     }
   }
   if (inherits(x, "igraph")) {
+    # An object can carry the igraph class without the package being installed
+    # (for instance after readRDS()), so this branch needs its own guard.
+    .need_igraph("is_directed()")
     return(igraph::is_directed(x))
   }
   stop("Cannot determine directedness for this object", call. = FALSE)
@@ -1205,4 +1258,64 @@ n_edges <- function(x) {
     return(0L)
   }
   stop("Cannot count edges for this object", call. = FALSE)
+}
+
+#' Cograph Network as a Data Frame
+#'
+#' The tidy accessor for a \code{cograph_network}: one row per edge (or per
+#' node), with endpoints given as labels rather than internal indices, so no
+#' caller has to reach into the object with \code{$} or translate integer ids
+#' by hand.
+#'
+#' @param x A \code{cograph_network} object.
+#' @param row.names \code{NULL} or a character vector of row names, as for
+#'   \code{\link[base]{as.data.frame}}.
+#' @param optional Logical, as for \code{\link[base]{as.data.frame}}. Ignored;
+#'   the column names of the returned table are always the documented ones.
+#' @param ... Unused, for compatibility with the generic.
+#' @param what Which table to return. \code{"edges"} (default) or
+#'   \code{"nodes"}.
+#'
+#' @return A base data frame. For \code{what = "edges"}, one row per edge with
+#'   columns \code{from} and \code{to} (node labels), \code{weight}, and any
+#'   extra edge columns the network carries (for example \code{session}). For
+#'   \code{what = "nodes"}, one row per node with the node metadata columns
+#'   (\code{id}, \code{label}, layout coordinates, and any custom columns).
+#'
+#'   This is the accessor, so it hands back everything the object holds,
+#'   including columns \code{\link{mutate_edges}} computed.
+#'   \code{\link{to_df}} is the narrower conversion verb: it returns
+#'   \code{from}, \code{to} and \code{weight} only.
+#'
+#' @seealso \code{\link{to_df}}, \code{\link{get_edges}}, \code{\link{get_nodes}}
+#'
+#' @export
+#' @examples
+#' adj <- matrix(c(0, .5, .8, 0,
+#'                 .5, 0, .3, .6,
+#'                 .8, .3, 0, .4,
+#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
+#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
+#' net <- as_cograph(adj)
+#'
+#' as.data.frame(net)
+#' as.data.frame(net, what = "nodes")
+as.data.frame.cograph_network <- function(x, row.names = NULL, optional = FALSE,
+                                          ..., what = c("edges", "nodes")) {
+  what <- match.arg(what)
+
+  df <- if (what == "nodes") {
+    nodes <- get_nodes(x)
+    rownames(nodes) <- NULL
+    nodes
+  } else {
+    # The accessor hands back the edge table whole, computed columns included.
+    # to_data_frame() is the narrow conversion verb and is not used here.
+    .edges_as_df(x)
+  }
+
+  if (!is.null(row.names)) {
+    rownames(df) <- row.names
+  }
+  df
 }

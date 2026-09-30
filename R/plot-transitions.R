@@ -322,11 +322,18 @@ plot_transitions <- function(x,
         node_width = node_width, node_border = node_border,
         node_spacing = node_spacing, label_size = label_size,
         label_position = label_position, label_halo = label_halo,
-        title_size = title_size,
+        label_color = label_color, label_fontface = label_fontface,
+        label_nudge = label_nudge,
+        title_size = title_size, title_color = title_color,
+        title_fontface = title_fontface,
         curve_strength = curve_strength, show_values = show_values,
         value_position = value_position, value_size = value_size,
-        value_color = value_color, show_totals = show_totals,
+        value_color = value_color, value_halo = value_halo,
+        value_fontface = value_fontface, value_nudge = value_nudge,
+        value_min = value_min,
+        show_totals = show_totals,
         total_size = total_size, total_color = total_color,
+        total_fontface = total_fontface,
         min_flow = min_flow, threshold = threshold,
         value_digits = value_digits, column_gap = column_gap
       )
@@ -1771,6 +1778,8 @@ plot_alluvial <- function(x,
 #' @inheritParams plot_transitions
 #' @param x Data frame with one column per time point and one row per
 #'   individual trajectory.
+#' @param from_title Column titles. Default \code{NULL}, which uses the
+#'   column names of \code{x}. Pass a character vector to override them.
 #' @param flow_color_by Color trajectory lines by state. Supports
 #'   \code{"source"}, \code{"destination"}, \code{"first"}, \code{"last"}, or
 #'   NULL. Default \code{"first"}.

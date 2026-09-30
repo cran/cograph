@@ -1,0 +1,200 @@
+# ===========================================================================
+# Batch 11 kernels — parameterized members of families cograph already had
+#
+# Each measure here sits at 0.90 <= tau < 1 against a measure cograph
+# already computed (docs/zoo/parameter_candidates.csv), because it is the
+# same family evaluated at a different weight, scope or mass. Pure base-R
+# kernels on matrices, validated in
+# tests/testthat/test-centrality-batch11.R, following the conventions of
+# the earlier kernel batches.
+# ===========================================================================
+
+#' Length-scaled betweenness (Brandes 2008, Algorithm 5)
+#'
+#' Ordinary betweenness with each separated pair weighted by the reciprocal
+#' of its distance, so brokering between two nodes that were already close
+#' counts for more than brokering across the graph:
+#' `sum over s != t of (1 / d(s,t)) * sigma_st(v) / sigma_st`.
+#' Borgatti & Everett (2006) propose the measure; Brandes gives the
+#' traversal, which is the ordinary accumulation with the unit credit
+#' replaced by `1 / d`.
+#'
+#' @param w Weight matrix, already mode-adjusted.
+#' @param n Vertex count.
+#' @param directed Whether the graph is directed.
+#' @return Numeric vector.
+#' @keywords internal
+#' @noRd
+.cg_length_scaled_betweenness <- function(w, n, directed) {
+  .cg_betweenness(w, n, directed,
+                  pair_weight = function(d) if (d > 0) 1 / d else 0)
+}
+
+#' Distance-decayed betweenness (Agneessens, Borgatti & Everett 2017)
+#'
+#' The same traversal with the pair weight `(d(s,t) - 1)^-delta`. At
+#' `delta = 0` every pair counts once and the measure is ordinary
+#' betweenness; raising `delta` concentrates the score on the pairs a node
+#' separates locally. Adjacent pairs have no intermediary at all, so they
+#' contribute nothing and the singularity at `d = 1` never arises.
+#'
+#' @inheritParams .cg_length_scaled_betweenness
+#' @param delta Decay exponent.
+#' @return Numeric vector.
+#' @keywords internal
+#' @noRd
+.cg_delta_betweenness <- function(w, n, directed, delta = 1) {
+  .cg_betweenness(w, n, directed,
+                  pair_weight = function(d) if (d > 1) (d - 1)^(-delta) else 0)
+}
+
+#' Ego betweenness (Everett & Borgatti 2005)
+#'
+#' Betweenness computed inside each node's own ego network -- the subgraph
+#' induced on the node and its neighbors -- rather than across the whole
+#' graph. It asks how much of the brokerage a node could observe from where
+#' it stands, which is why it can be estimated from ego-network data alone.
+#' A node with fewer than two neighbors brokers nothing.
+#'
+#' @param a 0/1 matrix. `a[i, j] = 1` when `i` and `j` are adjacent.
+#' @param directed Whether the graph is directed.
+#' @return Numeric vector.
+#' @keywords internal
+#' @noRd
+.cg_ego_betweenness <- function(a, directed = FALSE) {
+  n <- nrow(a)
+  if (is.null(n) || n == 0L) return(numeric(0))
+  vapply(seq_len(n), function(v) {
+    nbrs <- which(a[v, ] != 0 | a[, v] != 0)
+    nbrs <- nbrs[nbrs != v]
+    if (length(nbrs) < 2L) return(0)
+    ids <- c(v, nbrs)
+    sub <- a[ids, ids, drop = FALSE]
+    .cg_betweenness(sub, length(ids), directed)[1L]
+  }, numeric(1L))
+}
+
+#' Geodesic power closeness (Agneessens, Borgatti & Everett 2017, eq. 2)
+#'
+#' `c_delta(i) = sum_j d_ij^-delta / (n - 1)`, one exponent tuning how far
+#' the measure looks. For `delta > 0` unreachable nodes contribute nothing
+#' but stay in the denominator. The family spans the usual closeness
+#' measures: `delta = 1` is harmonic centrality over `n - 1`, `delta = 2` is
+#' the sum of inverse squared distances, and a large `delta` approaches
+#' degree over `n - 1`.
+#'
+#' `delta = 0` is the one value that does **not** behave as the family
+#' suggests. `Inf^0` is `1` in R and survives the finiteness filter, so every
+#' node scores `1` on a disconnected graph rather than the share of the graph
+#' it actually reaches. Use a strictly positive `delta`.
+#'
+#' @param d Distance matrix.
+#' @param delta Exponent, at least 0; see the note on `delta = 0` above.
+#' @return Numeric vector.
+#' @keywords internal
+#' @noRd
+.cg_delta_closeness <- function(d, delta = 1) {
+  n <- nrow(d)
+  if (is.null(n) || n == 0L) return(numeric(0))
+  if (n == 1L) return(0)
+  contrib <- d^(-delta)
+  # `d` itself must be screened, not just `contrib`: at delta == 0 R gives
+  # Inf^0 == 1, so an unreachable pair would otherwise count as fully close.
+  contrib[!is.finite(d) | !is.finite(contrib) | row(d) == col(d) | d == 0] <- 0
+  rowSums(contrib) / (n - 1)
+}
+
+#' Gravity family (Ma et al. 2016; Li et al. 2019)
+#'
+#' `G(i) = sum over j of m_i m_j / d_ij^exponent`, optionally truncated at
+#' `radius`. The published members differ only in what plays the part of
+#' mass and how far the sum reaches: Ma's gravity centrality uses the
+#' k-shell of both ends within three steps, Li's gravity model uses the
+#' degree of both ends over the whole graph, and their local gravity model
+#' truncates that at a radius near half the mean distance.
+#'
+#' @param d Distance matrix.
+#' @param mass_i,mass_j Mass of the focal node and of its partners. They
+#'   differ only for the historical cograph form, which carries no mass for
+#'   the focal node.
+#' @param radius Largest distance to include; `NULL` for no limit.
+#' @param exponent Power of the distance in the denominator.
+#' @return Numeric vector.
+#' @keywords internal
+#' @noRd
+.cg_gravity <- function(d, mass_i, mass_j, radius = NULL, exponent = 2) {
+  n <- nrow(d)
+  if (is.null(n) || n == 0L) return(numeric(0))
+  if (n == 1L) return(0)
+  within <- is.finite(d) & d > 0 & row(d) != col(d)
+  if (!is.null(radius)) within <- within & d <= radius
+  pull <- ifelse(within, outer(mass_i, mass_j) / d^exponent, 0)
+  rowSums(pull)
+}
+
+#' Integer radius inspired by Li et al. (2019), eq. 5
+#'
+#' Half the mean finite positive shortest-path length, rounded, and never
+#' below 1. Rounding and disconnected-graph handling are cograph conventions.
+#'
+#' @param d Distance matrix.
+#' @return Integer radius.
+#' @keywords internal
+#' @noRd
+.cg_gravity_auto_radius <- function(d) {
+  off <- row(d) != col(d) & is.finite(d) & d > 0
+  if (!any(off)) return(1L)
+  max(1L, as.integer(round(mean(d[off]) / 2)))
+}
+
+#' k-core index with igraph's treatment of self-loops
+#'
+#' `.cg_coreness()` reads a zero diagonal. igraph's Batagelj-Zaversnik
+#' implementation instead starts from the loop-inclusive degree (a loop
+#' counts twice on an undirected graph and under directed `"all"`, once
+#' under `"out"` or `"in"`) and, because a loop's only neighbor is the node
+#' being processed, never subtracts it again. The loop therefore acts as a
+#' fixed per-node offset on the degree throughout the peeling, and a node's
+#' core index rises with it. The gravity family inherits this convention
+#' from the years it ran on `igraph::coreness()`, so it is kept exactly.
+#'
+#' @param b Binary adjacency matrix; the diagonal is read.
+#' @param n Vertex count.
+#' @param directed Whether the graph is directed.
+#' @param mode One of `"all"`, `"out"`, `"in"`.
+#' @return Numeric vector, one core index per node.
+#' @references Batagelj, V., & Zaversnik, M. (2003). An O(m) algorithm for
+#'   cores decomposition of networks. arXiv:cs/0310049.
+#' @keywords internal
+#' @noRd
+.cg_loop_coreness <- function(b, n, directed = FALSE,
+                              mode = c("all", "out", "in")) {
+  mode <- match.arg(mode)
+  if (n == 0L) return(numeric(0))
+  bb <- (b != 0) * 1
+  offset <- .cg_degree(bb, directed, mode) -
+    .cg_degree(bb, directed, mode, loops = FALSE)
+  diag(bb) <- 0
+  if (!any(offset > 0)) return(.cg_coreness(bb, n, directed, mode))
+  deg <- .cg_degree(bb, directed, mode) + offset
+  core <- numeric(n)
+  alive <- rep(TRUE, n)
+  # Peeling is inherently sequential: each removal changes the degrees that
+  # decide the next removal. Only the loop-free arcs are ever subtracted.
+  while (any(alive)) {
+    mn <- min(deg[alive])
+    take <- which(alive & deg <= mn)
+    while (length(take) > 0L) {
+      i <- take[1L]
+      alive[i] <- FALSE
+      core[i] <- mn
+      loss <- switch(mode,
+        out = bb[, i],                                   # j -> i disappears
+        `in` = bb[i, ],                                  # i -> j disappears
+        all = if (directed) bb[i, ] + bb[, i] else bb[i, ])
+      deg <- deg - loss * alive
+      take <- which(alive & deg <= mn)
+    }
+  }
+  core
+}

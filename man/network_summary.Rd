@@ -69,8 +69,6 @@ A data frame with one row containing network-level statistics:
 \item{transitivity}{Global clustering coefficient}
 \item{reciprocity}{Proportion of mutual edges (directed only)}
 \item{assortativity_degree}{Degree assortativity coefficient}
-\item{hub_score}{Maximum hub score (HITS algorithm)}
-\item{authority_score}{Maximum authority score (HITS algorithm)}
 }
 
 \strong{Extended measures (when extended = TRUE):}
@@ -103,6 +101,7 @@ Returns a data frame with one row containing various metrics
 including density, centralization scores, transitivity, and more.
 }
 \examples{
+\dontshow{if (requireNamespace("igraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 # Basic usage with adjacency matrix
 adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
 network_summary(adj)
@@ -121,4 +120,5 @@ if (requireNamespace("igraph", quietly = TRUE)) {
   g <- igraph::sample_gnp(20, 0.3)
   network_summary(g)
 }
+\dontshow{\}) # examplesIf}
 }

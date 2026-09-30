@@ -13,6 +13,7 @@ plot_temporal(
   layout = "spring",
   node_size = 2.5,
   node_color = "steelblue",
+  color_by = c("layer", "node"),
   node_shape = 21,
   node_border = "gray30",
   edge_color = "#E41A1C",
@@ -57,8 +58,20 @@ Default \code{"spring"}.}
 \item{node_size}{Numeric. Node size. Default 2.5.}
 
 \item{node_color}{Character or vector. Node fill color. A single color
+applies everywhere. An unnamed vector is recycled across \emph{layers},
+coloring each plane as a whole. A \strong{named} vector is matched to
+node names instead and colors each \emph{node} the same on every plane,
+which is what makes a node identifiable as it moves through the stack;
+names not present in the network are an error rather than silent. See
+also \code{color_by}. The original text of this parameter continues:
+a single color
 applies to all layers, or a vector of length \code{n_layers} for
 per-layer colors. Default \code{"steelblue"}.}
+
+\item{color_by}{One of \code{"layer"} (the default, and the historical
+behavior) or \code{"node"}. Chooses what an unnamed \code{node_color}
+vector indexes. A named \code{node_color} always colors by node and
+ignores this argument.}
 
 \item{node_shape}{Integer. Point shape (\code{pch}). Default 21 (filled
 circle).}
@@ -118,12 +131,14 @@ Displays a network at different time points as vertical planes inside a
 plane extends into the depth of the box.
 }
 \examples{
+\dontshow{if (requireNamespace("igraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 set.seed(1)
 edges <- data.frame(
   from = sample(LETTERS[1:5], 30, replace = TRUE),
   to   = sample(LETTERS[1:5], 30, replace = TRUE),
   week = sample(1:3, 30, replace = TRUE))
 cograph::plot_temporal(edges, time = "week")
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 \code{\link{plot_network_evolution}}, \code{\link{plot_mlna}}

@@ -216,3 +216,51 @@ test_that("degree_distribution integer-aligned default for small range", {
   diffs <- diff(res$breaks)
   expect_true(all(abs(diffs - 1) < 1e-10))
 })
+
+# network_clique_size() on directed input --------------------------------------
+# Regression: igraph 2.3.3's clique_num() overflowed the C stack on a directed
+# graph, which crashed network_summary(extended = TRUE) on student_interactions.
+
+test_that("network_clique_size() handles a directed multigraph", {
+  skip_if_not_installed("igraph")
+  g <- to_igraph(student_interactions)
+  expect_true(igraph::is_directed(g))
+  skel <- igraph::simplify(igraph::as_undirected(g, mode = "collapse"))
+  reference <- length(igraph::largest_cliques(skel)[[1]])
+  expect_identical(as.numeric(network_clique_size(student_interactions)),
+                   as.numeric(reference))
+  expect_identical(as.numeric(network_clique_size(g)), as.numeric(reference))
+})
+
+test_that("network_clique_size() ignores edge direction", {
+  skip_if_not_installed("igraph")
+  # Directed triangle a->b, b->c, c->a plus a pendant d: clique number 3
+  # whichever way the arcs point.
+  forward <- data.frame(from = c("a", "b", "c", "c"), to = c("b", "c", "a", "d"))
+  reversed <- data.frame(from = forward$to, to = forward$from)
+  expect_identical(as.numeric(network_clique_size(forward)), 3)
+  expect_identical(as.numeric(network_clique_size(reversed)), 3)
+})
+
+test_that("network_summary(extended = TRUE) runs on student_interactions", {
+  skip_if_not_installed("igraph")
+  res <- network_summary(student_interactions, detailed = TRUE, extended = TRUE)
+  expect_s3_class(res, "data.frame")
+  expect_identical(as.numeric(res$largest_clique_size),
+                   as.numeric(network_clique_size(student_interactions)))
+})
+
+# HITS columns removed in 2.7.0 -------------------------------------------------
+# hub_score / authority_score were always NA (the code read fields igraph does
+# not return), and igraph scales HITS scores to a maximum of 1, so the maximum
+# carried no information. They are gone; the column counts pin the contract.
+
+test_that("network_summary() returns 16, 27 and 35 statistics by level", {
+  skip_if_not_installed("igraph")
+  basic <- network_summary(student_interactions)
+  detailed <- network_summary(student_interactions, detailed = TRUE)
+  extended <- network_summary(student_interactions, detailed = TRUE, extended = TRUE)
+  expect_false(any(c("hub_score", "authority_score") %in% names(extended)))
+  expect_identical(c(ncol(basic), ncol(detailed), ncol(extended)), c(16L, 27L, 35L))
+  expect_false(anyNA(basic$assortativity_degree))
+})

@@ -21,28 +21,46 @@ motif_census(
 
 \item{size}{Motif size: 3 (triads) or 4 (tetrads). Default 3.}
 
-\item{n_random}{Number of random networks for null model. Default 100.}
+\item{n_random}{Number of random networks for the null model. Must be a
+whole number of at least 2. Default 100.}
 
 \item{method}{Null model method: "configuration" (preserves degree) or
 "gnm" (preserves edge count). Default "configuration".}
 
 \item{directed}{Logical. Treat as directed? Default auto-detected.}
 
-\item{seed}{Random seed for reproducibility}
+\item{seed}{Random seed for reproducibility. Default NULL. When supplied,
+the caller's RNG state is saved and restored.}
 
 \item{...}{Passed to methods; currently unused.}
 }
 \value{
-A \code{cograph_motifs} data frame with motif count, null-model mean,
-null-model standard deviation, z-score, p-value, and significance columns.
-The motif size, directed flag, null-model method, and number of random
-networks are stored as attributes.
+A \code{cograph_motifs} data frame with one row per motif class and
+columns:
+\describe{
+\item{motif}{Motif class name (the 16 MAN codes for directed triads, the
+four undirected triad classes, or \code{motif_<i>} labels for size 4).}
+\item{count}{Observed number of that motif in the network.}
+\item{null_mean, null_sd}{Mean and standard deviation of the count
+across the \code{n_random} null graphs.}
+\item{z_score}{\code{(count - null_mean) / null_sd}; \code{NA} when the
+null is degenerate (\code{null_sd = 0}) and the observation differs
+from it.}
+\item{p_value}{Two-sided empirical (add-one corrected) permutation
+p-value, not a Gaussian approximation.}
+\item{significant}{Logical, \code{p_value < 0.05}.}
+}
+The motif size (\code{"size"}), directed flag (\code{"directed"}),
+null-model method (\code{"method"}), and number of random networks
+(\code{"n_random"}) are stored as attributes. Self-loops and multiple
+edges are removed before counting.
 }
 \description{
 Analyze recurring subgraph patterns (motifs) in networks and test their
 statistical significance against null models.
 }
 \examples{
+\dontshow{if (requireNamespace("igraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 # Create a directed network
 mat <- matrix(c(
   0, 1, 1, 0,
@@ -55,7 +73,7 @@ mat <- matrix(c(
 m <- motif_census(mat)
 print(m)
 plot(m)
-
+\dontshow{\}) # examplesIf}
 }
 \seealso{
 \code{\link[=motifs]{motifs()}} for the unified API, \code{\link[=extract_motifs]{extract_motifs()}} for detailed

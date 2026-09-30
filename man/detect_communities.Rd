@@ -25,17 +25,22 @@ symmetry. Set TRUE to force directed, FALSE to force undirected.}
 \item{weights}{Logical. Use edge weights for community detection. Default TRUE.}
 }
 \value{
-A data frame with columns:
+A \code{cograph_communities} object, which inherits from
+\code{data.frame} and has one row per node with columns:
 \itemize{
 \item \code{node}: Node labels/names
 \item \code{community}: Integer community membership
 }
+The algorithm name, the igraph community object, the modularity and the
+input network are carried as attributes for the \code{print}, \code{plot}
+and \code{modularity} methods.
 }
 \description{
 Detects communities (clusters) in a network using various community detection
 algorithms. Returns a data frame with node-community assignments.
 }
 \examples{
+\dontshow{if (requireNamespace("igraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
 # Basic usage
 adj <- matrix(c(0, .5, .8, 0,
                 .5, 0, .3, .6,
@@ -46,4 +51,5 @@ detect_communities(adj)
 
 # Different algorithm
 detect_communities(adj, method = "walktrap")
+\dontshow{\}) # examplesIf}
 }

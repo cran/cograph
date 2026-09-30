@@ -26,18 +26,20 @@ a \code{cograph_communities} object, or
 a \code{tna_communities} object.}
 
 \item{blob_colors}{Character vector of fill colors for blobs.
-Recycled if shorter than the number of communities.}
+Recycled if shorter than the number of communities. Default
+\code{NULL} uses the built-in blob palette.}
 
-\item{blob_alpha}{Numeric. Fill transparency (0-1).}
+\item{blob_alpha}{Numeric. Fill transparency (0-1). Default \code{0.25}.}
 
-\item{blob_linewidth}{Numeric. Border line width.}
+\item{blob_linewidth}{Numeric. Border line width. Default \code{0.7}.}
 
-\item{blob_line_alpha}{Numeric. Border line transparency (0-1).}
+\item{blob_line_alpha}{Numeric. Border line transparency (0-1). Default \code{0.8}.}
 
 \item{...}{Additional arguments passed to \code{\link{splot}}.}
 }
 \value{
-The \code{splot} result (invisibly).
+The \code{\link{splot}} result — a \code{cograph_network}
+object — invisibly. Called for the side effect of drawing.
 }
 \description{
 Render a network with \code{\link{splot}} and overlay smooth blob
@@ -50,9 +52,7 @@ mat <- matrix(runif(25), 5, 5,
 diag(mat) <- 0
 overlay_communities(mat, list(g1 = c("A","B"), g2 = c("C","D","E")))
 
-\dontshow{if (requireNamespace("tna", quietly = TRUE)) withAutoprint(\{ # examplesIf}
-model <- tna::tna(tna::group_regulation)
-comm <- cograph::communities(model$weights, method = "infomap")
-overlay_communities(model, comm)
-\dontshow{\}) # examplesIf}
+comm <- cograph::communities(regulation_net, method = "infomap")
+overlay_communities(regulation_net, comm)
+
 }
