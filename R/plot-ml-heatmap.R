@@ -1,19 +1,22 @@
 #' Multilayer Network Heatmap
 #'
-#' Visualizes multiple network layers as heatmaps on tilted 3D-perspective planes,
-#' similar to the plot_mlna network visualization style.
+#' Visualizes multiple network layers as heatmaps on tilted 3D-perspective
+#' planes, in the style of \code{\link{plot_mlna}}.
 #'
-#' @param x A list of matrices (one per layer), a group_tna object,
-#'   cograph_network, or a single matrix with layer_list specified.
-#' @param layer_list Optional list defining layers, column name string,
-#'   or NULL for auto-detection from cograph_network nodes.
+#' @param x A list of matrices (one per layer), a group_tna object, a
+#'   cograph_network, or a single matrix with \code{layer_list} specified.
+#' @param layer_list Named list of node vectors, one per layer. For a matrix
+#'   \code{x} each layer is the submatrix of its nodes. For a cograph_network
+#'   it can also be the name of a node column, and when \code{NULL} a node
+#'   column named \code{layers}, \code{layer}, \code{level} or
+#'   \code{levels} is used.
 #' @param colors Color palette: "viridis", "heat", "blues", "reds", "inferno",
-#'   "plasma", or a vector of colors. Default "viridis".
-#' @param layer_spacing Vertical spacing between layers, in data units. A
-#'   plane is \code{nrow(x) * compress} units tall, so a fixed spacing that
-#'   suits a small network makes a larger one overlap itself. \code{NULL}
-#'   (the default) scales the spacing to the plane so planes never collide;
-#'   pass a number for the older absolute behavior.
+#'   "plasma", or a vector of colors. Any other single name gives the viridis
+#'   colors. Default "viridis".
+#' @param layer_spacing Vertical spacing between layers, in data units.
+#'   \code{NULL} (the default) uses 1.1 times the plane height, which is the
+#'   number of rows of a layer times \code{compress}, with a minimum of 1, so
+#'   the planes do not overlap. A positive number sets the spacing directly.
 #' @param skew Horizontal skew for perspective effect (0-1). Default 0.4.
 #' @param compress Vertical compression for perspective (0-1). Default 0.6.
 #' @param show_connections Show inter-layer connection lines? Default FALSE.
@@ -25,11 +28,12 @@
 #' @param cell_border_color Color for cell borders. Default "white".
 #' @param cell_border_width Width of cell borders. Default 0.2.
 #' @param show_labels Show layer name labels? Default TRUE.
-#' @param show_node_labels Show the row and column names of the matrix?
-#'   Default TRUE. Without them a plane is an anonymous grid and a reader
-#'   cannot tell which cell is which pair. Every plane shares one node
-#'   ordering, so the names are drawn once, against the front plane: rows down
-#'   its left edge, columns along its lower edge.
+#' @param show_node_labels Show the row and column names? Default TRUE. When
+#'   all layers have the same row and column names, the names are shown once,
+#'   along the left and lower edges of the front plane. When the layers hold
+#'   different nodes, each plane shows its own row names along its left edge
+#'   and the column names below the front plane are those of the front
+#'   (last) layer.
 #' @param node_label_size Size of the row and column names. Default 3.
 #' @param label_size Size of layer labels. Default 5.
 #' @param show_legend Show color legend? Default TRUE.
@@ -38,19 +42,16 @@
 #' @param limits Color scale limits c(min, max). NULL for auto.
 #' @param na_color Color for NA values. Default "grey90".
 #' @param threshold Minimum absolute value to display. Cells with
-#'   \code{abs(value) < threshold} are set to NA (rendered as background).
+#'   \code{abs(value) < threshold} are set to NA and shown in
+#'   \code{na_color}.
 #'   Default 0.
 #'
 #' @return A ggplot2 object.
 #'
 #' @examples
-#' set.seed(1)
-#' layers <- list(
-#'   L1 = matrix(runif(16), 4, 4),
-#'   L2 = matrix(runif(16), 4, 4),
-#'   L3 = matrix(runif(16), 4, 4))
-#' plot_ml_heatmap(layers)
-#' plot_ml_heatmap(layers, show_connections = TRUE, colors = "plasma")
+#' clusters <- list(Plan = c("Explore", "Plan", "Monitor", "Adapt", "Reflect"),
+#'                  Act = c("Discuss", "Synthesize", "Evaluate", "Create", "Share"))
+#' plot_ml_heatmap(regulation_net, layer_list = clusters)
 #'
 #' @export
 plot_ml_heatmap <- function(
@@ -199,11 +200,12 @@ plot_ml_heatmap <- function(
         l = max(
           if (show_labels) .ml_label_margin(names(layers), label_size) else 5.5,
           if (show_node_labels)
-            .ml_label_margin(rownames(layers[[1]]), node_label_size) else 5.5
+            .ml_label_margin(unlist(lapply(layers, rownames)),
+                             node_label_size) else 5.5
         ),
         # Column names run below the front plane and need room of their own.
         b = if (show_node_labels)
-          .ml_label_margin(colnames(layers[[1]]), node_label_size) else 5.5,
+          .ml_label_margin(colnames(layers[[n_layers]]), node_label_size) else 5.5,
         unit = "pt"
       )
     )
@@ -355,13 +357,16 @@ plot_ml_heatmap <- function(
 }
 
 
-#' Row and column names for the front plane
+#' Row and column names of the planes
 #'
-#' Every plane in the stack shares one node ordering, so drawing the names on
-#' each would only repeat them and crowd the picture. They go once against the
-#' front plane, which is the last layer: `.transform_to_plane()` gives that
-#' layer a zero offset, so it sits at the bottom of the stack and nothing
-#' overlaps its lower or left edge.
+#' When every layer has the same row and column names, the names are drawn
+#' once against the front plane, which is the last layer:
+#' `.transform_to_plane()` gives that layer a zero offset, so it sits at the
+#' bottom of the stack and nothing overlaps its lower or left edge.
+#'
+#' When the layers hold different nodes (for example the submatrices of a
+#' `layer_list`), each plane gets its own row names along its left edge, and
+#' the column names below the front plane are those of the front layer.
 #'
 #' Row names sit left of column one at the row's mid-height; column names sit
 #' below row one at the column's mid-width, rotated so that long names do not
@@ -378,20 +383,35 @@ plot_ml_heatmap <- function(
                                   layer_spacing) {
   n_layers <- length(layers)
   front <- n_layers
-  row_names <- rownames(layers[[1]]) %||% as.character(seq_len(n_rows))
-  col_names <- colnames(layers[[1]]) %||% as.character(seq_len(n_cols))
+  row_names <- lapply(layers, \(m) rownames(m) %||% as.character(seq_len(nrow(m))))
+  col_names <- colnames(layers[[front]]) %||%
+    as.character(seq_len(ncol(layers[[front]])))
+  shared <- .ml_layers_share_names(layers)
+  row_planes <- if (shared) front else seq_len(n_layers)
 
-  rows <- .transform_to_plane(-0.25, seq_len(n_rows) - 0.5, front, n_layers,
-                              skew, compress, layer_spacing)
-  cols <- .transform_to_plane(seq_len(n_cols) - 0.5, -0.25, front, n_layers,
-                              skew, compress, layer_spacing)
+  row_df <- do.call(rbind, lapply(row_planes, \(li) {
+    rows <- .transform_to_plane(-0.25, seq_along(row_names[[li]]) - 0.5, li,
+                                n_layers, skew, compress, layer_spacing)
+    data.frame(x = rows$x, y = rows$y, label = row_names[[li]],
+               hjust = 1, vjust = 0.5, angle = 0)
+  }))
+  cols <- .transform_to_plane(seq_along(col_names) - 0.5, -0.25, front,
+                              n_layers, skew, compress, layer_spacing)
 
   rbind(
-    data.frame(x = rows$x, y = rows$y, label = row_names,
-               hjust = 1, vjust = 0.5, angle = 0),
+    row_df,
     data.frame(x = cols$x, y = cols$y, label = col_names,
                hjust = 1, vjust = 0.5, angle = 45)
   )
+}
+
+#' Do all layers have the same row and column names?
+#' @keywords internal
+#' @noRd
+.ml_layers_share_names <- function(layers) {
+  first <- layers[[1]]
+  all(vapply(layers, \(m) identical(rownames(m), rownames(first)) &&
+               identical(colnames(m), colnames(first)), logical(1)))
 }
 
 #' Left margin needed to keep layer labels legible

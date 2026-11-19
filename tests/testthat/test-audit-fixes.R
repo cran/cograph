@@ -148,6 +148,7 @@ test_that("is_directed works on S3 cograph_network", {
 
 
 test_that("is_directed agrees across R6, S3, and igraph for the same matrix", {
+  skip_if_not_installed("igraph")
   # Directed
   mat_dir <- matrix(c(0, 1, 0, 0), 2, 2)
   rownames(mat_dir) <- colnames(mat_dir) <- c("A", "B")
@@ -198,6 +199,7 @@ test_that("aggregate_duplicate_edges default (directed=FALSE) preserves old beha
 # ---------------------------------------------------------------------------
 
 test_that("detect_communities fast_greedy handles collapsed directed weights", {
+  skip_if_not_installed("igraph")
   mat <- matrix(c(
     0, 1, 2, 0,
     3, 0, 4, 0,

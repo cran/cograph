@@ -10,12 +10,7 @@ A \code{CographTheme} R6 object.
 Class for managing visual themes for network plots.
 }
 \examples{
-# Create a custom theme
-theme <- CographTheme$new(
-  background = "white",
-  node_fill = "steelblue",
-  edge_color = "gray60"
-)
+CographTheme$new(background = "white", node_fill = "steelblue")
 }
 \section{Active bindings}{
 \if{html}{\out{<div class="r6-active-bindings">}}
@@ -115,7 +110,7 @@ Get a theme parameter.
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-Parameter value.
+Parameter value, or \code{NULL} if the parameter is not set.
 }
 }
 \if{html}{\out{<hr>}}
@@ -157,7 +152,10 @@ List of parameters.
 \if{html}{\out{<a id="method-CographTheme-merge"></a>}}
 \if{latex}{\out{\hypertarget{method-CographTheme-merge}{}}}
 \subsection{Method \code{merge()}}{
-Merge with another theme.
+Merge with another theme. Parameters in \code{other}
+replace the matching parameters of this theme; parameters present in
+only one of the two, including ones added with \code{$set()}, are
+kept.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CographTheme$merge(other)}\if{html}{\out{</div>}}
 }
@@ -170,14 +168,15 @@ Merge with another theme.
 \if{html}{\out{</div>}}
 }
 \subsection{Returns}{
-A new merged CographTheme.
+A new CographTheme named \code{"merged"}.
 }
 }
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-CographTheme-clone_theme"></a>}}
 \if{latex}{\out{\hypertarget{method-CographTheme-clone_theme}{}}}
 \subsection{Method \code{clone_theme()}}{
-Clone the theme.
+Clone the theme. Parameters added with \code{$set()} are
+copied as well.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{CographTheme$clone_theme()}\if{html}{\out{</div>}}
 }

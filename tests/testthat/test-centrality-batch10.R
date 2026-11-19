@@ -226,5 +226,3 @@ test_that("mode-aware columns carry the suffix and no-mode ones do not", {
 # Three functions the cross-coverage document listed as missing are measures
 # cograph already computed under another name. These pin that claim.
 # ===========================================================================
-
-

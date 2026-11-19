@@ -2,40 +2,79 @@
 % Please edit documentation in R/centrality.R
 \name{centrality_transitivity}
 \alias{centrality_transitivity}
-\title{Local Transitivity (Clustering Coefficient)}
+\title{Local Transitivity}
 \usage{
 centrality_transitivity(x, transitivity_type = "local", isolates = "nan", ...)
 }
 \arguments{
-\item{x}{Network input (matrix, igraph, network, cograph_network, tna object).}
+\item{x}{Network input accepted by \code{\link{centrality}}.}
 
-\item{transitivity_type}{Type of transitivity: \code{"local"} (default),
-\code{"global"}, \code{"undirected"}, \code{"localundirected"},
-\code{"barrat"} (weighted), \code{"weighted"}, or \code{"onnela"}.
-\code{"onnela"} computes the Onnela / Holme weighted clustering
-coefficient on the symmetrized matrix and matches
-\code{tna::centralities(., "Clustering")} byte-for-byte. Auto-set
-to \code{"onnela"} when \code{tna_network = TRUE} (passed via
-\code{...}) and the user did not pass an explicit value.}
+\item{transitivity_type}{One of \code{"local"} (default), \code{"global"},
+\code{"undirected"}, \code{"localundirected"}, \code{"barrat"},
+\code{"weighted"} or \code{"onnela"}.}
 
-\item{isolates}{How to handle isolate nodes: \code{"nan"} (default) or
-\code{"zero"}.}
+\item{isolates}{Value for nodes with fewer than two ties: \code{"nan"}
+(default) or \code{"zero"}.}
 
-\item{...}{Additional arguments passed to \code{\link{centrality}} (e.g.,
-\code{weighted}, \code{directed}).}
+\item{...}{Further arguments to \code{\link{centrality}}. The measure uses
+\code{tna_network} (default \code{NULL}, which detects tna input).}
 }
 \value{
-Named numeric vector of transitivity values.
+A named numeric vector with one score per node, in input node
+order.
 }
 \description{
-Proportion of triangles around each node relative to the number of
-possible triangles. Measures how tightly clustered a node's neighborhood is.
+Local transitivity, the clustering coefficient of Watts and Strogatz
+(1998), is the share of pairs of a node's neighbors that are themselves
+linked:
+\deqn{C_i = \frac{2 T_i}{k_i (k_i - 1)},}{C_i = 2 T_i / (k_i (k_i - 1)),}
+where \eqn{T_i} is the number of triangles through node \eqn{i} and
+\eqn{k_i} its degree.
+}
+\details{
+Triangles and degrees are counted on the undirected skeleton, so a
+reciprocated tie counts once, and edge weights are ignored. The values
+equal \code{igraph::transitivity(type = "local")} on directed and
+undirected networks. \code{"localundirected"} gives the same values as
+\code{"local"}, as in igraph. \code{"global"} and \code{"undirected"}
+return the network-level ratio of closed to connected triples for every
+node. \code{"barrat"} and \code{"weighted"} compute the weighted
+coefficient of Barrat et al. (2004) and raise a
+\code{cograph_directed_unsupported} error on directed input.
+\code{"onnela"} computes the weighted clustering coefficient of Zhang and
+Horvath (2005),
+\eqn{(M^3)_{ii} / (s_i^2 - \sum_j M_{ij}^2)}{(M^3)_ii / (s_i^2 - sum_j M_ij^2)}
+on \eqn{M = W + W^{T}}{M = W + t(W)} with strengths \eqn{s_i}. This is the
+value \code{tna::centralities()} reports as Clustering, and it is the
+default for tna input. The option keeps the name \code{"onnela"} used by
+tna, but the formula multiplies the raw weights of a triangle and differs
+from the geometric-mean form of Onnela et al. (2005). Under the local and
+Barrat types a node with fewer than two neighbors is \code{NaN}, or 0
+with \code{isolates = "zero"}.
 }
 \examples{
-adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
-rownames(adj) <- colnames(adj) <- c("A", "B", "C")
-centrality_transitivity(adj)
+centrality_transitivity(regulation_net)
+}
+\references{
+Watts, D. J., & Strogatz, S. H. (1998). Collective dynamics of
+'small-world' networks. Nature, 393(6684), 440-442.
+\doi{10.1038/30918}.
+
+Barrat, A., Barthelemy, M., Pastor-Satorras, R., & Vespignani, A. (2004).
+The architecture of complex weighted networks. Proceedings of the
+National Academy of Sciences, 101(11), 3747-3752.
+\doi{10.1073/pnas.0400087101}.
+
+Zhang, B., & Horvath, S. (2005). A general framework for weighted gene
+co-expression network analysis. Statistical Applications in Genetics and
+Molecular Biology, 4(1), Article 17. \doi{10.2202/1544-6115.1128}.
+
+Onnela, J.-P., Saramaki, J., Kertesz, J., & Kaski, K. (2005). Intensity
+and coherence of motifs in weighted complex networks. Physical Review E,
+71(6), 065103. \doi{10.1103/PhysRevE.71.065103}.
 }
 \seealso{
-\code{\link{centrality}} for computing multiple measures at once.
+\code{\link{centrality_clusterrank}},
+\code{\link{centrality_topological_coefficient}},
+\code{\link{centrality}}.
 }

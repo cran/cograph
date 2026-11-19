@@ -7,23 +7,25 @@
 #' \itemize{
 #'   \item \code{matrix} and \code{tna}: edges are stored as an n x n weight
 #'     matrix. Each cell (i, j) is unique by construction, so duplicate-edge
-#'     merging is a no-op regardless of \code{remove_multiple} /
-#'     \code{edge_attr_comb}; only self-loops (the diagonal) can be removed.
-#'     Convert to \code{cograph_network} or \code{igraph} first if you need
-#'     true duplicate aggregation.
-#'   \item \code{cograph_network}: duplicate edges in the edge-list are
-#'     merged via \code{aggregate_duplicate_edges()} using
-#'     \code{edge_attr_comb}.
-#'   \item \code{igraph}: delegates to \code{igraph::simplify()}.
+#'     merging has no effect and \code{remove_multiple} and
+#'     \code{edge_attr_comb} are ignored. Only self-loops (the diagonal) are
+#'     removed. Duplicate aggregation requires a \code{cograph_network} or
+#'     \code{igraph} input.
+#'   \item \code{cograph_network}: duplicate edges in the edge list are
+#'     merged, and their weights are combined with \code{edge_attr_comb}.
+#'   \item \code{igraph}: delegates to \code{igraph::simplify()}. The
+#'     \code{weight} attribute is combined with \code{edge_attr_comb} and
+#'     other edge attributes are dropped.
 #' }
 #'
 #' @param x Network input (matrix, cograph_network, igraph, tna object).
 #' @param remove_loops Logical. Remove self-loops (diagonal entries)?
-#' @param remove_multiple Logical. Merge duplicate edges?
-#'   No-op for matrix/tna inputs (see Details).
+#'   Default \code{TRUE}.
+#' @param remove_multiple Logical. Merge duplicate edges? Default
+#'   \code{TRUE}. Ignored for matrix and tna inputs (see Details).
 #' @param edge_attr_comb How to combine weights of duplicate edges:
-#'   \code{"sum"}, \code{"mean"}, \code{"max"}, \code{"min"},
-#'   \code{"first"}, or a custom function. Ignored for matrix/tna inputs.
+#'   \code{"sum"}, \code{"mean"} (default), \code{"max"}, \code{"min"},
+#'   \code{"first"}, or a custom function. Ignored for matrix and tna inputs.
 #' @param ... Additional arguments (currently unused).
 #'
 #' @return The simplified network, in the same format and class as the input
@@ -36,16 +38,7 @@
 #' @export
 #' @examples
 #' # igraph also exports simplify(); qualify the call when both are loaded.
-#' # Matrix with self-loops
-#' mat <- matrix(c(0.5, 0.3, 0, 0.3, 0.2, 0.4, 0, 0.4, 0.1), 3, 3)
-#' rownames(mat) <- colnames(mat) <- c("A", "B", "C")
-#' cograph::simplify(mat)
-#'
-#' # Edge list with duplicates
-#' edges <- data.frame(from = c(1, 1, 2), to = c(2, 2, 3), weight = c(0.3, 0.7, 0.5))
-#' net <- cograph(edges, layout = NULL)
-#' cograph::simplify(net)
-#' cograph::simplify(net, edge_attr_comb = "sum")
+#' cograph::simplify(cograph(student_interactions), edge_attr_comb = "sum")
 simplify <- function(x, remove_loops, remove_multiple, edge_attr_comb, ...) {
   UseMethod("simplify")
 }
@@ -72,11 +65,18 @@ simplify.cograph_network <- function(x, remove_loops = TRUE,
     if (remove_loops) {
       edges <- edges[edges$from != edges$to, , drop = FALSE]
     }
+    n_before <- nrow(edges)
     if (remove_multiple) {
       edges <- aggregate_duplicate_edges(edges, method = edge_attr_comb,
                                          directed = directed)
     }
     x$edges <- edges
+    # Merged duplicates change the weights, so the stored matrix must be
+    # rebuilt from the merged edge table or it keeps the pre-merge values.
+    if (is.matrix(x$weights) && nrow(edges) < n_before) {
+      x$weights <- .network_weight_matrix(as.character(get_nodes(x)$label),
+                                          edges, directed)
+    }
   }
 
   if (!is.null(x$weights) && is.matrix(x$weights) && remove_loops) {
@@ -114,6 +114,12 @@ simplify.tna <- function(x, remove_loops = TRUE, remove_multiple = TRUE,
 #' @export
 simplify.default <- function(x, remove_loops = TRUE, remove_multiple = TRUE,
                              edge_attr_comb = "mean", ...) {
+  # An edge-list data frame is read as a network
+  if (is.data.frame(x)) {
+    return(simplify(as_cograph(x), remove_loops = remove_loops,
+                    remove_multiple = remove_multiple,
+                    edge_attr_comb = edge_attr_comb, ...))
+  }
   stop("Cannot simplify object of class ", paste(class(x), collapse = "/"),
        call. = FALSE)
 }

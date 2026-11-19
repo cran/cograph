@@ -51,22 +51,7 @@
 #' @seealso \code{\link{is_bipartite}}, \code{\link{plot_heatmap}}
 #' @export
 #' @examples
-#' # Incidence matrix: 4 students x 3 courses
-#' inc <- matrix(c(1, 1, 0,
-#'                 1, 0, 1,
-#'                 0, 1, 1,
-#'                 1, 1, 1), 4, 3, byrow = TRUE)
-#' rownames(inc) <- paste0("S", 1:4)
-#' colnames(inc) <- paste0("C", 1:3)
-#'
-#' # Student co-enrollment (weighted)
-#' cograph::project_bipartite(inc, mode = "rows", method = "sum")
-#'
-#' # Course overlap (Jaccard similarity)
-#' cograph::project_bipartite(inc, mode = "columns", method = "jaccard")
-#'
-#' # Newman's weighted projection
-#' cograph::project_bipartite(inc, mode = "rows", method = "newman")
+#' cograph::project_bipartite(regulation_net, mode = "rows", method = "jaccard")
 project_bipartite <- function(x,
                               mode = "rows",
                               method = "sum",
@@ -233,24 +218,14 @@ project_bipartite <- function(x,
 #' For square matrices, the function checks whether the corresponding
 #' undirected graph is bipartite by attempting a two-coloring via
 #' \code{igraph::bipartite_mapping()} when igraph is available. Without igraph,
-#' it uses a BFS-based two-coloring algorithm.
+#' it uses a breadth-first two-coloring. Positive entries define the edges,
+#' edge direction is ignored, and the diagonal (self-loops) is dropped before
+#' the check.
 #'
 #' @export
 #' @examples
-#' # Non-square matrix is bipartite
 #' inc <- matrix(c(1, 0, 1, 1, 1, 0), 2, 3)
 #' cograph::is_bipartite(inc)
-#'
-#' # Square bipartite-compatible adjacency
-#' adj <- matrix(c(0, 0, 1, 1,
-#'                 0, 0, 1, 0,
-#'                 1, 1, 0, 0,
-#'                 1, 0, 0, 0), 4, 4, byrow = TRUE)
-#' cograph::is_bipartite(adj)
-#'
-#' # Non-bipartite (triangle)
-#' tri <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
-#' cograph::is_bipartite(tri)
 is_bipartite <- function(x) {
   stopifnot(is.matrix(x), is.numeric(x))
 
@@ -262,7 +237,9 @@ is_bipartite <- function(x) {
     # Symmetrize for undirected check
     adj <- (x > 0 | t(x) > 0) * 1
     diag(adj) <- 0
-    g <- igraph::graph_from_adjacency_matrix(adj, mode = "undirected")
+    # Names are dropped: igraph's bipartite_mapping() fails on a named
+    # graph that is not bipartite (it names an empty type vector).
+    g <- igraph::graph_from_adjacency_matrix(unname(adj), mode = "undirected")
     bm <- igraph::bipartite_mapping(g)
     return(bm$res)
   }

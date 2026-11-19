@@ -6,12 +6,7 @@
 #' @return A \code{CographTheme} R6 object.
 #' @export
 #' @examples
-#' # Create a custom theme
-#' theme <- CographTheme$new(
-#'   background = "white",
-#'   node_fill = "steelblue",
-#'   edge_color = "gray60"
-#' )
+#' CographTheme$new(background = "white", node_fill = "steelblue")
 CographTheme <- R6::R6Class(
   "CographTheme",
   public = list(
@@ -68,7 +63,7 @@ CographTheme <- R6::R6Class(
 
     #' @description Get a theme parameter.
     #' @param name Parameter name.
-    #' @return Parameter value.
+    #' @return Parameter value, or \code{NULL} if the parameter is not set.
     get = function(name) {
       private$.params[[name]]
     },
@@ -88,9 +83,12 @@ CographTheme <- R6::R6Class(
       private$.params
     },
 
-    #' @description Merge with another theme.
+    #' @description Merge with another theme. Parameters in \code{other}
+    #'   replace the matching parameters of this theme; parameters present in
+    #'   only one of the two, including ones added with \code{$set()}, are
+    #'   kept.
     #' @param other Another CographTheme or list of parameters.
-    #' @return A new merged CographTheme.
+    #' @return A new CographTheme named \code{"merged"}.
     merge = function(other) {
       if (inherits(other, "CographTheme")) {
         other_params <- other$get_all()
@@ -100,13 +98,14 @@ CographTheme <- R6::R6Class(
 
       new_params <- utils::modifyList(private$.params, other_params)
 
-      do.call(CographTheme$new, c(list(name = "merged"), new_params))
+      .theme_from_params("merged", new_params)
     },
 
-    #' @description Clone the theme.
+    #' @description Clone the theme. Parameters added with \code{$set()} are
+    #'   copied as well.
     #' @return A new CographTheme.
     clone_theme = function() {
-      do.call(CographTheme$new, c(list(name = private$.name), private$.params))
+      .theme_from_params(private$.name, private$.params)
     },
 
     #' @description Print theme summary.
@@ -135,6 +134,18 @@ CographTheme <- R6::R6Class(
     .params = NULL
   )
 )
+
+# Build a CographTheme from a full parameter list. The constructor takes only
+# the standard parameters, so the theme is created from those and any other
+# parameter (for example one added with $set()) is set afterwards.
+.theme_from_params <- function(name, params) {
+  standard <- setdiff(names(formals(CographTheme$new)), "name")
+  theme <- do.call(CographTheme$new,
+                   c(list(name = name), params[intersect(names(params), standard)]))
+  extra <- setdiff(names(params), standard)
+  lapply(extra, \(nm) theme$set(nm, params[[nm]]))
+  theme
+}
 
 #' @title Check if object is a CographTheme
 #' @param x Object to check.

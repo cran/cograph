@@ -2,6 +2,7 @@
 #' @description Verbs that add, remove, mutate or combine nodes and edges.
 #' @name wrangle-edit
 #' @keywords internal
+#' @noRd
 NULL
 
 # =============================================================================
@@ -9,6 +10,9 @@ NULL
 # =============================================================================
 
 #' Add Nodes to a Network
+#'
+#' Appends new nodes, identified by label, to a network. A label that already
+#' exists raises a \code{cograph_bad_selection} error.
 #'
 #' @param x Network input.
 #' @param labels Character vector of labels for the new nodes.
@@ -26,18 +30,14 @@ NULL
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, 1, 1, 0), 2, 2)
-#' rownames(adj) <- colnames(adj) <- c("A", "B")
-#'
-#' add_nodes(adj, labels = c("C", "D"))
-#' add_nodes(adj, labels = "C", group = "new")
+#' add_nodes(regulation_net, labels = "Revise")
 add_nodes <- function(x, labels, ..., keep_format = FALSE, directed = NULL) {
   if (!is.character(labels) || length(labels) == 0L) {
     .stop_bad_selection("`labels` must be a non-empty character vector.")
   }
 
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   nodes <- get_nodes(net)
 
   clash <- intersect(labels, nodes$label)
@@ -97,6 +97,9 @@ add_nodes <- function(x, labels, ..., keep_format = FALSE, directed = NULL) {
 
 #' Remove Nodes from a Network
 #'
+#' Deletes nodes and every edge incident to them. A node that is not in the
+#' network raises a \code{cograph_bad_selection} error.
+#'
 #' @param x Network input.
 #' @param nodes Node labels or indices to remove.
 #' @param keep_format Logical. Return the input format when TRUE.
@@ -110,13 +113,10 @@ add_nodes <- function(x, labels, ..., keep_format = FALSE, directed = NULL) {
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
-#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
-#'
-#' remove_nodes(adj, nodes = "B")
+#' remove_nodes(regulation_net, nodes = "Share")
 remove_nodes <- function(x, nodes, keep_format = FALSE, directed = NULL) {
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   node_df <- get_nodes(net)
   drop <- .resolve_node_selection(node_df, nodes, "nodes")
   keep <- setdiff(seq_len(nrow(node_df)), drop)
@@ -136,6 +136,9 @@ remove_nodes <- function(x, nodes, keep_format = FALSE, directed = NULL) {
 # =============================================================================
 
 #' Add Edges to a Network
+#'
+#' Appends edges between existing nodes. An endpoint that is not a node of the
+#' network raises a \code{cograph_bad_selection} error.
 #'
 #' @param x Network input.
 #' @param from Source nodes, by label or index.
@@ -160,10 +163,7 @@ remove_nodes <- function(x, nodes, keep_format = FALSE, directed = NULL) {
 #'
 #' @export
 #' @examples
-#' adj <- matrix(0, 3, 3, dimnames = list(LETTERS[1:3], LETTERS[1:3]))
-#' adj["A", "B"] <- adj["B", "A"] <- 1
-#'
-#' add_edges(adj, from = "B", to = "C", weight = 0.5)
+#' add_edges(regulation_net, from = "Share", to = "Explore", weight = 0.5)
 add_edges <- function(x, from, to, weight = 1, ..., keep_format = FALSE,
                       directed = NULL) {
   if (length(from) != length(to)) {
@@ -175,7 +175,7 @@ add_edges <- function(x, from, to, weight = 1, ..., keep_format = FALSE,
   }
 
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   node_df <- get_nodes(net)
 
   from_idx <- .resolve_node_selection_ordered(node_df, from, "from")
@@ -240,6 +240,9 @@ add_edges <- function(x, from, to, weight = 1, ..., keep_format = FALSE,
 
 #' Remove Edges from a Network
 #'
+#' Deletes the edges between given pairs of nodes. In an undirected network
+#' the order of the two endpoints does not matter.
+#'
 #' @param x Network input.
 #' @param from Source nodes, by label or index.
 #' @param to Target nodes, by label or index. The same length as \code{from}.
@@ -257,10 +260,7 @@ add_edges <- function(x, from, to, weight = 1, ..., keep_format = FALSE,
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
-#' rownames(adj) <- colnames(adj) <- c("A", "B", "C")
-#'
-#' remove_edges(adj, from = "A", to = "B")
+#' remove_edges(regulation_net, from = "Plan", to = "Monitor")
 remove_edges <- function(x, from, to, keep_isolates = TRUE,
                          keep_format = FALSE, directed = NULL) {
   if (length(from) != length(to)) {
@@ -269,7 +269,7 @@ remove_edges <- function(x, from, to, keep_isolates = TRUE,
   }
 
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   node_df <- get_nodes(net)
   edges <- get_edges(net)
 
@@ -326,17 +326,10 @@ remove_edges <- function(x, from, to, keep_isolates = TRUE,
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, 1, 1, 1,
-#'                 1, 0, 1, 0,
-#'                 1, 1, 0, 0,
-#'                 1, 0, 0, 0), 4, 4, byrow = TRUE)
-#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
-#'
-#' as.data.frame(mutate_nodes(adj, deg = degree, hub = degree >= 3),
-#'               what = "nodes")
+#' as.data.frame(mutate_nodes(regulation_net, deg = degree), what = "nodes")
 mutate_nodes <- function(x, ..., keep_format = FALSE, directed = NULL) {
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   nodes <- get_nodes(net)
 
   dots <- substitute(list(...))[-1]
@@ -360,6 +353,9 @@ mutate_nodes <- function(x, ..., keep_format = FALSE, directed = NULL) {
 
 #' Add or Change Edge Attributes
 #'
+#' Evaluates expressions against the edge table and stores the results as
+#' edge columns.
+#'
 #' @param x Network input.
 #' @param ... Named expressions evaluated against the edge table, with the same
 #'   metrics and predicates \code{\link{select_edges}()} offers, for example
@@ -377,17 +373,11 @@ mutate_nodes <- function(x, ..., keep_format = FALSE, directed = NULL) {
 #'
 #' @export
 #' @examples
-#' adj <- matrix(c(0, .5, .8, 0,
-#'                 .5, 0, .3, .6,
-#'                 .8, .3, 0, .4,
-#'                  0, .6, .4, 0), 4, 4, byrow = TRUE)
-#' rownames(adj) <- colnames(adj) <- c("A", "B", "C", "D")
-#'
-#' as.data.frame(mutate_edges(adj, strong = weight > 0.5))
+#' as.data.frame(mutate_edges(regulation_net, strong = weight > 0.2))
 mutate_edges <- function(x, ..., community = "louvain", keep_format = FALSE,
                          directed = NULL) {
   input_class <- .detect_input_class(x)
-  net <- as_cograph(x, directed = directed)
+  net <- .as_weighted_cograph(x, directed = directed)
   edges <- get_edges(net)
   nodes <- get_nodes(net)
 
@@ -493,13 +483,7 @@ mutate_edges <- function(x, ..., community = "louvain", keep_format = FALSE,
 #'
 #' @export
 #' @examples
-#' a <- matrix(0, 3, 3, dimnames = list(c("A", "B", "C"), c("A", "B", "C")))
-#' a["A", "B"] <- a["B", "A"] <- 1
-#' b <- matrix(0, 3, 3, dimnames = list(c("B", "C", "D"), c("B", "C", "D")))
-#' b["B", "C"] <- b["C", "B"] <- 2
-#'
-#' bind_networks(a, b)
-#' bind_networks(a, b, method = "difference")
+#' bind_networks(regulation_net, t(regulation_net))
 bind_networks <- function(x, y, method = c("union", "intersection", "difference"),
                           weight = c("sum", "mean", "max", "min", "first"),
                           keep_format = FALSE, directed = NULL) {
@@ -507,8 +491,8 @@ bind_networks <- function(x, y, method = c("union", "intersection", "difference"
   weight <- match.arg(weight)
 
   input_class <- .detect_input_class(x)
-  net_x <- as_cograph(x, directed = directed)
-  net_y <- as_cograph(y, directed = directed)
+  net_x <- .as_weighted_cograph(x, directed = directed)
+  net_y <- .as_weighted_cograph(y, directed = directed)
 
   labels_x <- get_labels(net_x)
   labels_y <- get_labels(net_y)

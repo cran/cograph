@@ -1,3 +1,75 @@
+# cograph 2.7.17
+
+## Changes to results
+
+* `triad_census()` returns a data frame (`type`, `count`) instead of a named
+  vector. `triad_census()` and `motif_census()` count only positive weights
+  as ties, and `motif_census(size = 4)` gives `NA` for the classes igraph
+  does not count.
+* `subgraphs()` and `motifs(named_nodes = TRUE)` match exact labelled
+  patterns by default (`strict = TRUE`); `strict = FALSE` gives one row per
+  triple and type, as before. Instance mode defaults to `min_transitions = 3`
+  and `min_count = 2`; census mode keeps `min_transitions = 5`.
+* `extract_motifs()` now wraps `subgraphs(strict = FALSE)`, so the two agree:
+  `sig` is logical, `expected` and `z` are not rounded, and rows are sorted
+  by decreasing |z|.
+* `pattern = "closed"` selects the seven closed triad types.
+* Motif plots use corrected triad names (111D and 111U were swapped; 201,
+  120D, 120U, 120C and 210 are renamed). Counts were already correct.
+* `weighted = FALSE` is honoured by every centrality measure.
+* `centrality_alpha()` and `centrality_power()` honour `mode`; the default
+  `mode = "all"` symmetrizes directed input.
+* Harmonic centrality with `normalized = TRUE` is divided by n - 1 only.
+* Diffusion with `diffusion_method = "power_series"` (the default for tna
+  models) is scaled to 0-1, as in tna 1.5.8.
+* `network_summary()` reports transitivity with the same formula as
+  `centrality()`.
+* Corrected on directed networks: communicability, local transitivity, DMNC,
+  gateway centrality and `estrada_index()`. Delta betweenness no longer
+  depends on the scale of the weights.
+
+## New features
+
+* `centrality()` and `network_summary()` accept group network objects
+  (Nestimate groups, including `net_mlvar`, and tna group models) and return
+  one data frame with a `group` column. `shared_nodes` chooses each group's
+  own nodes (default) or the common node set.
+* `splot(isolates = FALSE)` hides nodes without ties.
+* `i` selects one group of a Nestimate group object in `splot()` and `plot()`.
+* `motifs()` and `subgraphs()` gain `p_adjust`, `family` and
+  `count_repeats`. `plot()` and `as.data.frame()` on motif results gain
+  `significant`.
+* `get_nodes()`, `get_edges()`, `n_nodes()`, `n_edges()` and `is_directed()`
+  accept every network input. `motif_census()`, `triad_census()`,
+  `disparity_filter()`, `simplify()`, `plot_heatmap()` and `plot_chord()`
+  accept edge-list data frames.
+
+## Bug fixes
+
+* tna models built from sequences keep their weights in `to_matrix()`,
+  `to_df()` and the wrangling verbs such as `threshold_edges()`.
+* `centrality(type = "all")` gives `NA` with a warning for a measure that is
+  undefined on the network, instead of stopping, including on signed weights.
+* Undirected tna models keep their self-loops in `to_matrix()`, `to_df()` and
+  the wrangling verbs.
+* `network_summary(weighted = FALSE)` counts an edge of weight 0 as a tie in
+  transitivity.
+* `splot(isolates = FALSE)` also hides isolates of an edge-list data frame.
+* `triad_census()` and `motif_census()` of an edge list no longer depend on
+  the order of duplicate rows.
+* `plot_simplicial()` keeps multi-word state names whole.
+* Motif plot colours and stars follow the adjusted p-value.
+* `cluster_significance()` compares against null graphs with the observed
+  weights.
+* Fixes in `plot_trajectories()`, `plot_network_evolution()`,
+  `plot_heatmap()` and `plot_ml_heatmap()`.
+* Examples and tests that need igraph check that it is installed.
+
+## Documentation
+
+* Help pages were checked against the code and corrected. Print, summary and
+  plot methods are documented with the function that creates the object.
+
 # cograph 2.7.2
 
 ## Bug fixes

@@ -7,21 +7,36 @@
 centrality_random_walk(x, ...)
 }
 \arguments{
-\item{x}{Network input (matrix, igraph, network, cograph_network, tna object).}
+\item{x}{Network input accepted by \code{\link{centrality}}.}
 
-\item{...}{Additional arguments passed to \code{\link{centrality}}.}
+\item{...}{Further arguments to \code{\link{centrality}}.}
 }
 \value{
-Named numeric vector of random walk centrality values.
+A named numeric vector with one score per node, in input node
+order.
 }
 \description{
-Inverse sum of random walk distances. Requires a connected graph.
+Random walk centrality is the inverse of the summed random-walk distances
+from a node to the others:
+\deqn{RW(i) = \left(\sum_{j} \frac{m_{ij} + m_{ji}}{2}\right)^{-1},}{
+  RW(i) = 1 / sum_j (m_ij + m_ji) / 2,}
+where \eqn{m_{ij}}{m_ij} is the mean first passage time from \eqn{i} to
+\eqn{j} of a walk that moves to each out-neighbor with equal probability.
+}
+\details{
+Edge weights are ignored. The measure is defined for connected undirected
+and strongly connected directed networks. On any other network every
+score is \code{NA}, with a \code{cograph_undefined_measure} warning,
+because some passage times are infinite. The passage times are
+symmetrized before
+the sum, so the values differ from
+\code{tidygraph::centrality_random_walk()}, which sums them unsymmetrized.
 }
 \examples{
-adj <- matrix(c(0, 1, 1, 1, 0, 1, 1, 1, 0), 3, 3)
-rownames(adj) <- colnames(adj) <- c("A", "B", "C")
-centrality_random_walk(adj)
+centrality_random_walk(regulation_net)
 }
 \seealso{
-\code{\link{centrality}} for computing multiple measures at once.
+\code{\link{centrality_markov}},
+\code{\link{centrality_current_flow_closeness}},
+\code{\link{centrality}}.
 }

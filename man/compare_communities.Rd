@@ -11,25 +11,41 @@ compare_communities(
 )
 }
 \arguments{
-\item{comm1}{First community structure (communities object or membership vector)}
+\item{comm1, comm2}{Partitions to compare. Each is a
+\code{cograph_communities} data frame, an igraph \code{communities}
+object or a membership vector.}
 
-\item{comm2}{Second community structure (communities object or membership vector)}
-
-\item{method}{Comparison method: "vi" (variation of information),
-"nmi" (normalized mutual information), "split.join",
-"rand" (Rand index), "adjusted.rand"}
+\item{method}{Comparison measure, one of \code{"vi"} (default; variation
+of information), \code{"nmi"} (normalized mutual information),
+\code{"split.join"} (split-join distance), \code{"rand"} (Rand index) or
+\code{"adjusted.rand"} (adjusted Rand index).}
 }
 \value{
-Numeric similarity/distance value
+A single numeric value. \code{"vi"} and \code{"split.join"} are
+distances (0 for identical partitions); \code{"nmi"}, \code{"rand"} and
+\code{"adjusted.rand"} are similarities (1 for identical partitions).
 }
 \description{
-Compares two community structures using various similarity measures.
+Compares two partitions of the same nodes with igraph's partition
+comparison measures.
 }
 \examples{
-if (requireNamespace("igraph", quietly = TRUE)) {
-  g <- igraph::make_graph("Zachary")
-  c1 <- community_louvain(g)
-  c2 <- community_leiden(g)
-  compare_communities(c1, c2, "nmi")
+\dontshow{if (requireNamespace("igraph", quietly = TRUE)) withAutoprint(\{ # examplesIf}
+walktrap <- community_walktrap(regulation_net)
+fast_greedy <- community_fast_greedy(regulation_net)
+compare_communities(walktrap, fast_greedy, method = "nmi")
+\dontshow{\}) # examplesIf}
 }
+\references{
+Meila, M. (2007). Comparing clusterings: An information based distance.
+\emph{Journal of Multivariate Analysis}, 98(5), 873--895.
+\doi{10.1016/j.jmva.2006.11.013}
+
+Danon, L., Diaz-Guilera, A., Duch, J., & Arenas, A. (2005). Comparing
+community structure identification. \emph{Journal of Statistical
+Mechanics: Theory and Experiment}, 2005(09), P09008.
+\doi{10.1088/1742-5468/2005/09/P09008}
+
+Hubert, L., & Arabie, P. (1985). Comparing partitions. \emph{Journal of
+Classification}, 2(1), 193--218. \doi{10.1007/BF01908075}
 }

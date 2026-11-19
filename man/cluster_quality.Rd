@@ -31,22 +31,19 @@ A \code{cluster_quality} object (a list) with:
 \item{global}{List with \code{modularity} (Newman-Girvan, computed on the
 weighted or binarized matrix), \code{coverage} (share of total weight
 that is internal to some cluster) and \code{n_clusters}.}
-
-See \code{\link{cluster_quality}}.
 }
 \description{
 Computes per-cluster and global quality metrics for network partitioning.
 Supports both binary and weighted networks.
 }
 \examples{
-mat <- matrix(runif(100), 10, 10)
-diag(mat) <- 0
-clusters <- c(1,1,1,2,2,2,3,3,3,3)
-
-q <- cluster_quality(mat, clusters)
-q$per_cluster   # Per-cluster metrics
-q$global        # Modularity, coverage
-mat <- matrix(runif(100), 10, 10)
-diag(mat) <- 0
-cqual(mat, c(1,1,1,2,2,2,3,3,3,3))
+clusters <- list(C1 = c("Explore", "Reflect", "Discuss"),
+                 C2 = c("Plan", "Create", "Share"),
+                 C3 = c("Monitor", "Adapt", "Synthesize", "Evaluate"))
+cluster_quality(regulation_net, clusters = clusters)
+}
+\references{
+Newman, M. E. J., & Girvan, M. (2004). Finding and evaluating community
+structure in networks. \emph{Physical Review E}, 69(2), 026113.
+\doi{10.1103/PhysRevE.69.026113}
 }

@@ -1050,7 +1050,7 @@ records <- list(
       "The default method adds the scaled degree of the focal node and its neighbours. On a simple undirected graph:",
       r"(DD(i) = \lambda\left(k_i + \sum_{j\in N(i)} k_j\right))",
       r"(`mode`, `lambda`, `diffusion_method`)",
-      "High values indicate local connectivity through the node and its neighbours. With `diffusion_method = \"power_series\"` (automatic for TNA inputs), the function instead returns row sums of W + W^2 + ... + W^n. That variant fixes the horizon at n and ignores `lambda` and `mode`."),
+      "High values indicate local connectivity through the node and its neighbours. With `diffusion_method = \"power_series\"` (automatic for TNA inputs), the function instead returns row sums of W + W^2 + ... + W^n, min-max scaled to the range from 0 to 1. That variant fixes the horizon at n and ignores `lambda` and `mode`."),
 
   rec("Spectral, walk and influence",
       "Infection Centrality", "infection",
@@ -1447,6 +1447,9 @@ emit_measure <- function(r) {
   cat(r$concept, "\n\n", sep = "")
   if (nzchar(r$math)) cat("$$\n", r$math, "\n$$\n\n", sep = "")
   cat("**Meaning.** ", r$meaning, "\n\n", sep = "")
+  if (nzchar(r$args) && !identical(r$args, "\u2014") && !startsWith(r$args, "via ")) {
+    cat("**Arguments.** ", r$args, "\n\n", sep = "")
+  }
   cat("```r\n", r$example, "\n```\n\n", sep = "")
 }
 
@@ -1470,8 +1473,7 @@ cat("</div>\n\n")
 for (fam in family_order[1:6]) emit_family(fam)
 
 ## ----groups-------------------------------------------------------------------
-comm   <- detect_communities(student_interactions, method = "walktrap")
-groups <- setNames(comm$community, comm$node)
+groups <- membership(communities(student_interactions, method = "walktrap"))
 centrality_participation(student_interactions, membership = groups)
 
 ## ----families_7, results = 'asis', echo = FALSE-------------------------------

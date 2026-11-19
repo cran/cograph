@@ -246,7 +246,14 @@
     if (length(nodes) != 3) nodes <- c("A", "B", "C")
     nodes_short <- vapply(nodes, function(nm) substr(toupper(nm), 1, 3), character(1))
 
-    mat <- triad_patterns[[triad_type]]
+    # Draw the edges the units actually showed when the row carries its modal
+    # labelled pattern; fall back to the canonical class shape otherwise.
+    code <- if ("pattern_code" %in% names(df)) df$pattern_code[i] else NA
+    mat <- if (!is.na(code)) {
+      .motif_code_matrix(code)
+    } else {
+      triad_patterns[[triad_type]]
+    }
     if (is.null(mat)) mat <- matrix(0L, 3, 3)
 
     grid::pushViewport(grid::viewport(layout.pos.row = row, layout.pos.col = col, clip = "on"))
@@ -268,12 +275,22 @@
     } else {
       sprintf("n=%.2f", count)
     }
+    # Say how many units match the drawn arrows when the class pooled others.
+    if (x$level == "individual" && !is.na(code) &&
+        "pattern_n" %in% names(df) && df$pattern_n[i] < count) {
+      count_str <- sprintf("%s (%d as drawn)", count_str, df$pattern_n[i])
+    }
     if (x$params$significance && "z" %in% names(df)) {
-      p_val <- df$p[i]
-      p_str <- if (p_val < 0.001) "p<.001" else sprintf("p=%.2f", p_val)
+      adjust <- x$params$p_adjust %||% "none"
+      p_shown <- if (adjust != "none" && "p_adj" %in% names(df)) {
+        df$p_adj[i]
+      } else {
+        df$p[i]
+      }
       grid::grid.text(title_text, x = 0.5, y = 0.94,
                      gp = grid::gpar(fontsize = title_size, fontface = "bold", col = motif_color))
-      grid::grid.text(sprintf("%s z=%.1f %s", count_str, df$z[i], p_str),
+      grid::grid.text(.motif_stats_caption(count_str, df$z[i], p_shown,
+                                           adjusted = adjust != "none"),
                      x = 0.5, y = 0.08,
                      gp = grid::gpar(fontsize = stats_size, col = "#64748b"))
     } else {
@@ -368,7 +385,7 @@
 #' Plot abstract MAN pattern diagrams
 #' @noRd
 .plot_motif_patterns <- function(x, n = 12, colors = c("#2166AC", "#B2182B"),
-                                 combined = TRUE, ...) {
+                                 ncol = 4L, combined = TRUE, ...) {
   type_counts <- x$type_summary
   type_counts <- type_counts[type_counts > 0]
   type_counts <- sort(type_counts, decreasing = TRUE)
@@ -384,23 +401,21 @@
   # one row per MAN type — i.e. census mode. In instance mode (named_nodes =
   # TRUE) the same type spans many node-triple rows with potentially
   # conflicting z/p; there is no single type-level statistic without an
-  # aggregation rule, so per-panel decoration stays count-only. Treat NULL
-  # named_nodes as "not instance mode" (covers extract_motifs() output,
-  # which is a census-style summary without that slot).
+  # aggregation rule, so per-panel decoration stays count-only. Only a
+  # census-mode motifs() result qualifies: extract_motifs() output is
+  # instance-level even when each type happens to occur in one triple.
   z_lookup <- NULL
   p_lookup <- NULL
-  if (!isTRUE(x$named_nodes) &&
+  if (inherits(x, "cograph_motif_result") &&
+      !isTRUE(x$named_nodes) &&
       isTRUE(x$params$significance) &&
       is.data.frame(x$results) &&
       "z" %in% names(x$results) &&
       "p" %in% names(x$results) &&
       "type" %in% names(x$results) &&
       !anyDuplicated(x$results$type)) {
-    # The duplicate guard matters for legacy extract_motifs() output: it has
-    # no named_nodes slot but one row per node-triple, so a per-type lookup
-    # would silently decorate each panel with whichever triple came first.
     z_lookup <- stats::setNames(x$results$z, x$results$type)
-    p_lookup <- stats::setNames(x$results$p, x$results$type)
+    p_lookup <- stats::setNames(.motif_decision_p(x$results), x$results$type)
   }
 
   motifs_to_plot <- names(type_counts)
@@ -412,7 +427,7 @@
   }
 
   if (combined) {
-    n_cols <- min(4, n_plots)
+    n_cols <- min(ncol, n_plots)
     n_rows <- ceiling(n_plots / n_cols)
 
     old_par <- graphics::par(no.readonly = TRUE)
@@ -525,4 +540,31 @@
   }
 
   invisible(NULL)
+}
+
+
+# 3x3 adjacency of a six-bit triad code read in node1, node2, node3 order
+# (bits: 1->2, 2->1, 1->3, 3->1, 2->3, 3->2).
+#' @noRd
+.motif_code_matrix <- function(code) {
+  b <- as.integer(bitwAnd(code, c(1L, 2L, 4L, 8L, 16L, 32L)) > 0L)
+  mat <- matrix(0L, 3, 3)
+  mat[cbind(c(1L, 2L, 1L, 3L, 2L, 3L), c(2L, 1L, 3L, 1L, 3L, 2L))] <- b
+  mat
+}
+
+
+# Caption under a triad panel. When a multiplicity correction was requested the
+# panel reports the adjusted p-value, since that is what `sig` is based on.
+#' @noRd
+.motif_stats_caption <- function(count_str, z, p, adjusted = FALSE) {
+  p_name <- if (adjusted) "p_adj" else "p"
+  p_str <- if (is.na(p)) {
+    sprintf("%s=NA", p_name)
+  } else if (p < 0.001) {
+    sprintf("%s<.001", p_name)
+  } else {
+    sprintf("%s=%.3f", p_name, p)
+  }
+  sprintf("%s z=%.1f %s", count_str, z, p_str)
 }
